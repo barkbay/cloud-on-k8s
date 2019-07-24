@@ -146,7 +146,7 @@ spec:
   config:
     output:
       elasticsearch:
-        hosts: ["quickstart-es-http.default.svc:9200"]
+        hosts: ["my-own-elasticsearch-cluster:9200"]
         username: elastic
         password: "${ES_PASSWORD}"
         protocol: "https"
