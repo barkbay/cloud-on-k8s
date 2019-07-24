@@ -175,6 +175,8 @@ This behavior and the relevant configuration is identical to what is done for El
 
 === Connecting to the APM server
 
+==== APM Server service
+
 The APM server is exposed with a Service, you can refer to link:k8s-accessing-elastic-services.html[this documentation] to understand how to access it.
 
 You can retrieve the list of all the APM Services with following command:
@@ -188,4 +190,15 @@ kubectl get service --selector='common.k8s.elastic.co/type=apm-server'
 ----
 NAME                             TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
 apm-server-quickstart-apm-http   ClusterIP   10.0.1.252   <none>        8200/TCP   154m
+----
+
+==== APM Server secret token
+
+The operator generates an authorization token that the agents must send to authenticate themselves to the APM server.
+
+This token is stored in a secret and can be retrieved with the following command:
+
+[source,sh]
+----
+kubectl get secret/apm-server-quickstart-apm-token  -o json | jq -r '.data| .["secret-token"]' | base64 -D
 ----
