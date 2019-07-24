@@ -94,7 +94,7 @@ The APM Server keystore can be used to store sensitive settings in the APM serve
 kubectl create secret generic apm-secret-settings --from-literal=ES_PASSWORD=asecretpassword
 ----
 
-. In the specification of the APM server add a reference to the previously created secret within a `spec.secureSettings` section. Then reference the key in the APM server configuration as it is described in the https://www.elastic.co/guide/en/apm/server/current/keystore.html[following configuration].
+. In the specification of the APM server add a reference to the previously created secret within a `spec.secureSettings` section. Then reference the key in the APM server configuration as it is described in the https://www.elastic.co/guide/en/apm/server/current/keystore.html[following documentation].
 +
 [source,yaml]
 ----
