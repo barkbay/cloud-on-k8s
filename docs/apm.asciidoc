@@ -9,7 +9,7 @@ NOTE: The current Docker image of the APM server needs to be run as `root` or wi
 
 When both the APM server and Elasticsearch are managed by ECK it allows a smooth and secured integration between the two. The output configuration of the APM server is setup automatically to establish a trust relationship with Elasticsearch.
 
-. If you want to deploy the APM server and connect it to the cluster `quickstart` created in the quickstart then apply the following specification:
+. If you want to deploy an APM server and connect it to the cluster `quickstart` created in the quickstart then apply the following specification:
 +
 [source,yaml]
 ----
@@ -94,7 +94,7 @@ The APM Server keystore can be used to store sensitive settings in the APM serve
 kubectl create secret generic apm-secret-settings --from-literal=ES_PASSWORD=asecretpassword
 ----
 
-. When a reference to this secret is added to the `secureSettings` element you can reference the key in the APM server configuration:
+. In the specification of the APM server add a reference to the previously created secret within a `spec.secureSettings` section. Then reference the key in the APM server configuration as it is described in the https://www.elastic.co/guide/en/apm/server/current/keystore.html[following configuration].
 +
 [source,yaml]
 ----
@@ -177,7 +177,7 @@ This behavior and the relevant configuration is identical to what is done for El
 
 The APM server is exposed with a Service, you can refer to link:k8s-accessing-elastic-services.html[this documentation] to understand how to access it.
 
-You can retrieve the list of all the APM Services with followinf command:
+You can retrieve the list of all the APM Services with following command:
 
 [source,sh]
 ----
