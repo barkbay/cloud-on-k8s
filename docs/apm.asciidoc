@@ -202,3 +202,5 @@ This token is stored in a secret and can be retrieved with the following command
 ----
 kubectl get secret/apm-server-quickstart-apm-token  -o json | jq -r '.data| .["secret-token"]' | base64 -D
 ----
+
+For any additional information about the APM Server please refer to https://www.elastic.co/guide/en/apm/server/current/index.html[this documenation].
