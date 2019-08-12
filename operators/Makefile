@@ -43,7 +43,6 @@ TAG ?= $(shell git rev-parse --short --verify HEAD)
 
 ifeq ($(OPERATOR_IMAGE),)
 	# we never want this empty
-	undefine OPERATOR_IMAGE
 endif
 OPERATOR_IMAGE ?= $(IMG):$(VERSION)-$(TAG)
 
@@ -357,3 +356,18 @@ check-license-header:
 check-local-changes:
 	@ [[ "$$(git status --porcelain)" == "" ]] \
 		|| ( echo -e "\nError: dirty local changes"; git status --porcelain; exit 1 )
+
+# Kind specific
+kind-e2e: docker-build e2e-docker-build
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
+		--load-stack-images $(STACK_VERSION) \
+		make e2e-run
+
+kind-e2e-local: docker-build
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-images $(OPERATOR_IMAGE) \
+		--load-stack-images $(STACK_VERSION) \
+		make e2e-local
