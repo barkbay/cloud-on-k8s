@@ -13,7 +13,7 @@ set -e
 # Print commands
 set -x
 
-NODE_IMAGE=${NODE_IMAGE:-"kindest/node:v1.13.4"}
+NODE_IMAGE=${NODE_IMAGE:-"kindest/node:v1.15.0"}
 
 scriptpath="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -119,12 +119,6 @@ fi
 
 ## Deploy CRDs
 make install-crds
-
-## Pre-create NS for local e2e tests
-kubectl create ns e2e-mercury
-
-## Deploy operator
-make apply-operators MANAGED_NAMESPACE=e2e-mercury
 
 ## Start end-to-end tests
 if [ ${#PARAMS[@]} -gt 0 ]; then

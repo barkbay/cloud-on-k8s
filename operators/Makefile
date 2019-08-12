@@ -370,4 +370,4 @@ kind-e2e-local: docker-build
 		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE) \
 		--load-stack-images $(STACK_VERSION) \
-		make e2e-local
+		kubectl create ns e2e-mercury && make apply-operators MANAGED_NAMESPACE=e2e-mercury && make e2e-local
