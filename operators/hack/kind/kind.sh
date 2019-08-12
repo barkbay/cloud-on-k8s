@@ -95,7 +95,7 @@ fi
 if [[ -n "${LOAD_IMAGES}" ]]; then
   IMAGES=(${LOAD_IMAGES//,/ })
   for image in "${IMAGES[@]}"; do
-          kind --loglevel debug --name eck-e2e load docker-image "${image}"
+          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker2,eck-e2e-worker3 "${image}"
   done
 fi
 
@@ -105,15 +105,15 @@ if [[ -n "${STACK_IMAGES}" ]]; then
           echo "Pre-loading Elasticsearch docker image"
           image="docker.elastic.co/elasticsearch/elasticsearch:${version}"
           docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image "${image}"
+          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker2,eck-e2e-worker3 "${image}"
           echo "Pre-loading Kibana docker image"
           image="docker.elastic.co/kibana/kibana:${version}"
           docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image "${image}"
+          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker2,eck-e2e-worker3 "${image}"
           echo "Pre-loading APM Server docker image"
           image="docker.elastic.co/apm/apm-server:${version}"
           docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image "${image}"
+          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker2,eck-e2e-worker3 "${image}"
   done
 fi
 
