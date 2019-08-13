@@ -366,8 +366,22 @@ kind-e2e: docker-build e2e-docker-build
 	./hack/kind/kind.sh \
 		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
-		--load-stack-images $(STACK_VERSION) \
 		make e2e-run
+
+## Start a one kind so you can some e2e/integration tests from your IDE
+kind:
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-stack-images $(STACK_VERSION) \
+		make install-crds \&& kubectl create ns e2e-mercury e2e-venus
+
+## Start Kind and deploy the operator
+kind-with-operator: docker-build
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-images $(OPERATOR_IMAGE) \
+		--load-stack-images $(STACK_VERSION) \
+		"kubectl create ns e2e-mercury && make apply-operators MANAGED_NAMESPACE=e2e-mercury"
 
 kind-e2e-local: docker-build
 	./hack/kind/kind.sh \
