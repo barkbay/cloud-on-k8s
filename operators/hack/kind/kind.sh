@@ -11,9 +11,14 @@
 # Exit immediately for non zero status
 set -e
 # Print commands
-set -x
+#set -x
 
-NODE_IMAGE=${NODE_IMAGE:-"kindest/node:v1.13.4"}
+NODE_IMAGE=${NODE_IMAGE:-"barkbay/node:v1.15.2_7.3"}
+KIND_LOG_LEVEL=${KIND_LOG_LEVEL:-warning}
+NODES=3
+MANIFEST=/tmp/cluster.yml
+
+workers=
 
 scriptpath="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -23,6 +28,27 @@ function check_kind() {
     echo "Looks like Kind is not installed."
     exit 1
   fi
+}
+
+function create_manifest() {
+cat <<EOT > ${MANIFEST}
+kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+  - role: control-plane
+EOT
+
+  for i in $(seq 1 $NODES);
+  do
+    echo '  - role: worker' >> ${MANIFEST}
+    if [[ $i -gt 1 ]]; then
+    workers="${workers},eck-e2e-worker${i}"
+    else
+    workers="eck-e2e-worker"
+    fi
+
+  done
+
 }
 
 function cleanup_kind_cluster() {
@@ -36,6 +62,8 @@ function setup_kind_cluster() {
   # Installing Kind
   check_kind
 
+  create_manifest
+
   # Delete any previous e2e KinD cluster
   echo "Deleting previous Kind cluster with name=eck-e2e"
   if ! (kind delete cluster --name=eck-e2e) > /dev/null; then
@@ -45,7 +73,7 @@ function setup_kind_cluster() {
   trap cleanup_kind_cluster EXIT
 
   # Create KinD cluster
-  if ! (kind create cluster --name=eck-e2e --config ${scriptpath}/cluster.yml --loglevel debug --retain --image "${NODE_IMAGE}"); then
+  if ! (kind create cluster --name=eck-e2e --config ${MANIFEST} --loglevel "${KIND_LOG_LEVEL}" --retain --image "${NODE_IMAGE}"); then
     echo "Could not setup Kind environment. Something wrong with Kind setup."
     exit 1
   fi
@@ -72,8 +100,8 @@ while (( "$#" )); do
       LOAD_IMAGES=$2
       shift 2
     ;;
-    --load-stack-images) # try to load images as a best effort
-      STACK_IMAGES=$2
+    --nodes) # how many nodes
+      NODES=$2
       shift 2
     ;;
     -*)
@@ -91,29 +119,10 @@ if [[ -z "${SKIP_SETUP:-}" ]]; then
   time setup_kind_cluster
 fi
 
-# Trading some network I/O for some disk I/O ...
 if [[ -n "${LOAD_IMAGES}" ]]; then
   IMAGES=(${LOAD_IMAGES//,/ })
   for image in "${IMAGES[@]}"; do
-          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker1,eck-e2e-worker2 "${image}"
-  done
-fi
-
-if [[ -n "${STACK_IMAGES}" ]]; then
-  VERSIONS=(${STACK_IMAGES//,/ })
-  for version in "${VERSIONS[@]}"; do
-          echo "Pre-loading Elasticsearch docker image"
-          image="docker.elastic.co/elasticsearch/elasticsearch:${version}"
-          docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker1,eck-e2e-worker2 "${image}"
-          echo "Pre-loading Kibana docker image"
-          image="docker.elastic.co/kibana/kibana:${version}"
-          docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker1,eck-e2e-worker2 "${image}"
-          echo "Pre-loading APM Server docker image"
-          image="docker.elastic.co/apm/apm-server:${version}"
-          docker pull "${image}"
-          kind --loglevel debug --name eck-e2e load docker-image --nodes eck-e2e-worker,eck-e2e-worker1,eck-e2e-worker2 "${image}"
+          kind --loglevel ${KIND_LOG_LEVEL} --name eck-e2e load docker-image --nodes ${workers} "${image}"
   done
 fi
 
