@@ -11,9 +11,8 @@
 # Exit immediately for non zero status
 set -e
 # Print commands
-#set -x
+set -x
 
-NODE_IMAGE=${NODE_IMAGE:-"barkbay/node:v1.15.2_7.3"}
 KIND_LOG_LEVEL=${KIND_LOG_LEVEL:-warning}
 NODES=3
 MANIFEST=/tmp/cluster.yml
@@ -86,6 +85,11 @@ function setup_kind_cluster() {
   kubectl apply -f "${scriptpath}/local-path-storage.yaml"
 }
 
+if [ -z "${NODE_IMAGE}" ]; then
+    echo "NODE_IMAGE is not set"
+    exit 1
+fi
+
 while (( "$#" )); do
   case "$1" in
     --skip-setup)
@@ -122,12 +126,9 @@ fi
 if [[ -n "${LOAD_IMAGES}" ]]; then
   IMAGES=(${LOAD_IMAGES//,/ })
   for image in "${IMAGES[@]}"; do
-          kind --loglevel ${KIND_LOG_LEVEL} --name eck-e2e load docker-image --nodes ${workers} "${image}"
+          kind --loglevel "${KIND_LOG_LEVEL}" --name eck-e2e load docker-image --nodes ${workers} "${image}"
   done
 fi
-
-## Deploy CRDs
-make install-crds
 
 ## Start end-to-end tests
 if [ ${#PARAMS[@]} -gt 0 ]; then
