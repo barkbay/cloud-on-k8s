@@ -386,11 +386,12 @@ kind-with-operator-%: kind-node-variable-check docker-build
 		make apply-operators
 
 kind-e2e: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
+kind-e2e: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e: kind-node-variable-check docker-build e2e-docker-build kind-cluster-3
 	make e2e-run
 
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
-kind-e2e-local: export NODE_IMAGE = ${HOME}
+kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3
 	kubectl create ns e2e-mercury
 	make apply-operators MANAGED_NAMESPACE=e2e-mercury
