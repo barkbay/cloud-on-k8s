@@ -385,7 +385,7 @@ kind-with-operator-%: kind-node-variable-check docker-build
 		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE) \
 		--nodes "${*}" \
-		make apply-operators
+		make install-crds apply-operators
 
 kind-e2e: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e: export NODE_IMAGE = ${KIND_NODE_IMAGE}
@@ -401,6 +401,6 @@ kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3
 	kubectl create ns e2e-mercury
-	make apply-operators MANAGED_NAMESPACE=e2e-mercury
+	make install-crds apply-operators MANAGED_NAMESPACE=e2e-mercury
 	make e2e-local
 
