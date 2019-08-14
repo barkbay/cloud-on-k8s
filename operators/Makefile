@@ -381,13 +381,13 @@ kind-cluster-%: kind-node-variable-check
 kind-with-operator-%: kind-node-variable-check docker-build
 	./hack/kind/kind.sh \
 		--skip-cleanup \
-		--load-images $(OPERATOR_IMAGE) \
+		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
 		--nodes "${*}" \
 		make apply-operators
 
 kind-e2e: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e: export NODE_IMAGE = ${KIND_NODE_IMAGE}
-kind-e2e: kind-node-variable-check docker-build e2e-docker-build kind-cluster-3
+kind-e2e: kind-node-variable-check docker-build e2e-docker-build kind-with-operator-3
 	make e2e-run
 
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
