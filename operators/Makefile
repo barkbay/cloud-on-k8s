@@ -362,6 +362,22 @@ check-local-changes:
 		|| ( echo -e "\nError: dirty local changes"; git status --porcelain; exit 1 )
 
 # Kind specific
+
+## Start kind cluster
+kind-%:
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--nodes "${*}" \
+		make install-crds
+
+## Start Kind and deploy the operator
+kind-%-with-operator: docker-build
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-images $(OPERATOR_IMAGE) \
+		--nodes "${*}" \
+		make apply-operators
+
 kind-e2e: docker-build e2e-docker-build
 	./hack/kind/kind.sh \
 		--skip-cleanup \
@@ -369,23 +385,10 @@ kind-e2e: docker-build e2e-docker-build
 		--nodes 3 \
 		make e2e-run
 
-## Start a one kind so you can some e2e/integration tests from your IDE
-kind:
-	./hack/kind/kind.sh \
-		--skip-cleanup \
-		make install-crds
-
-## Start Kind and deploy the operator
-kind-with-operator: docker-build
-	./hack/kind/kind.sh \
-		--skip-cleanup \
-		--load-images $(OPERATOR_IMAGE) \
-		--nodes 1 \
-		make apply-operators
-
 kind-e2e-local: docker-build
 	./hack/kind/kind.sh \
 		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE) \
-		--nodes 3 \
-		kubectl create ns e2e-mercury && make apply-operators MANAGED_NAMESPACE=e2e-mercury && make e2e-local
+		--nodes 3
+	export KUBECONFIG=/Users/michael/.kube/kind-config-eck-e2e
+	kubectl create ns e2e-mercury && make apply-operators MANAGED_NAMESPACE=e2e-mercury && make e2e-local
