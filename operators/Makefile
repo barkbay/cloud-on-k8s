@@ -370,33 +370,33 @@ ifndef KIND_NODE_IMAGE
 	$(error KIND_NODE_IMAGE is mandatory when using Kind)
 endif
 
-## Start a kind cluster with just the CRDs, e.g. "make kind-cluster-1" to start a one node cluster
+## Start a kind cluster with just the CRDs, e.g.:
+# "make kind-with-operator-0 KIND_NODE_IMAGE=kindest/node:v1.15.0" # start a one node cluster
+# "make kind-cluster-3 KIND_NODE_IMAGE=kindest/node:v1.15.0" to start a 1 master + 3 nodes cluster
 kind-cluster-%: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-cluster-%: kind-node-variable-check
 	./hack/kind/kind.sh \
-		--skip-cleanup \
 		--nodes "${*}" \
 		make install-crds
 
-## Start Kind and deploy the operator image
+## Same as above but build and deploy the operator image
 kind-with-operator-%: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-with-operator-%: kind-node-variable-check docker-build
 	./hack/kind/kind.sh \
-		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE) \
 		--nodes "${*}" \
 		make install-crds apply-operators
 
+## Run all the e2e tests in a Kind cluster
 kind-e2e: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e: kind-node-variable-check docker-build e2e-docker-build
 	./hack/kind/kind.sh \
-		--skip-cleanup \
 		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
 		--nodes 3 \
 		make e2e-run
 
-
+## Deploy the operator in a Kind cluster and run e2e tests from sources.
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3

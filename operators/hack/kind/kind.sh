@@ -36,25 +36,27 @@ apiVersion: kind.sigs.k8s.io/v1alpha3
 nodes:
   - role: control-plane
 EOT
+  if [[ ${NODES} -gt 0 ]]; then
+    for i in $(seq 1 $NODES);
+    do
+      echo '  - role: worker' >> ${MANIFEST}
+      if [[ $i -gt 1 ]]; then
+      workers="${workers},eck-e2e-worker${i}"
+      else
+      workers="eck-e2e-worker"
+      fi
 
-  for i in $(seq 1 $NODES);
-  do
-    echo '  - role: worker' >> ${MANIFEST}
-    if [[ $i -gt 1 ]]; then
-    workers="${workers},eck-e2e-worker${i}"
-    else
-    workers="eck-e2e-worker"
-    fi
-
-  done
+    done
+  else
+    # There's only a controle plane
+    workers=eck-e2e-control-plane
+  fi
 
 }
 
 function cleanup_kind_cluster() {
-    if [[ -z "${SKIP_CLEANUP:-}" ]]; then
-      echo "Cleaning up kind cluster"
-      kind delete cluster --name=eck-e2e
-    fi
+  echo "Cleaning up kind cluster"
+  kind delete cluster --name=eck-e2e
 }
 
 function setup_kind_cluster() {
@@ -69,10 +71,12 @@ function setup_kind_cluster() {
     echo "No existing kind cluster with name eck-e2e. Continue..."
   fi
 
-  trap cleanup_kind_cluster EXIT
-
+  config_opts=""
+  if [[ ${NODES} -gt 0 ]]; then
+    config_opts="--config ${MANIFEST}"
+  fi
   # Create KinD cluster
-  if ! (kind create cluster --name=eck-e2e --config ${MANIFEST} --loglevel "${KIND_LOG_LEVEL}" --retain --image "${NODE_IMAGE}"); then
+  if ! (kind create cluster --name=eck-e2e ${config_opts} --loglevel "${KIND_LOG_LEVEL}" --retain --image "${NODE_IMAGE}"); then
     echo "Could not setup Kind environment. Something wrong with Kind setup."
     exit 1
   fi
@@ -83,6 +87,8 @@ function setup_kind_cluster() {
   # setup storage
   kubectl delete storageclass standard || true
   kubectl apply -f "${scriptpath}/local-path-storage.yaml"
+
+  echo "Kind setup complete"
 }
 
 if [ -z "${NODE_IMAGE}" ]; then
@@ -92,12 +98,12 @@ fi
 
 while (( "$#" )); do
   case "$1" in
+    --stop) # just stop and exit
+      cleanup_kind_cluster
+      exit 0
+    ;;
     --skip-setup)
       SKIP_SETUP=true
-      shift
-    ;;
-    --skip-cleanup)
-      SKIP_CLEANUP=true
       shift
     ;;
     --load-images) # images that can't (or should not) be loaded from a remote regsitry
