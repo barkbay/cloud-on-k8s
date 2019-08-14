@@ -371,6 +371,7 @@ ifndef KIND_NODE_IMAGE
 endif
 
 ## Start a kind cluster with just the CRDs, e.g. "make kind-cluster-1" to start a one node cluster
+kind-cluster-%: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-cluster-%: kind-node-variable-check
 	./hack/kind/kind.sh \
 		--skip-cleanup \
@@ -378,17 +379,23 @@ kind-cluster-%: kind-node-variable-check
 		make install-crds
 
 ## Start Kind and deploy the operator image
+kind-with-operator-%: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-with-operator-%: kind-node-variable-check docker-build
 	./hack/kind/kind.sh \
 		--skip-cleanup \
-		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
+		--load-images $(OPERATOR_IMAGE) \
 		--nodes "${*}" \
 		make apply-operators
 
 kind-e2e: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e: export NODE_IMAGE = ${KIND_NODE_IMAGE}
-kind-e2e: kind-node-variable-check docker-build e2e-docker-build kind-with-operator-3
-	make e2e-run
+kind-e2e: kind-node-variable-check docker-build e2e-docker-build
+	./hack/kind/kind.sh \
+		--skip-cleanup \
+		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
+		--nodes 3 \
+		make e2e-run
+
 
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
@@ -396,3 +403,4 @@ kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3
 	kubectl create ns e2e-mercury
 	make apply-operators MANAGED_NAMESPACE=e2e-mercury
 	make e2e-local
+
