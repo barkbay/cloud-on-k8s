@@ -1,12 +1,11 @@
 #!/bin/bash
 
-############################################################################
-# Wrapper script that will:                                                #
-# 1. Setup new Kind cluster                                                #
-# 2. Setup a local storage class from Rancher                              #
-# 2. Execute any command in the context of the newly created Kind cluster  #
-# Requirements: 8 cores / 16 GB                                            #
-############################################################################
+##################################################################################
+# Utility script to:                                                             #
+# 1. Setup new Kind cluster                                                      #
+# 2. Setup a local storage class from Rancher                                    #
+# 3. Run any command in the context of the newly created Kind cluster (optional) #
+##################################################################################
 
 # Exit immediately for non zero status
 set -e
@@ -60,12 +59,13 @@ function cleanup_kind_cluster() {
 }
 
 function setup_kind_cluster() {
-  # Installing Kind
+  # Check that Kind is available
   check_kind
 
+  # Create the manifest according to the desired topology
   create_manifest
 
-  # Delete any previous e2e KinD cluster
+  # Delete any previous e2e Kind cluster
   echo "Deleting previous Kind cluster with name=eck-e2e"
   if ! (kind delete cluster --name=eck-e2e) > /dev/null; then
     echo "No existing kind cluster with name eck-e2e. Continue..."
@@ -75,7 +75,7 @@ function setup_kind_cluster() {
   if [[ ${NODES} -gt 0 ]]; then
     config_opts="--config ${MANIFEST}"
   fi
-  # Create KinD cluster
+  # Create Kind cluster
   if ! (kind create cluster --name=eck-e2e ${config_opts} --loglevel "${KIND_LOG_LEVEL}" --retain --image "${NODE_IMAGE}"); then
     echo "Could not setup Kind environment. Something wrong with Kind setup."
     exit 1
@@ -129,6 +129,7 @@ if [[ -z "${SKIP_SETUP:-}" ]]; then
   time setup_kind_cluster
 fi
 
+# Load images in the nodes, e.g. the operator image or the e2e container
 if [[ -n "${LOAD_IMAGES}" ]]; then
   IMAGES=(${LOAD_IMAGES//,/ })
   for image in "${IMAGES[@]}"; do
