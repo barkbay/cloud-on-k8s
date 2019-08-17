@@ -396,11 +396,11 @@ kind-e2e: kind-node-variable-check docker-build e2e-docker-build
 		--nodes 3 \
 		make e2e-run
 
-## Deploy the operator in a Kind cluster and run e2e tests from sources.
+## Deploy the operator in a Kind cluster and prepare it to run local e2e tests.
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
 kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3
 	kubectl create ns e2e-mercury
-	make install-crds apply-operators MANAGED_NAMESPACE=e2e-mercury
-	make e2e-local
+	kubectl create ns e2e-venus
+	make install-crds
 
