@@ -137,7 +137,7 @@ if [[ -n "${LOAD_IMAGES}" ]]; then
   done
 fi
 
-## Start end-to-end tests
+## Run any additional arguments
 if [ ${#PARAMS[@]} -gt 0 ]; then
 ${PARAMS[*]}
 fi
