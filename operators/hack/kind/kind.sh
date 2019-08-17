@@ -59,6 +59,11 @@ function cleanup_kind_cluster() {
 }
 
 function setup_kind_cluster() {
+  if [ -z "${NODE_IMAGE}" ]; then
+      echo "NODE_IMAGE is not set"
+      exit 1
+  fi
+
   # Check that Kind is available
   check_kind
 
@@ -90,11 +95,6 @@ function setup_kind_cluster() {
 
   echo "Kind setup complete"
 }
-
-if [ -z "${NODE_IMAGE}" ]; then
-    echo "NODE_IMAGE is not set"
-    exit 1
-fi
 
 while (( "$#" )); do
   case "$1" in
