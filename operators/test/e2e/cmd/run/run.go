@@ -124,9 +124,12 @@ func (h *helper) initTestContext() error {
 		E2ENamespace:        h.testRunName,
 		E2EServiceAccount:   h.testRunName,
 		ElasticStackVersion: h.elasticStackVersion,
-		GlobalOperator: test.ClusterResource{
-			Name:      fmt.Sprintf("%s-global-operator", h.testRunName),
-			Namespace: fmt.Sprintf("%s-elastic-system", h.testRunName),
+		GlobalOperator: test.GlobalOperator{
+			ClusterResource: test.ClusterResource{
+				Name:      fmt.Sprintf("%s-global-operator", h.testRunName),
+				Namespace: fmt.Sprintf("%s-elastic-system", h.testRunName),
+			},
+			AllInOne: h.allInOne,
 		},
 		Local:              h.local,
 		NamespaceOperators: make([]test.NamespaceOperator, len(h.managedNamespaces)),
@@ -208,6 +211,9 @@ func (h *helper) deployGlobalOperator() error {
 }
 
 func (h *helper) deployNamespaceOperators() error {
+	if h.allInOne {
+		return nil
+	}
 	log.Info("Deploying namespace operators")
 	return h.kubectlApplyTemplateWithCleanup("config/e2e/namespace_operator.yaml", h.testContext)
 }

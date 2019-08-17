@@ -309,6 +309,18 @@ e2e-run:
 		--test-regex=$(TESTS_MATCH) \
 		--elastic-stack-version=$(STACK_VERSION)
 
+e2e-all-in-one: build-operator-image e2e-docker-build e2e-docker-push e2e-run-all-in-one
+
+# Deploy a global operator which runs all the controllers.
+# Useful to run cross-namespaces/associations tests.
+e2e-run-all-in-one:
+	@go run test/e2e/cmd/main.go run \
+		--operator-image=$(OPERATOR_IMAGE) \
+		--e2e-image=$(E2E_IMG) \
+		--all-in-one \
+		--test-regex="TestCrossNSAssociation" \
+		--elastic-stack-version=$(STACK_VERSION)
+
 # Verify e2e tests compile with no errors, don't run them
 e2e-compile:
 	go test ./test/e2e/... -run=dryrun > /dev/null
@@ -396,6 +408,15 @@ kind-e2e: kind-node-variable-check docker-build e2e-docker-build
 		--nodes 3 \
 		make e2e-run
 
+## Run all in one e2e tests in a Kind cluster
+kind-e2e-all-in-one: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
+kind-e2e-all-in-one: export NODE_IMAGE = ${KIND_NODE_IMAGE}
+kind-e2e-all-in-one: kind-node-variable-check docker-build e2e-docker-build
+	./hack/kind/kind.sh \
+		--load-images $(OPERATOR_IMAGE),$(E2E_IMG) \
+		--nodes 0 \
+		make e2e-run-all-in-one
+
 ## Deploy the operator in a Kind cluster and prepare it to run local e2e tests.
 kind-e2e-local: export KUBECONFIG = ${HOME}/.kube/kind-config-eck-e2e
 kind-e2e-local: export NODE_IMAGE = ${KIND_NODE_IMAGE}
@@ -403,4 +424,5 @@ kind-e2e-local: kind-node-variable-check docker-build kind-with-operator-3
 	kubectl create ns e2e-mercury
 	kubectl create ns e2e-venus
 	make install-crds
+
 

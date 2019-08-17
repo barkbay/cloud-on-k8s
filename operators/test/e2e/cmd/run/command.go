@@ -33,6 +33,7 @@ type runFlags struct {
 	autoPortForwarding  bool
 	skipCleanup         bool
 	local               bool
+	allInOne            bool
 }
 
 var log logr.Logger
@@ -60,9 +61,10 @@ func Command() *cobra.Command {
 	cmd.Flags().BoolVar(&flags.autoPortForwarding, "auto-port-forwarding", false, "Enable port forwarding to pods")
 	cmd.Flags().DurationVar(&flags.commandTimeout, "command-timeout", 90*time.Second, "Timeout for commands executed")
 	cmd.Flags().StringVar(&flags.e2eImage, "e2e-image", "", "E2E test image")
-	cmd.Flags().StringVar(&flags.elasticStackVersion, "elastic-stack-version", "7.1.1", "Elastic stack version")
+	cmd.Flags().StringVar(&flags.elasticStackVersion, "elastic-stack-version", "7.3.0", "Elastic stack version")
 	cmd.Flags().StringVar(&flags.kubeConfig, "kubeconfig", "", "Path to kubeconfig")
 	cmd.Flags().BoolVar(&flags.local, "local", false, "Create the environment for running tests locally")
+	cmd.Flags().BoolVar(&flags.allInOne, "all-in-one", false, "Run all the controllers in the global operator")
 	cmd.Flags().StringSliceVar(&flags.managedNamespaces, "managed-namespaces", []string{"mercury", "venus"}, "List of managed namespaces")
 	cmd.Flags().StringVar(&flags.operatorImage, "operator-image", "", "Operator image")
 	cmd.Flags().BoolVar(&flags.skipCleanup, "skip-cleanup", false, "Do not run cleanup actions after test run")

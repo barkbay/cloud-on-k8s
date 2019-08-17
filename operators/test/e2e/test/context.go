@@ -58,9 +58,12 @@ func defaultContext() Context {
 	return Context{
 		AutoPortForwarding:  false,
 		ElasticStackVersion: defaultElasticStackVersion,
-		GlobalOperator: ClusterResource{
-			Name:      "elastic-global-operator",
-			Namespace: "elastic-system",
+		GlobalOperator: GlobalOperator{
+			ClusterResource: ClusterResource{
+				Name:      "elastic-global-operator",
+				Namespace: "elastic-system",
+			},
+			AllInOne: false,
 		},
 		NamespaceOperators: []NamespaceOperator{
 			{
@@ -84,7 +87,7 @@ func defaultContext() Context {
 
 // Context encapsulates data about a specific test run
 type Context struct {
-	GlobalOperator      ClusterResource     `json:"global_operator"`
+	GlobalOperator      GlobalOperator      `json:"global_operator"`
 	NamespaceOperators  []NamespaceOperator `json:"namespace_operators"`
 	E2EImage            string              `json:"e2e_image"`
 	E2ENamespace        string              `json:"e2e_namespace"`
@@ -122,6 +125,12 @@ func (c Context) OperatorNamespaces() []string {
 type ClusterResource struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+}
+
+// NamespaceOperator is cluster resource with an associated namespace to manage.
+type GlobalOperator struct {
+	ClusterResource
+	AllInOne bool `json:"all_in_one"`
 }
 
 // NamespaceOperator is cluster resource with an associated namespace to manage.

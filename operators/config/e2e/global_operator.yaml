@@ -61,6 +61,18 @@ rules:
   - patch
   - delete
 - apiGroups:
+    - policy
+  resources:
+    - poddisruptionbudgets
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+- apiGroups:
   - elasticsearch.k8s.elastic.co
   resources:
   - elasticsearches
@@ -178,7 +190,11 @@ spec:
       - image: {{ .OperatorImage }}
         imagePullPolicy: IfNotPresent
         name: manager
+{{ if .GlobalOperator.AllInOne}}
+        args: ["manager", "--operator-roles", "all"]
+{{ else }}
         args: ["manager", "--operator-roles", "global,webhook"]
+{{ end }}
         env:
           - name: OPERATOR_NAMESPACE
             valueFrom:
