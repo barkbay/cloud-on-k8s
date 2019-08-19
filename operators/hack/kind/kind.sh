@@ -106,7 +106,7 @@ while (( "$#" )); do
       SKIP_SETUP=true
       shift
     ;;
-    --load-images) # images that can't (or should not) be loaded from a remote regsitry
+    --load-images) # images that can't (or should not) be loaded from a remote registry
       LOAD_IMAGES=$2
       shift 2
     ;;
