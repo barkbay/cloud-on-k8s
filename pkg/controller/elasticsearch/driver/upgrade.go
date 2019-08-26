@@ -7,7 +7,6 @@ package driver
 import (
 	"context"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -15,7 +14,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
@@ -41,13 +39,13 @@ func (d *defaultDriver) handleRollingUpgrades(
 }
 
 type rollingUpgradeCtx struct {
-	client         k8s.Client
-	ES             v1alpha1.Elasticsearch
-	statefulSets   sset.StatefulSetList
-	esClient       esclient.Client
-	esState        ESState
-	podUpgradeDone func(k8s.Client, ESState, types.NamespacedName, string) (bool, error)
-	upgrader       func(statefulSet *appsv1.StatefulSet, newPartition int32) error
+	client             k8s.Client
+	ES                 v1alpha1.Elasticsearch
+	statefulSets       sset.StatefulSetList
+	esClient           esclient.Client
+	esState            ESState
+	deleteExpectations *DeleteExpectations
+	podUpgradeDone     func(k8s.Client, ESState, corev1.Pod, string) (bool, error)
 }
 
 func newRollingUpgrade(
@@ -57,13 +55,13 @@ func newRollingUpgrade(
 	statefulSets sset.StatefulSetList,
 ) rollingUpgradeCtx {
 	return rollingUpgradeCtx{
-		client:         d.Client,
-		ES:             d.ES,
-		statefulSets:   statefulSets,
-		esClient:       esClient,
-		esState:        esState,
-		podUpgradeDone: podUpgradeDone,
-		upgrader:       d.upgradeStatefulSetPartition,
+		client:             d.Client,
+		ES:                 d.ES,
+		statefulSets:       statefulSets,
+		esClient:           esClient,
+		esState:            esState,
+		deleteExpectations: d.DeleteExpectations,
+		podUpgradeDone:     podUpgradeDone,
 	}
 }
 
@@ -77,45 +75,41 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	//  Instead of green health, we could look at shards status, taking into account nodes
 	//  we scheduled for a restart (maybe not restarted yet).
 
-	maxConcurrentUpgrades := 1
-	scheduledUpgrades := 0
-
-	// Only update 1 master node at a time, for safety and zen settings convenience.
-	// This can slow down the upgrade, but the number of master nodes should be small anyway.
-	maxMasterNodeUpgrades := 1
-	scheduledMasterNodeUpgrades := 0
-
-	for _, statefulSet := range ctx.statefulSets.ToUpdate() {
-		// Inspect each pod, starting from the highest ordinal, and decrement the partition to allow
+	healthyPods := make(map[types.NamespacedName]*corev1.Pod)
+	var toBeDeletedPods []*corev1.Pod
+	toUpdate := ctx.statefulSets.ToUpdate()
+	for _, statefulSet := range toUpdate {
+		// Inspect each pod, starting from the highest ordinal, and decrement the idx to allow
 		// pod upgrades to go through, controlled by the StatefulSet controller.
-		for partition := sset.GetPartition(statefulSet); partition >= 0; partition-- {
-			if partition >= sset.GetReplicas(statefulSet) {
-				continue
-			}
-			if scheduledUpgrades >= maxConcurrentUpgrades {
-				return results.WithResult(defaultRequeue)
-			}
-			if label.IsMasterNodeSet(statefulSet) && scheduledMasterNodeUpgrades >= maxMasterNodeUpgrades {
-				return results.WithResult(defaultRequeue)
-			}
+		for idx := sset.GetReplicas(statefulSet) - 1; idx >= 0; idx-- {
 
 			// Do we need to upgrade that pod?
-			podName := sset.PodName(statefulSet.Name, partition)
+			podName := sset.PodName(statefulSet.Name, idx)
 			podRef := types.NamespacedName{Namespace: statefulSet.Namespace, Name: podName}
-			alreadyUpgraded, err := ctx.podUpgradeDone(ctx.client, ctx.esState, podRef, statefulSet.Status.UpdateRevision)
+			// retrieve pod to inspect its revision label
+			var pod corev1.Pod
+			err := ctx.client.Get(podRef, &pod)
+			if err != nil && !errors.IsNotFound(err) {
+				return results.WithError(err)
+			}
+			if errors.IsNotFound(err) {
+				// Pod does not exist, continue the loop as the absence will be accounted by the deletion controller
+				continue
+			}
+			alreadyUpgraded, err := ctx.podUpgradeDone(ctx.client, ctx.esState, pod, statefulSet.Status.UpdateRevision)
 			if err != nil {
 				return results.WithError(err)
 			}
-			if alreadyUpgraded {
-				continue
+			healthyPod, err := podIsHealthy(ctx.client, ctx.esState, pod)
+			if err != nil {
+				return results.WithError(err)
+			}
+			if healthyPod {
+				healthyPods[podRef] = &pod
 			}
 
-			// An upgrade is required for that pod.
-			scheduledUpgrades++
-
-			// Is the pod upgrade already scheduled?
-			if partition == sset.GetPartition(statefulSet) {
-				continue
+			if !alreadyUpgraded {
+				toBeDeletedPods = append(toBeDeletedPods, &pod)
 			}
 
 			// Is the cluster ready for the node upgrade?
@@ -132,48 +126,20 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 			if err := prepareClusterForNodeRestart(ctx.esClient, ctx.esState); err != nil {
 				return results.WithError(err)
 			}
-
-			if label.IsMasterNodeSet(statefulSet) {
-				scheduledMasterNodeUpgrades++
-				// TODO if the node is a master:
-				//  - zen1: update minimum_master_node to account for master node deletion. Otherwise upgrading a 2-masters
-				//   cluster provokes downtime since m_m_n=2.
-				//   Problem: how to prevent this to be reverted at the next reconciliation, before the pod gets deleted?
-				//  - zen2: set voting config exclusions: same problem, this is not easy. But since we only delete
-				//   one master at a time, maybe it's not required?
-			}
-
-			// Upgrade the pod.
-			if err := ctx.upgrader(&statefulSet, partition); err != nil {
-				return results.WithError(err)
-			}
 		}
 	}
-	return results
-}
-
-func (d *defaultDriver) upgradeStatefulSetPartition(
-	statefulSet *appsv1.StatefulSet,
-	newPartition int32,
-) error {
-	// Node can be removed, update the StatefulSet rollingUpdate.Partition ordinal.
-	log.Info("Updating rollingUpdate.Partition",
-		"namespace", statefulSet.Namespace,
-		"name", statefulSet.Name,
-		"from", statefulSet.Spec.UpdateStrategy.RollingUpdate.Partition,
-		"to", &newPartition,
+	deletionController := NewDeletionController(
+		ctx.client,
+		&ctx.ES,
+		&ctx.esState,
+		healthyPods,
+		ctx.deleteExpectations,
 	)
-	statefulSet.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateStatefulSetStrategy{
-		Partition: &newPartition,
+	_, err := deletionController.Delete(toBeDeletedPods)
+	if err != nil {
+		return results.WithError(err)
 	}
-	if err := d.Client.Update(statefulSet); err != nil {
-		return err
-	}
-
-	// Register the updated sset generation to deal with out-of-date sset cache.
-	d.Expectations.ExpectGeneration(statefulSet.ObjectMeta)
-
-	return nil
+	return results
 }
 
 func prepareClusterForNodeRestart(esClient esclient.Client, esState ESState) error {
@@ -218,23 +184,20 @@ func clusterReadyForNodeRestart(es v1alpha1.Elasticsearch, esState ESState) (boo
 }
 
 // podUpgradeDone inspects the given pod and returns true if it was successfully upgraded.
-func podUpgradeDone(c k8s.Client, esState ESState, podRef types.NamespacedName, expectedRevision string) (bool, error) {
+func podUpgradeDone(c k8s.Client, esState ESState, pod corev1.Pod, expectedRevision string) (bool, error) {
 	if expectedRevision == "" {
 		// no upgrade scheduled for the sset
 		return false, nil
 	}
-	// retrieve pod to inspect its revision label
-	var pod corev1.Pod
-	err := c.Get(podRef, &pod)
-	if err != nil && !errors.IsNotFound(err) {
-		return false, err
-	}
-	if errors.IsNotFound(err) || !pod.DeletionTimestamp.IsZero() {
-		// pod is terminating
-		return false, nil
-	}
 	if sset.PodRevision(pod) != expectedRevision {
 		// pod revision does not match the sset upgrade revision
+		return false, nil
+	}
+	return true, nil
+}
+
+func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
+	if !pod.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
 	// is the pod ready?
@@ -242,12 +205,12 @@ func podUpgradeDone(c k8s.Client, esState ESState, podRef types.NamespacedName, 
 		return false, nil
 	}
 	// has the node joined the cluster yet?
-	inCluster, err := esState.NodesInCluster([]string{podRef.Name})
+	inCluster, err := esState.NodesInCluster([]string{pod.Name})
 	if err != nil {
 		return false, err
 	}
 	if !inCluster {
-		log.V(1).Info("Node has not joined the cluster yet", "namespace", podRef.Namespace, "name", podRef.Name)
+		log.V(1).Info("Node has not joined the cluster yet", "namespace", pod.Namespace, "name", pod.Name)
 		return false, err
 	}
 	return true, nil

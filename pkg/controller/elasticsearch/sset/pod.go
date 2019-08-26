@@ -85,8 +85,7 @@ func ScheduledUpgradesDone(c k8s.Client, statefulSets StatefulSetList) (bool, er
 			// no upgrade scheduled
 			continue
 		}
-		partition := GetPartition(s)
-		for i := GetReplicas(s) - 1; i >= partition; i-- {
+		for i := int32(0); i < GetReplicas(s); i++ {
 			var pod corev1.Pod
 			err := c.Get(types.NamespacedName{Namespace: s.Namespace, Name: PodName(s.Name, i)}, &pod)
 			if errors.IsNotFound(err) {

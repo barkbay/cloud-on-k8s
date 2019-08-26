@@ -80,10 +80,7 @@ func BuildStatefulSet(
 		Spec: appsv1.StatefulSetSpec{
 			// we manage the partition ordinal to orchestrate nodes upgrades
 			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-				Type: appsv1.RollingUpdateStatefulSetStrategyType,
-				RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-					Partition: &nodeSpec.NodeCount,
-				},
+				Type: appsv1.OnDeleteStatefulSetStrategyType,
 			},
 			// we don't care much about pods creation ordering, and manage deletion ordering ourselves,
 			// so we're fine with the StatefulSet controller spawning all pods in parallel
