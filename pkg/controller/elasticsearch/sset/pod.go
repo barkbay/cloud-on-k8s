@@ -29,7 +29,7 @@ func PodName(ssetName string, ordinal int32) string {
 func StatefulSetName(podName string) (ssetName string, ordinal int32, err error) {
 	// TODO: maybe a little bit hacky
 	ordinalPos := strings.LastIndex(podName, "-")
-	ordinalAsString := podName[ordinalPos:]
+	ordinalAsString := podName[ordinalPos+1:]
 	ordinalAsInt, err := strconv.Atoi(ordinalAsString)
 	return podName[:ordinalPos], int32(ordinalAsInt), err
 }

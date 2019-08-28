@@ -14,7 +14,7 @@ import (
 )
 
 type ESState interface {
-	NodesInCluster(nodeNames []string) (bool, error)
+	NodeInCluster(nodeName string) (bool, error)
 	ShardAllocationsEnabled() (bool, error)
 	GreenHealth() (bool, error)
 }
@@ -62,11 +62,11 @@ func (n *lazyNodes) initialize() error {
 	return nil
 }
 
-func (n *lazyNodes) NodesInCluster(nodeNames []string) (bool, error) {
+func (n *lazyNodes) NodeInCluster(nodeName string) (bool, error) {
 	if err := initOnce(&n.once, n.initialize); err != nil {
 		return false, err
 	}
-	return stringsutil.StringsInSlice(nodeNames, n.nodes), nil
+	return stringsutil.StringInSlice(nodeName, n.nodes), nil
 }
 
 // -- Shards allocation enabled

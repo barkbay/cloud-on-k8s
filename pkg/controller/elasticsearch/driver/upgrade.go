@@ -7,15 +7,14 @@ package driver
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func (d *defaultDriver) handleRollingUpgrades(
@@ -31,11 +30,62 @@ func (d *defaultDriver) handleRollingUpgrades(
 	res := newRollingUpgrade(d, esClient, esState, statefulSets).run()
 	results.WithResults(res)
 
-	// Maybe re-enable shards allocation if upgraded nodes are back into the cluster.
-	res = d.MaybeEnableShardsAllocation(esClient, esState, statefulSets)
-	results.WithResults(res)
-
+	podChecker := &podCheck{
+		Client:        d.Client,
+		ESState:       esState,
+		Elasticsearch: &d.ES,
+	}
+	noRestartInProgress, err := d.DeleteExpectations.MayBeClearExpectations(k8s.ExtractNamespacedName(&d.ES), podChecker)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if noRestartInProgress {
+		// Maybe re-enable shards allocation if upgraded nodes are back into the cluster.
+		res := d.MaybeEnableShardsAllocation(esClient, esState, statefulSets)
+		results.WithResults(res)
+	}
 	return results
+}
+
+type podCheck struct {
+	k8s.Client
+	ESState
+	*v1alpha1.Elasticsearch
+}
+
+func (p *podCheck) MayBeRemoved(pod *PodWithTTL) (bool, error) {
+	// Try to get the Pod
+	var currentPod corev1.Pod
+	err := p.Get(k8s.ExtractNamespacedName(pod), &currentPod)
+	if err != nil {
+		// TODO: If 404 check the size of the statefulset, could be a downgrade
+		return false, nil
+	}
+
+	if currentPod.UID == pod.UID {
+		// not deleted
+		return false, nil
+	}
+
+	// Check if current Pod is healthy
+	if healthy, err := podIsHealthy(p.Client, p.ESState, currentPod); !healthy || err != nil {
+		return false, err
+	}
+
+	// Make sure all nodes scheduled for upgrade are back into the cluster.
+	nodesInCluster, err := p.NodeInCluster(pod.Name)
+	if err != nil {
+		return false, err
+	}
+	if !nodesInCluster {
+		log.V(1).Info(
+			"Some upgraded nodes are not back in the cluster yet, keeping shard allocations disabled",
+			"namespace", p.Namespace,
+			"es_name", p.Name,
+		)
+		return false, err
+	}
+	return true, nil
 }
 
 type rollingUpgradeCtx struct {
@@ -45,7 +95,7 @@ type rollingUpgradeCtx struct {
 	esClient           esclient.Client
 	esState            ESState
 	deleteExpectations *RestartExpectations
-	podUpgradeDone     func(k8s.Client, ESState, corev1.Pod, string) (bool, error)
+	podUpgradeDone     func(pod corev1.Pod, expectedRevision string) (bool, error)
 }
 
 func newRollingUpgrade(
@@ -60,8 +110,8 @@ func newRollingUpgrade(
 		statefulSets:       statefulSets,
 		esClient:           esClient,
 		esState:            esState,
-		deleteExpectations: d.DeleteExpectations,
 		podUpgradeDone:     podUpgradeDone,
+		deleteExpectations: d.DeleteExpectations,
 	}
 }
 
@@ -75,7 +125,39 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	//  Instead of green health, we could look at shards status, taking into account nodes
 	//  we scheduled for a restart (maybe not restarted yet).
 
-	healthyPods := make(map[types.NamespacedName]*corev1.Pod)
+	// Is the cluster ready for the node upgrade?
+	clusterReady, err := clusterReadyForNodeRestart(ctx.ES, ctx.esState)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !clusterReady {
+		// retry later
+		return results.WithResult(defaultRequeue)
+	}
+
+	healthyPods, potentialVictims, err := ctx.podsToBeUpdate()
+	if len(potentialVictims) == 0 {
+		return results
+	}
+	deletionController := NewDeletionController(
+		ctx.client,
+		ctx.esClient,
+		&ctx.ES,
+		&ctx.esState,
+		healthyPods,
+		ctx.deleteExpectations,
+	)
+	_, err = deletionController.Delete(potentialVictims)
+	if err != nil {
+		return results.WithError(err)
+	}
+	return results
+}
+
+type PodsByName map[types.NamespacedName]*corev1.Pod
+
+func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error) {
+	healthyPods := make(PodsByName)
 	var toBeDeletedPods []*corev1.Pod
 	toUpdate := ctx.statefulSets.ToUpdate()
 	for _, statefulSet := range toUpdate {
@@ -90,19 +172,19 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 			var pod corev1.Pod
 			err := ctx.client.Get(podRef, &pod)
 			if err != nil && !errors.IsNotFound(err) {
-				return results.WithError(err)
+				return healthyPods, toBeDeletedPods, err
 			}
 			if errors.IsNotFound(err) {
 				// Pod does not exist, continue the loop as the absence will be accounted by the deletion controller
 				continue
 			}
-			alreadyUpgraded, err := ctx.podUpgradeDone(ctx.client, ctx.esState, pod, statefulSet.Status.UpdateRevision)
+			alreadyUpgraded, err := ctx.podUpgradeDone(pod, statefulSet.Status.UpdateRevision)
 			if err != nil {
-				return results.WithError(err)
+				return healthyPods, toBeDeletedPods, err
 			}
 			healthyPod, err := podIsHealthy(ctx.client, ctx.esState, pod)
 			if err != nil {
-				return results.WithError(err)
+				return healthyPods, toBeDeletedPods, err
 			}
 			if healthyPod {
 				healthyPods[podRef] = &pod
@@ -111,56 +193,9 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 			if !alreadyUpgraded {
 				toBeDeletedPods = append(toBeDeletedPods, &pod)
 			}
-
-			// Is the cluster ready for the node upgrade?
-			clusterReady, err := clusterReadyForNodeRestart(ctx.ES, ctx.esState)
-			if err != nil {
-				return results.WithError(err)
-			}
-			if !clusterReady {
-				// retry later
-				return results.WithResult(defaultRequeue)
-			}
-
-			log.Info("Preparing cluster for node restart", "namespace", ctx.ES.Namespace, "es_name", ctx.ES.Name)
-			if err := prepareClusterForNodeRestart(ctx.esClient, ctx.esState); err != nil {
-				return results.WithError(err)
-			}
 		}
 	}
-	deletionController := NewDeletionController(
-		ctx.client,
-		&ctx.ES,
-		&ctx.esState,
-		healthyPods,
-		ctx.deleteExpectations,
-	)
-	_, err := deletionController.Delete(toBeDeletedPods)
-	if err != nil {
-		return results.WithError(err)
-	}
-	return results
-}
-
-func prepareClusterForNodeRestart(esClient esclient.Client, esState ESState) error {
-	// Disable shard allocations to avoid shards moving around while the node is temporarily down
-	shardsAllocationEnabled, err := esState.ShardAllocationsEnabled()
-	if err != nil {
-		return err
-	}
-	if shardsAllocationEnabled {
-		if err := disableShardsAllocation(esClient); err != nil {
-			return err
-		}
-	}
-
-	// Request a sync flush to optimize indices recovery when the node restarts.
-	if err := doSyncFlush(esClient); err != nil {
-		return err
-	}
-
-	// TODO: halt ML jobs on that node
-	return nil
+	return healthyPods, toBeDeletedPods, nil
 }
 
 // clusterReadyForNodeRestart returns true if the ES cluster allows a node to be restarted
@@ -183,19 +218,6 @@ func clusterReadyForNodeRestart(es v1alpha1.Elasticsearch, esState ESState) (boo
 	return true, nil
 }
 
-// podUpgradeDone inspects the given pod and returns true if it was successfully upgraded.
-func podUpgradeDone(c k8s.Client, esState ESState, pod corev1.Pod, expectedRevision string) (bool, error) {
-	if expectedRevision == "" {
-		// no upgrade scheduled for the sset
-		return false, nil
-	}
-	if sset.PodRevision(pod) != expectedRevision {
-		// pod revision does not match the sset upgrade revision
-		return false, nil
-	}
-	return true, nil
-}
-
 func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
 	if !pod.DeletionTimestamp.IsZero() {
 		return false, nil
@@ -205,7 +227,7 @@ func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
 		return false, nil
 	}
 	// has the node joined the cluster yet?
-	inCluster, err := esState.NodesInCluster([]string{pod.Name})
+	inCluster, err := esState.NodeInCluster(pod.Name)
 	if err != nil {
 		return false, err
 	}
@@ -242,34 +264,6 @@ func (d *defaultDriver) MaybeEnableShardsAllocation(
 		return results
 	}
 
-	// Make sure all pods scheduled for upgrade have been upgraded.
-	scheduledUpgradesDone, err := sset.ScheduledUpgradesDone(d.Client, statefulSets)
-	if err != nil {
-		return results.WithError(err)
-	}
-	if !scheduledUpgradesDone {
-		log.V(1).Info(
-			"Rolling upgrade not over yet, some pods don't have the updated revision, keeping shard allocations disabled",
-			"namespace", d.ES.Namespace,
-			"es_name", d.ES.Name,
-		)
-		return results.WithResult(defaultRequeue)
-	}
-
-	// Make sure all nodes scheduled for upgrade are back into the cluster.
-	nodesInCluster, err := esState.NodesInCluster(statefulSets.PodNames())
-	if err != nil {
-		return results.WithError(err)
-	}
-	if !nodesInCluster {
-		log.V(1).Info(
-			"Some upgraded nodes are not back in the cluster yet, keeping shard allocations disabled",
-			"namespace", d.ES.Namespace,
-			"es_name", d.ES.Name,
-		)
-		return results.WithResult(defaultRequeue)
-	}
-
 	log.Info("Enabling shards allocation", "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 	ctx, cancel := context.WithTimeout(context.Background(), esclient.DefaultReqTimeout)
 	defer cancel()
@@ -278,4 +272,17 @@ func (d *defaultDriver) MaybeEnableShardsAllocation(
 	}
 
 	return results
+}
+
+// podUpgradeDone inspects the given pod and returns true if it was successfully upgraded.
+func podUpgradeDone(pod corev1.Pod, expectedRevision string) (bool, error) {
+	if expectedRevision == "" {
+		// no upgrade scheduled for the sset
+		return false, nil
+	}
+	if sset.PodRevision(pod) != expectedRevision {
+		// pod revision does not match the sset upgrade revision
+		return false, nil
+	}
+	return true, nil
 }
