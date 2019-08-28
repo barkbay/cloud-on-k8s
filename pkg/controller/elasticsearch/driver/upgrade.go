@@ -44,7 +44,7 @@ type rollingUpgradeCtx struct {
 	statefulSets       sset.StatefulSetList
 	esClient           esclient.Client
 	esState            ESState
-	deleteExpectations *DeleteExpectations
+	deleteExpectations *RestartExpectations
 	podUpgradeDone     func(k8s.Client, ESState, corev1.Pod, string) (bool, error)
 }
 

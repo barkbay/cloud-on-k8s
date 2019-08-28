@@ -1,6 +1,11 @@
 package driver
 
 import (
+	"sort"
+	"strings"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
 	v1 "k8s.io/api/core/v1"
@@ -10,7 +15,7 @@ import (
 type Predicate func(candidate *v1.Pod, expectedDeletions []*v1.Pod) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
-type Sort func(allPods []*v1.Pod, state *ESState) ([]*v1.Pod, error)
+type Sort func(allPods []*v1.Pod, state *ESState) error
 
 // DeletionStrategy defines the strategy when some Pods must be deleted.
 // 1. Pods are sorted
@@ -33,9 +38,37 @@ type defaultDeletionStrategy struct {
 	state                *ESState
 }
 
+// SortFunction is the default sort function, masters have lower priority as
+// we want to update the nodes first.
+// If 2 Pods are of the same type use the reverse ordinal order
 func (d *defaultDeletionStrategy) SortFunction() Sort {
-	return func(allPods []*v1.Pod, state *ESState) (pods []*v1.Pod, e error) {
-		return allPods, nil
+	return func(allPods []*v1.Pod, state *ESState) (err error) {
+		sort.Slice(allPods[:], func(i, j int) bool {
+			pod1 := allPods[i]
+			pod2 := allPods[j]
+			if (label.IsMasterNode(*pod1) && label.IsMasterNode(*pod2)) ||
+				(!label.IsMasterNode(*pod1) && !label.IsMasterNode(*pod2)) { // same type, use the reverse name function
+				ssetName1, ord1, err := sset.StatefulSetName(pod1.Name)
+				if err != nil {
+					return false
+				}
+				ssetName2, ord2, err := sset.StatefulSetName(pod2.Name)
+				if err != nil {
+					return false
+				}
+				if strings.Compare(ssetName1, ssetName2) == 0 {
+					// same name, compare ordinal, higher first
+					return ord1 > ord2
+				}
+				return strings.Compare(ssetName1, ssetName2) == -1
+			}
+			if label.IsMasterNode(*pod1) && !label.IsMasterNode(*pod2) {
+				// pod2 has higher priority since it is a node
+				return false
+			}
+			return true
+		})
+		return err
 	}
 }
 

@@ -81,8 +81,8 @@ type DefaultDriverParameters struct {
 	// Expectations control some expectations set on resources in the cache, in order to
 	// avoid doing certain operations if the cache hasn't seen an up-to-date resource yet.
 	Expectations *reconciler.Expectations
-	// DeleteExpectations controls Pods which are expected to be deleted.
-	DeleteExpectations *DeleteExpectations
+	// RestartExpectations controls Pods which are expected to be deleted.
+	DeleteExpectations *RestartExpectations
 }
 
 // defaultDriver is the default Driver implementation

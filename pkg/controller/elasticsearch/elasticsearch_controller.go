@@ -72,7 +72,7 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 		finalizers:           finalizer.NewHandler(client),
 		dynamicWatches:       watches.NewDynamicWatches(),
 		expectations:         reconciler.NewExpectations(),
-		deletionExpectations: driver.NewDeleteExpectations(),
+		deletionExpectations: driver.NewRestartExpectations(),
 
 		Parameters: params,
 	}
@@ -125,13 +125,6 @@ func addWatches(c controller.Controller, r *ReconcileElasticsearch) error {
 		return err
 	}
 
-	// Watch for Pods deletion
-	if err := c.Watch(&source.Kind{Type: &corev1.Pod{}},
-		driver.NewPodDeletionWatch(r.deletionExpectations),
-	); err != nil {
-		return err
-	}
-
 	// Watch services
 	if err := c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
@@ -179,7 +172,7 @@ type ReconcileElasticsearch struct {
 	// expectations help dealing with inconsistencies in our client cache,
 	// by marking resources updates as expected, and skipping some operations if the cache is not up-to-date.
 	expectations         *reconciler.Expectations
-	deletionExpectations *driver.DeleteExpectations
+	deletionExpectations *driver.RestartExpectations
 
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration int64

@@ -6,6 +6,8 @@ package sset
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +24,14 @@ import (
 // PodName returns the name of the pod with the given ordinal for this StatefulSet.
 func PodName(ssetName string, ordinal int32) string {
 	return fmt.Sprintf("%s-%d", ssetName, ordinal)
+}
+
+func StatefulSetName(podName string) (ssetName string, ordinal int32, err error) {
+	// TODO: maybe a little bit hacky
+	ordinalPos := strings.LastIndex(podName, "-")
+	ordinalAsString := podName[ordinalPos:]
+	ordinalAsInt, err := strconv.Atoi(ordinalAsString)
+	return podName[:ordinalPos], int32(ordinalAsInt), err
 }
 
 // PodNames returns the names of the pods for this StatefulSet, according to the number of replicas.

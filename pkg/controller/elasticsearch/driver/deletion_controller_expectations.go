@@ -9,27 +9,26 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
 const (
 	// ExpectationsTTLNanosec is the default expectations time-to-live,
-	// for cases where we expect a deletion that never happens.
+	// used to unlock some situations if a Pod never restart.
 	//
 	// Set to 5 minutes similar to https://github.com/kubernetes/kubernetes/blob/v1.13.2/pkg/controller/controller_utils.go
 	ExpectationsTTLNanosec = 5 * time.Minute // time is internally represented as int64 nanoseconds
 )
 
-func NewDeleteExpectations() *DeleteExpectations {
-	return &DeleteExpectations{
+// TODO: Do we really need to be thread safe ? No watches, it will be only called by the ES controller...
+func NewRestartExpectations() *RestartExpectations {
+	return &RestartExpectations{
 		mutex:        sync.RWMutex{},
 		expectations: map[types.NamespacedName]*expectedPods{},
 		ttl:          ExpectationsTTLNanosec,
 	}
 }
 
-type DeleteExpectations struct {
+type RestartExpectations struct {
 	mutex sync.RWMutex
 	// expectations holds all the expected deletion for all the ES clusters.
 	expectations map[types.NamespacedName]*expectedPods
@@ -37,12 +36,12 @@ type DeleteExpectations struct {
 	ttl time.Duration
 }
 
-type podWithTTL struct {
+type PodWithTTL struct {
 	*v1.Pod
 	ttl int64
 }
 
-type podsWithTTL map[types.NamespacedName]*podWithTTL
+type podsWithTTL map[types.NamespacedName]*PodWithTTL
 
 func (p podsWithTTL) toPods() []*v1.Pod {
 	result := make([]*v1.Pod, len(p))
@@ -54,6 +53,13 @@ func (p podsWithTTL) toPods() []*v1.Pod {
 	return result
 }
 
+func (p podsWithTTL) clear() {
+	// TODO: We can do something smarter
+	for k := range p {
+		delete(p, k)
+	}
+}
+
 type expectedPods struct {
 	sync.Mutex
 	// podsWithTTL holds the pod expected to be deleted for a specific ES cluster.
@@ -63,7 +69,7 @@ type expectedPods struct {
 func newExpectedPods() *expectedPods {
 	return &expectedPods{
 		Mutex:       sync.Mutex{},
-		podsWithTTL: map[types.NamespacedName]*podWithTTL{},
+		podsWithTTL: map[types.NamespacedName]*PodWithTTL{},
 	}
 }
 
@@ -79,31 +85,56 @@ func clusterFromPod(meta metav1.Object) *types.NamespacedName {
 	return nil
 }
 
-func (d *DeleteExpectations) GetExpectedDeletions(cluster types.NamespacedName) []*v1.Pod {
-	return d.getOrCreateExpectedPods(cluster).toPods()
+type ExpectationController interface {
+	MayBeRemoved(pod *PodWithTTL) (bool, error)
 }
 
-// ExpectDeletion marks a deletion for the given resource as expected.
-func (d *DeleteExpectations) ExpectDeletion(pod *v1.Pod) {
+// ClearExpectations goes through all the Pod and check if they have been restarted.
+// If yes, expectations are cleared.
+func (d *RestartExpectations) MayBeClearExpectations(
+	cluster types.NamespacedName,
+	controller ExpectationController,
+) (bool, error) {
+	pods := d.getOrCreateRestartExpectations(cluster)
+	for _, pod := range pods.podsWithTTL {
+		mayBeRemoved, err := controller.MayBeRemoved(pod)
+		if err != nil {
+			return false, err
+		}
+		if !mayBeRemoved {
+			return false, nil
+		}
+	}
+	// All expectations are cleared !
+	pods.clear()
+	return true, nil
+}
+
+func (d *RestartExpectations) GetExpectedRestarts(cluster types.NamespacedName) []*v1.Pod {
+	return d.getOrCreateRestartExpectations(cluster).toPods()
+}
+
+// ExpectRestart marks a deletion for the given resource as expected.
+func (d *RestartExpectations) ExpectRestart(pod *v1.Pod) {
 	cluster := clusterFromPod(pod.GetObjectMeta())
 	if cluster == nil {
 		return // Should not happen as all Pods should have the correct labels
 	}
-	d.getOrCreateExpectedPods(*cluster).addExpectation(pod, d.ttl)
+	d.getOrCreateRestartExpectations(*cluster).addExpectation(pod, d.ttl)
 }
 
-func (d *DeleteExpectations) RemoveExpectation(pod *v1.Pod) {
+func (d *RestartExpectations) RemoveExpectation(pod *v1.Pod) {
 	cluster := clusterFromPod(pod.GetObjectMeta())
 	if cluster == nil {
 		return // Should not happen as all Pods should have the correct labels
 	}
-	d.getOrCreateExpectedPods(*cluster).removeExpectation(pod)
+	d.getOrCreateRestartExpectations(*cluster).removeExpectation(pod)
 }
 
 func (e *expectedPods) addExpectation(pod *v1.Pod, ttl time.Duration) {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
-	e.podsWithTTL[k8s.ExtractNamespacedName(pod)] = &podWithTTL{
+	e.podsWithTTL[k8s.ExtractNamespacedName(pod)] = &PodWithTTL{
 		Pod: pod,
 		ttl: ttl.Nanoseconds(),
 	}
@@ -115,22 +146,19 @@ func (e *expectedPods) removeExpectation(pod *v1.Pod) {
 	delete(e.podsWithTTL, k8s.ExtractNamespacedName(pod))
 }
 
-func (d *DeleteExpectations) getOrCreateExpectedPods(namespacedName types.NamespacedName) *expectedPods {
+func (d *RestartExpectations) getOrCreateRestartExpectations(namespacedName types.NamespacedName) *expectedPods {
 	d.mutex.RLock()
 	expectedPods, exists := d.expectations[namespacedName]
 	d.mutex.RUnlock()
 	if !exists {
-		expectedPods = d.createExpectedPods(namespacedName)
+		expectedPods = d.createRestartExpectations(namespacedName)
 	}
 	return expectedPods
 }
 
-func (d *DeleteExpectations) createExpectedPods(namespacedName types.NamespacedName) *expectedPods {
+func (d *RestartExpectations) createRestartExpectations(namespacedName types.NamespacedName) *expectedPods {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-	// if this method is called, counters probably don't exist yet
-	// still re-check with lock acquired in case they would be created
-	// in-between 2 concurrent calls to e.getOrCreateCounters
 	expectedPods, exists := d.expectations[namespacedName]
 	if exists {
 		return expectedPods
@@ -139,22 +167,3 @@ func (d *DeleteExpectations) createExpectedPods(namespacedName types.NamespacedN
 	d.expectations[namespacedName] = expectedPods
 	return expectedPods
 }
-
-// Watch
-type PodDeletionWatch struct {
-	expectations *DeleteExpectations
-}
-
-func NewPodDeletionWatch(expectations *DeleteExpectations) *PodDeletionWatch {
-	return &PodDeletionWatch{expectations: expectations}
-}
-
-func (e *PodDeletionWatch) Create(event.CreateEvent, workqueue.RateLimitingInterface) {}
-func (e *PodDeletionWatch) Update(event.UpdateEvent, workqueue.RateLimitingInterface) {}
-func (e *PodDeletionWatch) Delete(evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	pod, ok := evt.Object.(*v1.Pod)
-	if ok {
-		e.expectations.RemoveExpectation(pod)
-	}
-}
-func (e *PodDeletionWatch) Generic(event.GenericEvent, workqueue.RateLimitingInterface) {}
