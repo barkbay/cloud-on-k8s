@@ -6,6 +6,7 @@ package driver
 
 import (
 	"context"
+	"time"
 
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
@@ -20,6 +21,7 @@ import (
 func (d *defaultDriver) handleRollingUpgrades(
 	esClient esclient.Client,
 	statefulSets sset.StatefulSetList,
+	masterNodesNames []string,
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
@@ -27,7 +29,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 	esState := NewLazyESState(esClient)
 
 	// Maybe upgrade some of the nodes.
-	res := newRollingUpgrade(d, esClient, esState, statefulSets).run()
+	res := newRollingUpgrade(d, esClient, esState, statefulSets, masterNodesNames).run()
 	results.WithResults(res)
 
 	podChecker := &podCheck{
@@ -53,7 +55,18 @@ type podCheck struct {
 	*v1alpha1.Elasticsearch
 }
 
-func (p *podCheck) MayBeRemoved(pod *PodWithTTL) (bool, error) {
+func (p *podCheck) MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error) {
+	// Check the TTL
+	if time.Now().After(pod.Time.Add(ttl)) {
+		log.V(1).Info(
+			"Pod has not been restarted in the expected time",
+			"namespace", p.Namespace,
+			"es_name", p.Name,
+			"pod_name", pod.Name,
+		)
+		return true, nil
+	}
+
 	// Try to get the Pod
 	var currentPod corev1.Pod
 	err := p.Get(k8s.ExtractNamespacedName(pod), &currentPod)
@@ -95,6 +108,7 @@ type rollingUpgradeCtx struct {
 	esClient           esclient.Client
 	esState            ESState
 	deleteExpectations *RestartExpectations
+	masterNodesNames   []string
 	podUpgradeDone     func(pod corev1.Pod, expectedRevision string) (bool, error)
 }
 
@@ -103,6 +117,7 @@ func newRollingUpgrade(
 	esClient esclient.Client,
 	esState ESState,
 	statefulSets sset.StatefulSetList,
+	masterNodesNames []string,
 ) rollingUpgradeCtx {
 	return rollingUpgradeCtx{
 		client:             d.Client,
@@ -112,6 +127,7 @@ func newRollingUpgrade(
 		esState:            esState,
 		podUpgradeDone:     podUpgradeDone,
 		deleteExpectations: d.DeleteExpectations,
+		masterNodesNames:   masterNodesNames,
 	}
 }
 
@@ -144,6 +160,7 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		ctx.esClient,
 		&ctx.ES,
 		&ctx.esState,
+		ctx.masterNodesNames,
 		healthyPods,
 		ctx.deleteExpectations,
 	)

@@ -38,7 +38,7 @@ type RestartExpectations struct {
 
 type PodWithTTL struct {
 	*v1.Pod
-	ttl int64
+	time.Time
 }
 
 type podsWithTTL map[types.NamespacedName]*PodWithTTL
@@ -86,7 +86,7 @@ func clusterFromPod(meta metav1.Object) *types.NamespacedName {
 }
 
 type ExpectationController interface {
-	MayBeRemoved(pod *PodWithTTL) (bool, error)
+	MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error)
 }
 
 // ClearExpectations goes through all the Pod and check if they have been restarted.
@@ -97,7 +97,7 @@ func (d *RestartExpectations) MayBeClearExpectations(
 ) (bool, error) {
 	pods := d.getOrCreateRestartExpectations(cluster)
 	for _, pod := range pods.podsWithTTL {
-		mayBeRemoved, err := controller.MayBeRemoved(pod)
+		mayBeRemoved, err := controller.MayBeRemoved(pod, d.ttl)
 		if err != nil {
 			return false, err
 		}
@@ -135,8 +135,8 @@ func (e *expectedPods) addExpectation(pod *v1.Pod, ttl time.Duration) {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	e.podsWithTTL[k8s.ExtractNamespacedName(pod)] = &PodWithTTL{
-		Pod: pod,
-		ttl: ttl.Nanoseconds(),
+		Pod:  pod,
+		Time: time.Now(),
 	}
 }
 

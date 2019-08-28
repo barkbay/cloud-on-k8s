@@ -1,8 +1,6 @@
 package driver
 
 import (
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
@@ -33,6 +31,7 @@ func NewDeletionController(
 	esClient esclient.Client,
 	es *v1alpha1.Elasticsearch,
 	state *ESState,
+	masterNodesNames []string,
 	healthyPods map[types.NamespacedName]*v1.Pod,
 	expectations *RestartExpectations,
 ) *DefaultDeletionController {
@@ -43,7 +42,7 @@ func NewDeletionController(
 		state:        state,
 		healthyPods:  healthyPods,
 		expectations: expectations,
-		strategy:     GetDeletionStrategy(state),
+		strategy:     GetDeletionStrategy(state, healthyPods, masterNodesNames),
 	}
 }
 
@@ -72,8 +71,9 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
 	allowedDeletions := maxUnavailable - missingPods
+	maxUnavailableReached := false
 	if allowedDeletions <= 0 {
-		return nil, fmt.Errorf("max unavailable Pods reached")
+		maxUnavailableReached = true
 	}
 
 	// Step 2. Sort the Pods to get the ones with the higher priority
@@ -85,7 +85,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 	// Step 3: Pick the first one and apply predicates
 	predicates := d.strategy.Predicates()
 	for _, candidate := range potentialVictims {
-		if ok, err := d.runPredicates(candidate, predicates); err != nil {
+		if ok, err := d.runPredicates(candidate, predicates, maxUnavailableReached); err != nil {
 			return nil, err
 		} else if ok {
 			candidate := candidate
@@ -118,16 +118,18 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 func (d *DefaultDeletionController) runPredicates(
 	candidate *v1.Pod,
 	predicates map[string]Predicate,
+	maxUnavailableReached bool,
 ) (bool, error) {
 	expectedDeletions := d.expectations.GetExpectedRestarts(k8s.ExtractNamespacedName(d.es))
-	for _, predicate := range predicates {
-		canDelete, err := predicate(candidate, expectedDeletions)
+	for name, predicate := range predicates {
+		canDelete, err := predicate(candidate, expectedDeletions, maxUnavailableReached)
 		if err != nil {
 			return false, err
 		}
 		if !canDelete {
+			log.V(1).Info("predicate %s failed", name)
 			//skip this Pod, it can't be deleted for the moment
-			continue
+			return false, nil
 		}
 	}
 	// All predicates passed !
