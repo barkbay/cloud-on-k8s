@@ -7,6 +7,7 @@ package driver
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
@@ -14,6 +15,12 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+)
+
+const (
+	// NodeUnreachablePodReason is the reason on a pod when its state cannot be confirmed as kubelet is unresponsive
+	// on the node it is (was) running.
+	NodeUnreachablePodReason = "NodeLost"
 )
 
 // Predicate is a function that indicates if a Pod can be (or not) deleted.
@@ -186,7 +193,17 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			return true, nil
 		},
 		"Skip_Unknown_LongTerminating_Pods": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
-			// TODO: We should not try to delete an Unknown Pod or a Pod stuck in a Terminating state
+			if candidate.DeletionTimestamp != nil && candidate.Status.Reason == NodeUnreachablePodReason {
+				// kubelet is unresponsive, Unknown Pod, do not try to delete it
+				return false, nil
+			}
+			if candidate.DeletionTimestamp != nil && time.Now().After(candidate.DeletionTimestamp.Add(ExpectationsTTLNanosec)) {
+				return false, nil
+			}
+			return true, nil
+		},
+		"Do_Not_Delete_Pods_With_Same_Shards": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
 		},
 	}
