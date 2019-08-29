@@ -165,6 +165,10 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		ctx.deleteExpectations,
 	)
 	_, err = deletionController.Delete(potentialVictims)
+	if errors.IsConflict(err) {
+		// Cache is not up to date
+		return results.WithResult(defaultRequeue)
+	}
 	if err != nil {
 		return results.WithError(err)
 	}

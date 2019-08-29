@@ -4,11 +4,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -106,7 +105,7 @@ func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 			return true, nil
 		},
 		// Ensure that a master can be removed without breaking the quorum.
-		// If quorum is already broken then only delete a Pod if:
+		// TODO: Deal with already broken quorum, only delete a Pod if:
 		// 1. All Pods are Pending
 		// 2. All Pods have failed several times during the last minutes
 		"Do_Not_Degrade_Quorum": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
@@ -116,6 +115,12 @@ func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			// Get the expected masters
 			expectedMasters := len(d.masterNodesNames)
+
+			// Special case
+			if expectedMasters < 3 {
+				// I the cluster is configured with 1 or 2 nodes it is not H.A.
+				return true, nil
+			}
 
 			// Get the healthy masters
 			var healthyMasters []*v1.Pod
@@ -127,6 +132,43 @@ func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			minimumMasterNodes := settings.Quorum(expectedMasters)
 			return len(healthyMasters) > minimumMasterNodes, nil
+		},
+		"Do_Not_Delete_Last_Healthy_Master": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+			// If only one master node is expected this cluster is not H.A.
+			if len(d.masterNodesNames) < 2 {
+				// I the cluster is configured with 1 or 2 nodes it is not H.A.
+				return true, nil
+			}
+
+			var healthyMasters []*v1.Pod
+			candidateIsHealthy := false
+			for _, expectedMaster := range d.masterNodesNames {
+				for healthyPodName, healthyPod := range d.healthyPods {
+					if !label.IsMasterNode(*healthyPod) {
+						continue
+					}
+					master := types.NamespacedName{
+						Name:      expectedMaster,
+						Namespace: candidate.Namespace,
+					}
+					if candidate.Name == healthyPodName.Name {
+						candidateIsHealthy = true
+					}
+					if healthyPodName == master {
+						healthyMasters = append(healthyMasters, healthyPod)
+					}
+				}
+			}
+
+			if candidateIsHealthy && (len(healthyMasters) == 1) {
+				// Last healthy one, don't delete
+				return false, nil
+			}
+			return true, nil
+		},
+		"Skip_Unknown_LongTerminating_Pods": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+			// TODO: We should not try to delete an Unknown Pod or a Pod stuck in a Terminating state
+			return true, nil
 		},
 	}
 }

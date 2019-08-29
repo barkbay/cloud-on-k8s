@@ -2,12 +2,14 @@ package driver
 
 import (
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DeletionController interface {
@@ -71,10 +73,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
 	allowedDeletions := maxUnavailable - missingPods
-	maxUnavailableReached := false
-	if allowedDeletions <= 0 {
-		maxUnavailableReached = true
-	}
+	maxUnavailableReached := (maxUnavailable - missingPods) <= 0
 
 	// Step 2. Sort the Pods to get the ones with the higher priority
 	err = d.strategy.SortFunction()(potentialVictims, d.state)
@@ -82,7 +81,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 		return nil, err
 	}
 
-	// Step 3: Pick the first one and apply predicates
+	// Step 3: Apply predicates
 	predicates := d.strategy.Predicates()
 	for _, candidate := range potentialVictims {
 		if ok, err := d.runPredicates(candidate, predicates, maxUnavailableReached); err != nil {
@@ -94,7 +93,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 			// Append to the victims list
 			victims = append(victims, candidate)
 			allowedDeletions = allowedDeletions - 1
-			if allowedDeletions == 0 {
+			if allowedDeletions <= 0 {
 				break
 			}
 		}
@@ -105,7 +104,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 	}
 	for _, victim := range victims {
 		d.expectations.ExpectRestart(victim)
-		err := d.client.Delete(victim)
+		err := d.delete(victim)
 		if err != nil {
 			d.expectations.RemoveExpectation(victim)
 			return victims, err
@@ -113,6 +112,16 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 	}
 
 	return victims, nil
+}
+
+func (d *DefaultDeletionController) delete(pod *v1.Pod) error {
+	uid := pod.UID
+	return d.client.Delete(pod, func(options *client.DeleteOptions) {
+		if options.Preconditions == nil {
+			options.Preconditions = &metav1.Preconditions{}
+		}
+		options.Preconditions.UID = &uid
+	})
 }
 
 func (d *DefaultDeletionController) runPredicates(
