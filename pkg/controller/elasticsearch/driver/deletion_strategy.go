@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// Predicate is a function that indicates if a Pod can be deleted.
+// Predicate is a function that indicates if a Pod can be (or not) deleted.
 type Predicate func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
@@ -74,6 +74,7 @@ func (d *defaultDeletionStrategy) SortFunction() Sort {
 	}
 }
 
+// Predicates returns a list of Predicates that will prevent a Pod from being deleted.
 func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 	return map[string]Predicate{
 		// One master at a time
@@ -134,6 +135,11 @@ func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 			return len(healthyMasters) > minimumMasterNodes, nil
 		},
 		"Do_Not_Delete_Last_Healthy_Master": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+			// If candidate is not a master then we don't care
+			if !label.IsMasterNode(*candidate) {
+				return true, nil
+			}
+
 			// If only one master node is expected this cluster is not H.A.
 			if len(d.masterNodesNames) < 2 {
 				// I the cluster is configured with 1 or 2 nodes it is not H.A.

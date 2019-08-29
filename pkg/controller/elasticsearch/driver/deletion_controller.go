@@ -124,6 +124,7 @@ func (d *DefaultDeletionController) delete(pod *v1.Pod) error {
 	})
 }
 
+// TODO: Add some debug log to explain which predicates prevent a Pod to be restarted
 func (d *DefaultDeletionController) runPredicates(
 	candidate *v1.Pod,
 	predicates map[string]Predicate,
