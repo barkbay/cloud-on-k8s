@@ -33,8 +33,8 @@ type mockESState struct {
 	nodeNames               []string
 }
 
-func (m mockESState) NodesInCluster(nodeNames []string) (bool, error) {
-	return stringsutil.StringsInSlice(nodeNames, m.nodeNames), nil
+func (m mockESState) NodeInCluster(nodeName string) (bool, error) {
+	return stringsutil.StringInSlice(nodeName, m.nodeNames), nil
 }
 
 func (m mockESState) ShardAllocationsEnabled() (bool, error) {
@@ -62,8 +62,8 @@ func (m mockUpdater) updatePartition(sset *appsv1.StatefulSet, newPartition int3
 
 type mockPodCheck map[string]bool
 
-func (m mockPodCheck) podUpgradeDone(_ k8s.Client, _ ESState, nsn types.NamespacedName, _ string) (bool, error) {
-	return m[nsn.Name], nil
+func (m mockPodCheck) podUpgradeDone(pod corev1.Pod, _ string) (bool, error) {
+	return m[pod.Name], nil
 }
 
 func success() *reconciler.Results {
@@ -227,7 +227,6 @@ func Test_defaultDriver_doRollingUpgrade(t *testing.T) {
 				esClient:       &fc,
 				esState:        tt.args.esState,
 				podUpgradeDone: mockPodCheck(tt.upgradedPods).podUpgradeDone,
-				upgrader:       mu.updatePartition,
 			}
 			if got := upgrade.run(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("run() = %+v, want %+v", got, tt.want)
@@ -498,7 +497,13 @@ func Test_podUpgradeDone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k8sClient := k8s.WrapClient(fake.NewFakeClient(tt.runtimeObjects...))
-			got, err := podUpgradeDone(k8sClient, tt.args.esState, tt.args.podRef, tt.args.expectedRevision)
+			var pod corev1.Pod
+			err := k8sClient.Get(tt.args.podRef, &pod)
+			if err != nil {
+				t.Errorf("podUpgradeDone() can't get Pod, error = %v, %v", err, tt.args.podRef)
+				return
+			}
+			got, err := podUpgradeDone(pod, tt.args.expectedRevision)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("podUpgradeDone() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -508,33 +513,4 @@ func Test_podUpgradeDone(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_defaultDriver_upgradeStatefulSetPartition(t *testing.T) {
-	actual := sset.TestSset{
-		Name:      "sset",
-		Replicas:  2,
-		Partition: 3,
-	}.Build()
-	d := &defaultDriver{
-		DefaultDriverParameters{
-			Client:       k8s.WrapClient(fake.NewFakeClient(&actual)),
-			Expectations: reconciler.NewExpectations(),
-		},
-	}
-	// update partition to 2
-	err := d.upgradeStatefulSetPartition(&actual, 2)
-	require.NoError(t, err)
-	// sset should be updated
-	expected := sset.TestSset{
-		Name:      "sset",
-		Replicas:  2,
-		Partition: 2,
-	}.Build()
-	var got appsv1.StatefulSet
-	err = d.Client.Get(k8s.ExtractNamespacedName(&expected), &got)
-	require.NoError(t, err)
-	require.Equal(t, expected, got)
-	// expectations should be set
-	require.NotEmpty(t, d.Expectations.GetGenerations())
 }

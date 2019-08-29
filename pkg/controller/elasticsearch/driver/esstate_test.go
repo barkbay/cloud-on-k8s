@@ -89,31 +89,26 @@ func (f *fakeESClient) GetClusterHealth(ctx context.Context) (esclient.Health, e
 
 // -- ESState tests
 
-func Test_memoizingNodes_NodesInCluster(t *testing.T) {
+func Test_memoizingNodes_NodeInCluster(t *testing.T) {
 	esClient := &fakeESClient{
 		nodes: esclient.Nodes{Nodes: map[string]esclient.Node{"a": {Name: "a"}, "b": {Name: "b"}, "c": {Name: "c"}}},
 	}
 	memoizingNodes := &memoizingNodes{esClient: esClient}
 
-	inCluster, err := memoizingNodes.NodesInCluster([]string{"a", "b", "c"})
+	inCluster, err := memoizingNodes.NodeInCluster("a")
 	require.NoError(t, err)
 	// es should be requested on first call
 	require.Equal(t, 1, esClient.GetNodesCallCount)
 	// nodes are in the cluster
 	require.Equal(t, true, inCluster)
 	// ES should not be requested again on subsequent calls
-	inCluster, err = memoizingNodes.NodesInCluster([]string{"a", "b", "c"})
+	inCluster, err = memoizingNodes.NodeInCluster("a")
 	require.NoError(t, err)
 	require.Equal(t, 1, esClient.GetNodesCallCount)
 	require.Equal(t, true, inCluster)
 
-	// nodes are a subset of the cluster nodes: should return true
-	inCluster, err = memoizingNodes.NodesInCluster([]string{"a", "b"})
-	require.NoError(t, err)
-	require.True(t, inCluster)
-
 	// all nodes are not in the cluster: should return false
-	inCluster, err = memoizingNodes.NodesInCluster([]string{"a", "b", "c", "e"})
+	inCluster, err = memoizingNodes.NodeInCluster("e")
 	require.NoError(t, err)
 	require.False(t, inCluster)
 }
@@ -177,6 +172,6 @@ func TestNewMemoizingESState(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.ShardAllocationsEnabled()
 	require.NoError(t, err)
-	_, err = s.NodesInCluster([]string{"a"})
+	_, err = s.NodeInCluster("a")
 	require.NoError(t, err)
 }
