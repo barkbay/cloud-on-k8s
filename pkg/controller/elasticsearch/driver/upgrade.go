@@ -34,6 +34,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 
 	podChecker := &podCheck{
 		Client:        d.Client,
+		statefulSets:  statefulSets,
 		ESState:       esState,
 		Elasticsearch: &d.ES,
 	}
@@ -52,6 +53,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 type podCheck struct {
 	k8s.Client
 	ESState
+	statefulSets sset.StatefulSetList
 	*v1alpha1.Elasticsearch
 }
 
@@ -71,7 +73,22 @@ func (p *podCheck) MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error
 	var currentPod corev1.Pod
 	err := p.Get(k8s.ExtractNamespacedName(pod), &currentPod)
 	if err != nil {
-		// TODO: If 404 check the size of the statefulset, could be a downgrade
+		if errors.IsNotFound(err) {
+			// TODO: extract this as a function
+			statefulSetName, ordinal, err := sset.StatefulSetName(pod.Name)
+			if err != nil {
+				return false, err
+			}
+			statefulSet, found := p.statefulSets.GetByName(statefulSetName)
+			if !found {
+				// StatefulSet has been deleted
+				return true, nil
+			}
+			if ordinal >= *statefulSet.Spec.Replicas {
+				// StatefulSet has been scaled down, this pod is not expected anymore
+				return true, nil
+			}
+		}
 		return false, nil
 	}
 

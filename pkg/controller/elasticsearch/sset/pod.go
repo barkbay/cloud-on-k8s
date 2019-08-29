@@ -26,6 +26,7 @@ func PodName(ssetName string, ordinal int32) string {
 	return fmt.Sprintf("%s-%d", ssetName, ordinal)
 }
 
+// StatefulSetName returns the name of the statefulset a Pod belongs to.
 func StatefulSetName(podName string) (ssetName string, ordinal int32, err error) {
 	// TODO: maybe a little bit hacky
 	ordinalPos := strings.LastIndex(podName, "-")
