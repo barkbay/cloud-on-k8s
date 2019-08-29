@@ -81,6 +81,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
 	allowedDeletions := maxUnavailable - missingPods
+	// If maxUnavailable is reached the deletion controller still allows one unhealthy Pod to be restarted.
 	maxUnavailableReached := (maxUnavailable - missingPods) <= 0
 
 	// Step 2. Sort the Pods to get the ones with the higher priority
