@@ -125,6 +125,7 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	return results
 }
 
+// PodsByName is a map of Pods
 type PodsByName map[types.NamespacedName]*corev1.Pod
 
 func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error) {

@@ -30,25 +30,30 @@ type DeletionStrategy interface {
 	SortFunction() Sort
 }
 
-// GetDeletionStrategy returns the default deletion strategy
-func GetDeletionStrategy(state *ESState, healthyPods map[types.NamespacedName]*v1.Pod, masterNodesNames []string) *defaultDeletionStrategy {
-	return &defaultDeletionStrategy{
+// NewDefaultDeletionStrategy returns the default deletion strategy
+func NewDefaultDeletionStrategy(
+	state *ESState,
+	healthyPods PodsByName,
+	masterNodesNames []string,
+) *DefaultDeletionStrategy {
+	return &DefaultDeletionStrategy{
 		masterNodesNames: masterNodesNames,
 		healthyPods:      healthyPods,
 		state:            state,
 	}
 }
 
-type defaultDeletionStrategy struct {
+// DefaultDeletionStrategy holds the context used by the default strategy.
+type DefaultDeletionStrategy struct {
 	masterNodesNames []string
-	healthyPods      map[types.NamespacedName]*v1.Pod
+	healthyPods      PodsByName
 	state            *ESState
 }
 
 // SortFunction is the default sort function, masters have lower priority as
 // we want to update the nodes first.
 // If 2 Pods are of the same type then use the reverse ordinal order
-func (d *defaultDeletionStrategy) SortFunction() Sort {
+func (d *DefaultDeletionStrategy) SortFunction() Sort {
 	return func(allPods []*v1.Pod, state *ESState) (err error) {
 		sort.Slice(allPods[:], func(i, j int) bool {
 			pod1 := allPods[i]
@@ -80,7 +85,7 @@ func (d *defaultDeletionStrategy) SortFunction() Sort {
 }
 
 // Predicates returns a list of Predicates that will prevent a Pod from being deleted.
-func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
+func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 	return map[string]Predicate{
 		// If MaxUnavailable is reached, allow for an unhealthy Pod to be deleted.
 		// This is to prevent a situation where MaxUnavailable is reached and we

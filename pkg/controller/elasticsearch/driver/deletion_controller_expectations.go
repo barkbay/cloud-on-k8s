@@ -23,7 +23,7 @@ const (
 	ExpectationsTTLNanosec = 5 * time.Minute // time is internally represented as int64 nanoseconds
 )
 
-// TODO: Do we really need to be thread safe ? No watches, it will be only called by the ES controller...
+// NewRestartExpectations creates a some new expectations.
 func NewRestartExpectations() *RestartExpectations {
 	return &RestartExpectations{
 		mutex:        sync.RWMutex{},
@@ -32,6 +32,7 @@ func NewRestartExpectations() *RestartExpectations {
 	}
 }
 
+// RestartExpectations holds the expectations for all the namespaces.
 type RestartExpectations struct {
 	mutex sync.RWMutex
 	// expectations holds all the expected deletion for all the ES clusters.
@@ -40,6 +41,7 @@ type RestartExpectations struct {
 	ttl time.Duration
 }
 
+// PodWithTTL is a Pod that, if not restarted within the expectation TTL, will be removed from the expectations.
 type PodWithTTL struct {
 	*v1.Pod
 	time.Time
@@ -57,6 +59,7 @@ func (p podsWithTTL) toPods() []*v1.Pod {
 	return result
 }
 
+// TODO: this one is not thread safe
 func (p podsWithTTL) clear() {
 	// TODO: We can do something smarter
 	for k := range p {
@@ -89,11 +92,14 @@ func clusterFromPod(meta metav1.Object) *types.NamespacedName {
 	return nil
 }
 
+// ExpectationController is used to check if a Pod can be removed from the expectations.
+// TODO: do we need an interface ? A lambda could be enough ?
 type ExpectationController interface {
+	// MayBeRemoved is the function used to check if a Pod can be removed.
 	MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error)
 }
 
-// ClearExpectations goes through all the Pod and check if they have been restarted.
+// MayBeClearExpectations goes through all the Pod and check if they have been restarted.
 // If yes, expectations are cleared.
 func (d *RestartExpectations) MayBeClearExpectations(
 	cluster types.NamespacedName,
@@ -114,6 +120,7 @@ func (d *RestartExpectations) MayBeClearExpectations(
 	return true, nil
 }
 
+// GetExpectedRestarts returns the expectation for a given cluster.
 func (d *RestartExpectations) GetExpectedRestarts(cluster types.NamespacedName) []*v1.Pod {
 	return d.getOrCreateRestartExpectations(cluster).toPods()
 }
@@ -127,6 +134,7 @@ func (d *RestartExpectations) ExpectRestart(pod *v1.Pod) {
 	d.getOrCreateRestartExpectations(*cluster).addExpectation(pod, d.ttl)
 }
 
+// RemoveExpectation removes the expectation for a given pod
 func (d *RestartExpectations) RemoveExpectation(pod *v1.Pod) {
 	cluster := clusterFromPod(pod.GetObjectMeta())
 	if cluster == nil {

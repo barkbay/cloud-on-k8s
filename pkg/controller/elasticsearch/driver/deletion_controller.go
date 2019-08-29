@@ -16,22 +16,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// DeletionController is a controller that given a context uses a plugable strategy
+// to determine which Pods can be safely deleted.
 type DeletionController interface {
 	// Delete goes thought the candidates and actually deletes the ones
 	Delete(pod []*v1.Pod) (victims []*v1.Pod, err error)
 }
 
+// DefaultDeletionController is the default deletion controller.
 type DefaultDeletionController struct {
 	client       k8s.Client
 	esClient     esclient.Client
 	es           *v1alpha1.Elasticsearch
 	state        *ESState
-	healthyPods  map[types.NamespacedName]*v1.Pod
+	healthyPods  PodsByName
 	strategy     DeletionStrategy
 	expectations *RestartExpectations
 }
 
-// NewDeletionController creates a new deletion controller.
+// NewDeletionController creates a new default deletion controller.
 func NewDeletionController(
 	client k8s.Client,
 	esClient esclient.Client,
@@ -48,10 +51,11 @@ func NewDeletionController(
 		state:        state,
 		healthyPods:  healthyPods,
 		expectations: expectations,
-		strategy:     GetDeletionStrategy(state, healthyPods, masterNodesNames),
+		strategy:     NewDefaultDeletionStrategy(state, healthyPods, masterNodesNames),
 	}
 }
 
+// Delete runs through a list of potential victims and select the ones that can be deleted.
 func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims []*v1.Pod, err error) {
 	if len(potentialVictims) == 0 {
 		return nil, nil
