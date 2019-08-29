@@ -165,8 +165,10 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		ctx.deleteExpectations,
 	)
 	_, err = deletionController.Delete(potentialVictims)
-	if errors.IsConflict(err) {
-		// Cache is not up to date
+	if errors.IsConflict(err) || errors.IsNotFound(err) {
+		// Cache is not up to date or Pod has been deleted by someone else
+		// (could be the statefulset controller)
+		// TODO: should we at least log this one in debug mode ?
 		return results.WithResult(defaultRequeue)
 	}
 	if err != nil {

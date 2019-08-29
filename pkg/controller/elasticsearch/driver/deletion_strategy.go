@@ -26,6 +26,7 @@ type DeletionStrategy interface {
 	SortFunction() Sort
 }
 
+// GetDeletionStrategy returns the default deletion strategy
 func GetDeletionStrategy(state *ESState, healthyPods map[types.NamespacedName]*v1.Pod, masterNodesNames []string) *defaultDeletionStrategy {
 	return &defaultDeletionStrategy{
 		masterNodesNames: masterNodesNames,
@@ -77,8 +78,10 @@ func (d *defaultDeletionStrategy) SortFunction() Sort {
 // Predicates returns a list of Predicates that will prevent a Pod from being deleted.
 func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 	return map[string]Predicate{
-		// One master at a time
-		"Do_Not_Restart_Healthy_Node_If_MaxAvailable_Reached": func(
+		// If MaxUnavailable is reached, allow for an unhealthy Pod to be deleted.
+		// This is to prevent a situation where MaxUnavailable is reached and we
+		// can't make some progress even if the user has updated the spec.
+		"Do_Not_Restart_Healthy_Node_If_MaxUnavailable_Reached": func(
 			candidate *v1.Pod,
 			expectedDeletions []*v1.Pod,
 			maxUnavailableReached bool,
@@ -109,6 +112,7 @@ func (d *defaultDeletionStrategy) Predicates() map[string]Predicate {
 		// TODO: Deal with already broken quorum, only delete a Pod if:
 		// 1. All Pods are Pending
 		// 2. All Pods have failed several times during the last minutes
+		// TODO: Mostly to do a test, not sure about this one
 		"Do_Not_Degrade_Quorum": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
 			if !label.IsMasterNode(*candidate) {
