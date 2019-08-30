@@ -31,7 +31,7 @@ type DefaultDeletionDriver struct {
 	state        ESState
 	podsStatus   PodsStatus
 	strategy     DeletionStrategy
-	expectations *RestartExpectations
+	expectations *DeleteExpectations
 }
 
 // NewDeletionDriver creates a new default deletion driver.
@@ -43,7 +43,7 @@ func NewDeletionDriver(
 	state ESState,
 	masterNodesNames []string,
 	podsStatus PodsStatus,
-	expectations *RestartExpectations,
+	expectations *DeleteExpectations,
 ) *DefaultDeletionDriver {
 	return &DefaultDeletionDriver{
 		client:       client,
@@ -107,13 +107,18 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 		}
 	}
 
+	if len(deletedPods) == 0 {
+		log.Info("no pod deleted", "es_name", d.es.Name, "es_namespace", d.es.Namespace)
+		return deletedPods, nil
+	}
+
 	// Disable
-	if err := prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
+	if err := d.prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
 		return nil, err
 	}
 	// TODO: If master is changed into a data node it must be excluded or we should update m_m_n
 	for _, deletedPod := range deletedPods {
-		d.expectations.ExpectRestart(&deletedPod)
+		d.expectations.ExpectDelete(&deletedPod)
 		err := d.delete(&deletedPod)
 		if err != nil {
 			d.expectations.RemoveExpectation(&deletedPod)
@@ -126,6 +131,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 
 func (d *DefaultDeletionDriver) delete(pod *v1.Pod) error {
 	uid := pod.UID
+	log.Info("delete pod", "es_name", d.es.Name, "es_namespace", d.es.Namespace, "pod_name", pod.Name, "pod_uid", pod.UID)
 	return d.client.Delete(pod, func(options *client.DeleteOptions) {
 		if options.Preconditions == nil {
 			options.Preconditions = &metav1.Preconditions{}
@@ -140,7 +146,7 @@ func (d *DefaultDeletionDriver) runPredicates(
 	predicates map[string]Predicate,
 	maxUnavailableReached bool,
 ) (bool, error) {
-	expectedDeletions := d.expectations.GetExpectedRestarts(k8s.ExtractNamespacedName(d.es))
+	expectedDeletions := d.expectations.GetDeleteExpectations(k8s.ExtractNamespacedName(d.es))
 	for name, predicate := range predicates {
 		canDelete, err := predicate(candidate, expectedDeletions, maxUnavailableReached)
 		if err != nil {
@@ -156,13 +162,14 @@ func (d *DefaultDeletionDriver) runPredicates(
 	return true, nil
 }
 
-func prepareClusterForNodeRestart(esClient esclient.Client, esState ESState) error {
+func (d *DefaultDeletionDriver) prepareClusterForNodeRestart(esClient esclient.Client, esState ESState) error {
 	// Disable shard allocations to avoid shards moving around while the node is temporarily down
 	shardsAllocationEnabled, err := esState.ShardAllocationsEnabled()
 	if err != nil {
 		return err
 	}
 	if shardsAllocationEnabled {
+		log.Info("Disabling shards allocation", "es_name", d.es.Name, "es_namespace", d.es.Namespace)
 		if err := disableShardsAllocation(esClient); err != nil {
 			return err
 		}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	v1 "k8s.io/api/core/v1"
@@ -123,7 +122,17 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 					return false, nil
 				}
 			}
-			return true, nil
+			// Get the expected masters
+			expectedMasters := len(d.masterNodesNames)
+			// Get the healthy masters
+			var healthyMasters []v1.Pod
+			for _, pod := range d.podsStatus.healthy {
+				if label.IsMasterNode(pod) {
+					pod := pod
+					healthyMasters = append(healthyMasters, pod)
+				}
+			}
+			return len(healthyMasters) == expectedMasters, nil
 		},
 		// Force an upgrade of all the data nodes before upgrading the last master
 		"do_not_delete_last_master_if_datanodes_are_not_upgraded": func(
@@ -149,36 +158,6 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 				}
 			}
 			return true, nil
-		},
-		// Ensure that a master can be removed without breaking the quorum.
-		// TODO: Deal with already broken quorum, only delete a Pod if:
-		// 1. All Pods are Pending
-		// 2. All Pods have failed several times during the last minutes
-		// TODO: Mostly to do a test, not sure if we should keep this one
-		"do_not_degrade_quorum": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
-			// If candidate is not a master then we don't care
-			if !label.IsMasterNode(candidate) {
-				return true, nil
-			}
-			// Get the expected masters
-			expectedMasters := len(d.masterNodesNames)
-
-			// Special case
-			if expectedMasters < 3 {
-				// I the cluster is configured with 1 or 2 nodes it is not H.A.
-				return true, nil
-			}
-
-			// Get the healthy masters
-			var healthyMasters []v1.Pod
-			for _, pod := range d.podsStatus.healthy {
-				if label.IsMasterNode(pod) {
-					pod := pod
-					healthyMasters = append(healthyMasters, pod)
-				}
-			}
-			minimumMasterNodes := settings.Quorum(expectedMasters)
-			return len(healthyMasters) > minimumMasterNodes, nil
 		},
 		"do_not_delete_last_healthy_master": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care

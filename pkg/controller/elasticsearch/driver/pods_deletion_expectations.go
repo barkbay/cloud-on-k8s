@@ -17,23 +17,23 @@ import (
 
 const (
 	// ExpectationsTTLNanosec is the default expectations time-to-live,
-	// used to unlock some situations if a Pod never restart.
+	// used to unlock some situations if a Pod is never terminated.
 	//
 	// Set to 5 minutes similar to https://github.com/kubernetes/kubernetes/blob/v1.13.2/pkg/controller/controller_utils.go
 	ExpectationsTTLNanosec = 5 * time.Minute // time is internally represented as int64 nanoseconds
 )
 
-// NewRestartExpectations creates a some new expectations.
-func NewRestartExpectations() *RestartExpectations {
-	return &RestartExpectations{
+// NewDeleteExpectations creates a some new expectations.
+func NewDeleteExpectations() *DeleteExpectations {
+	return &DeleteExpectations{
 		mutex:        sync.RWMutex{},
 		expectations: map[types.NamespacedName]*expectedPods{},
 		ttl:          ExpectationsTTLNanosec,
 	}
 }
 
-// RestartExpectations holds the expectations for all the namespaces.
-type RestartExpectations struct {
+// DeleteExpectations holds the expectations for all the namespaces.
+type DeleteExpectations struct {
 	mutex sync.RWMutex
 	// expectations holds all the expected deletion for all the ES clusters.
 	expectations map[types.NamespacedName]*expectedPods
@@ -41,7 +41,7 @@ type RestartExpectations struct {
 	ttl time.Duration
 }
 
-// PodWithTTL is a Pod that, if not restarted within the expectation TTL, will be removed from the expectations.
+// PodWithTTL is a Pod that, if not deleted within the expectation TTL, will be removed from the expectations.
 type PodWithTTL struct {
 	*v1.Pod
 	time.Time
@@ -97,13 +97,13 @@ type expectationCheck interface {
 	canBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error)
 }
 
-// MayBeClearExpectations goes through all the Pod and check if they have been restarted.
+// MayBeClearExpectations goes through all the Pod and check if they have been replaced.
 // If yes, expectations are cleared.
-func (d *RestartExpectations) MayBeClearExpectations(
+func (d *DeleteExpectations) MayBeClearExpectations(
 	cluster types.NamespacedName,
 	controller expectationCheck,
 ) (bool, error) {
-	pods := d.getOrCreateRestartExpectations(cluster)
+	pods := d.getOrCreateDeleteExpectations(cluster)
 	for _, pod := range pods.podsWithTTL {
 		mayBeRemoved, err := controller.canBeRemoved(pod, d.ttl)
 		if err != nil {
@@ -118,27 +118,27 @@ func (d *RestartExpectations) MayBeClearExpectations(
 	return true, nil
 }
 
-// GetExpectedRestarts returns the expectation for a given cluster.
-func (d *RestartExpectations) GetExpectedRestarts(cluster types.NamespacedName) []v1.Pod {
-	return d.getOrCreateRestartExpectations(cluster).toPods()
+// GetDeleteExpectations returns the expectation for a given cluster.
+func (d *DeleteExpectations) GetDeleteExpectations(cluster types.NamespacedName) []v1.Pod {
+	return d.getOrCreateDeleteExpectations(cluster).toPods()
 }
 
-// ExpectRestart marks a deletion for the given resource as expected.
-func (d *RestartExpectations) ExpectRestart(pod *v1.Pod) {
+// ExpectDelete marks a deletion for the given resource as expected.
+func (d *DeleteExpectations) ExpectDelete(pod *v1.Pod) {
 	cluster := clusterFromPod(pod.GetObjectMeta())
 	if cluster == nil {
 		return // Should not happen as all Pods should have the correct labels
 	}
-	d.getOrCreateRestartExpectations(*cluster).addExpectation(pod, d.ttl)
+	d.getOrCreateDeleteExpectations(*cluster).addExpectation(pod, d.ttl)
 }
 
 // RemoveExpectation removes the expectation for a given pod
-func (d *RestartExpectations) RemoveExpectation(pod *v1.Pod) {
+func (d *DeleteExpectations) RemoveExpectation(pod *v1.Pod) {
 	cluster := clusterFromPod(pod.GetObjectMeta())
 	if cluster == nil {
 		return // Should not happen as all Pods should have the correct labels
 	}
-	d.getOrCreateRestartExpectations(*cluster).removeExpectation(pod)
+	d.getOrCreateDeleteExpectations(*cluster).removeExpectation(pod)
 }
 
 func (e *expectedPods) addExpectation(pod *v1.Pod, ttl time.Duration) {
@@ -156,17 +156,17 @@ func (e *expectedPods) removeExpectation(pod *v1.Pod) {
 	delete(e.podsWithTTL, k8s.ExtractNamespacedName(pod))
 }
 
-func (d *RestartExpectations) getOrCreateRestartExpectations(namespacedName types.NamespacedName) *expectedPods {
+func (d *DeleteExpectations) getOrCreateDeleteExpectations(namespacedName types.NamespacedName) *expectedPods {
 	d.mutex.RLock()
 	expectedPods, exists := d.expectations[namespacedName]
 	d.mutex.RUnlock()
 	if !exists {
-		expectedPods = d.createRestartExpectations(namespacedName)
+		expectedPods = d.createDeleteExpectations(namespacedName)
 	}
 	return expectedPods
 }
 
-func (d *RestartExpectations) createRestartExpectations(namespacedName types.NamespacedName) *expectedPods {
+func (d *DeleteExpectations) createDeleteExpectations(namespacedName types.NamespacedName) *expectedPods {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	expectedPods, exists := d.expectations[namespacedName]

@@ -84,7 +84,7 @@ type rollingUpgradeCtx struct {
 	esClient           esclient.Client
 	esState            ESState
 	podsStatus         PodsStatus
-	deleteExpectations *RestartExpectations
+	deleteExpectations *DeleteExpectations
 	masterNodesNames   []string
 	podUpgradeDone     func(pod corev1.Pod, expectedRevision string) (bool, error)
 }
