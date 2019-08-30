@@ -40,12 +40,12 @@ type DeletionStrategy interface {
 // NewDefaultDeletionStrategy returns the default deletion strategy
 func NewDefaultDeletionStrategy(
 	state ESState,
-	healthyPods PodsByName,
+	podsStatus PodsStatus,
 	masterNodesNames []string,
 ) *DefaultDeletionStrategy {
 	return &DefaultDeletionStrategy{
 		masterNodesNames: masterNodesNames,
-		healthyPods:      healthyPods,
+		podsStatus:       podsStatus,
 		esState:          state,
 	}
 }
@@ -53,7 +53,7 @@ func NewDefaultDeletionStrategy(
 // DefaultDeletionStrategy holds the context used by the default strategy.
 type DefaultDeletionStrategy struct {
 	masterNodesNames []string
-	healthyPods      PodsByName
+	podsStatus       PodsStatus
 	esState          ESState
 }
 
@@ -98,7 +98,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// If MaxUnavailable is reached, allow for an unhealthy Pod to be deleted.
 		// This is to prevent a situation where MaxUnavailable is reached and we
 		// can't make some progress even if the user has updated the spec.
-		"Do_Not_Restart_Healthy_Node_If_MaxUnavailable_Reached": func(
+		"do_not_restart_healthy_node_if_MaxUnavailable_reached": func(
 			candidate v1.Pod,
 			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
@@ -109,7 +109,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			return true, nil
 		},
 		// One master at a time
-		"One_Master_At_A_Time": func(
+		"one_master_at_a_time": func(
 			candidate v1.Pod,
 			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
@@ -125,12 +125,37 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
+		// Force an upgrade of all the data nodes before upgrading the last master
+		"do_not_delete_last_master_if_datanodes_are_not_upgraded": func(
+			candidate v1.Pod,
+			expectedDeletions []v1.Pod,
+			maxUnavailableReached bool,
+		) (b bool, e error) {
+			// If candidate is not a master then we don't care
+			if !label.IsMasterNode(candidate) {
+				return true, nil
+			}
+			for _, pod := range d.podsStatus.toUpdate {
+				if label.IsMasterNode(pod) {
+					// There's some others master alive, allow this one to be deleted
+					return true, nil
+				}
+			}
+			// This is the last master, check if all data nodes are up to date
+			for _, pod := range d.podsStatus.toUpdate {
+				if label.IsDataNode(pod) {
+					// There's still a data node to update
+					return false, nil
+				}
+			}
+			return true, nil
+		},
 		// Ensure that a master can be removed without breaking the quorum.
 		// TODO: Deal with already broken quorum, only delete a Pod if:
 		// 1. All Pods are Pending
 		// 2. All Pods have failed several times during the last minutes
-		// TODO: Mostly to do a test, not sure about this one
-		"Do_Not_Degrade_Quorum": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		// TODO: Mostly to do a test, not sure if we should keep this one
+		"do_not_degrade_quorum": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
 			if !label.IsMasterNode(candidate) {
 				return true, nil
@@ -146,7 +171,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 
 			// Get the healthy masters
 			var healthyMasters []v1.Pod
-			for _, pod := range d.healthyPods {
+			for _, pod := range d.podsStatus.healthy {
 				if label.IsMasterNode(pod) {
 					pod := pod
 					healthyMasters = append(healthyMasters, pod)
@@ -155,7 +180,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			minimumMasterNodes := settings.Quorum(expectedMasters)
 			return len(healthyMasters) > minimumMasterNodes, nil
 		},
-		"Do_Not_Delete_Last_Healthy_Master": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_delete_last_healthy_master": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
 			if !label.IsMasterNode(candidate) {
 				return true, nil
@@ -170,7 +195,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			var healthyMasters []v1.Pod
 			candidateIsHealthy := false
 			for _, expectedMaster := range d.masterNodesNames {
-				for healthyPodName, healthyPod := range d.healthyPods {
+				for healthyPodName, healthyPod := range d.podsStatus.healthy {
 					if !label.IsMasterNode(healthyPod) {
 						continue
 					}
@@ -203,14 +228,14 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"Do_Not_Delete_Pods_With_Same_Shards": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_Delete_Pods_With_Same_Shards": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
 		},
 		// In Yellow or Red status only allow unhealthy Pods to be restarted.
 		// This is intended to unlock some situations where the cluster is not green and
 		// a Pod has to be restarted a second time.
-		"Do_Not_Restart_Healthy_Node_If_Not_Green": func(
+		"do_not_Restart_Healthy_Node_if_Not_Green": func(
 			candidate v1.Pod,
 			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,

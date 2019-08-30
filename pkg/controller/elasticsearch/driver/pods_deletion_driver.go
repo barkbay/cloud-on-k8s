@@ -27,8 +27,9 @@ type DefaultDeletionDriver struct {
 	client       k8s.Client
 	esClient     esclient.Client
 	es           *v1alpha1.Elasticsearch
+	statefulSets sset.StatefulSetList
 	state        ESState
-	healthyPods  PodsByName
+	podsStatus   PodsStatus
 	strategy     DeletionStrategy
 	expectations *RestartExpectations
 }
@@ -38,19 +39,21 @@ func NewDeletionDriver(
 	client k8s.Client,
 	esClient esclient.Client,
 	es *v1alpha1.Elasticsearch,
+	statefulSets sset.StatefulSetList,
 	state ESState,
 	masterNodesNames []string,
-	healthyPods PodsByName,
+	podsStatus PodsStatus,
 	expectations *RestartExpectations,
 ) *DefaultDeletionDriver {
 	return &DefaultDeletionDriver{
 		client:       client,
 		esClient:     esClient,
 		es:           es,
+		statefulSets: statefulSets,
 		state:        state,
-		healthyPods:  healthyPods,
+		podsStatus:   podsStatus,
 		expectations: expectations,
-		strategy:     NewDefaultDeletionStrategy(state, healthyPods, masterNodesNames),
+		strategy:     NewDefaultDeletionStrategy(state, podsStatus, masterNodesNames),
 	}
 }
 
@@ -69,8 +72,9 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 		return nil, err
 	}
 	expectedPods := statefulSets.PodNames()
-	unhealthyPods := len(expectedPods) - len(d.healthyPods)
+	unhealthyPods := len(expectedPods) - len(d.podsStatus.healthy)
 	maxUnavailable := 1
+	// TODO: use GroupingDefinition
 	if d.es.Spec.UpdateStrategy.ChangeBudget != nil {
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
@@ -93,7 +97,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 		} else if ok {
 			candidate := candidate
 			// Remove from healthy nodes if it was there
-			delete(d.healthyPods, candidate.Name)
+			delete(d.podsStatus.healthy, candidate.Name)
 			// Append to the deletedPods list
 			deletedPods = append(deletedPods, candidate)
 			allowedDeletions = allowedDeletions - 1
@@ -103,9 +107,11 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 		}
 	}
 
+	// Disable
 	if err := prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
 		return nil, err
 	}
+	// TODO: If master is changed into a data node it must be excluded
 	for _, deletedPod := range deletedPods {
 		d.expectations.ExpectRestart(&deletedPod)
 		err := d.delete(&deletedPod)

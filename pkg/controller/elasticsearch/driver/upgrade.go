@@ -57,9 +57,21 @@ func (d *defaultDriver) handleRollingUpgrades(
 		log.Info("expectation not cleared", "es_name", d.ES.Name, "es_namespace", d.ES.Namespace)
 		return results.WithResult(defaultRequeue)
 	}
+	log.Info("expectation cleared", "es_name", d.ES.Name, "es_namespace", d.ES.Namespace)
 
 	// Maybe upgrade some of the nodes.
-	results.WithResults(newRollingUpgrade(d, esClient, esState, *podsStatus, statefulSets, masterNodesNames).run())
+	deletedPods, err := newRollingUpgrade(d, esClient, esState, *podsStatus, statefulSets, masterNodesNames).run()
+	if err != nil {
+		return results.WithError(err)
+	}
+	if len(deletedPods) > 0 {
+		// Some Pods have just been deleted, keep shards allocation disabled
+		return results.WithResult(defaultRequeue)
+	}
+	if len(podsStatus.toUpdate) > len(deletedPods) {
+		// Some Pods have not been update, ensure that we retry later
+		results.WithResult(defaultRequeue)
+	}
 
 	// Maybe re-enable shards allocation if upgraded nodes are back into the cluster.
 	return results.WithResults(d.MaybeEnableShardsAllocation(esClient, esState, statefulSets))
@@ -98,8 +110,7 @@ func newRollingUpgrade(
 	}
 }
 
-func (ctx rollingUpgradeCtx) run() *reconciler.Results {
-	results := &reconciler.Results{}
+func (ctx rollingUpgradeCtx) run() ([]corev1.Pod, error) {
 
 	// TODO: deal with multiple restarts at once, taking the changeBudget into account.
 	//  We'd need to stop checking cluster health and do something smarter, since cluster health green check
@@ -112,22 +123,23 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		ctx.client,
 		ctx.esClient,
 		&ctx.ES,
+		ctx.statefulSets,
 		ctx.esState,
 		ctx.masterNodesNames,
-		ctx.podsStatus.healthy,
+		ctx.podsStatus,
 		ctx.deleteExpectations,
 	)
-	_, err := deletionDriver.Delete(ctx.podsStatus.toUpdate)
+	deletedPods, err := deletionDriver.Delete(ctx.podsStatus.toUpdate)
 	if errors.IsConflict(err) || errors.IsNotFound(err) {
 		// Cache is not up to date or Pod has been deleted by someone else
 		// (could be the statefulset controller)
 		// TODO: should we at least log this one in debug mode ?
-		return results.WithResult(defaultRequeue)
+		return deletedPods, nil
 	}
 	if err != nil {
-		return results.WithError(err)
+		return deletedPods, err
 	}
-	return results
+	return deletedPods, nil
 }
 
 // TODO: move this to sset package
