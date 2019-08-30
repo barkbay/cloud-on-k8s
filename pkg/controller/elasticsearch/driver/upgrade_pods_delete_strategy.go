@@ -197,7 +197,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"Skip_Unknown_LongTerminating_Pods": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"skip_unknown_or_long_terminating_pods": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			if candidate.DeletionTimestamp != nil && candidate.Status.Reason == NodeUnreachablePodReason {
 				// kubelet is unresponsive, Unknown Pod, do not try to delete it
 				return false, nil
@@ -207,14 +207,14 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"do_not_Delete_Pods_With_Same_Shards": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_delete_pods_with_same_shards": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
 		},
 		// In Yellow or Red status only allow unhealthy Pods to be restarted.
 		// This is intended to unlock some situations where the cluster is not green and
 		// a Pod has to be restarted a second time.
-		"do_not_Restart_Healthy_Node_if_Not_Green": func(
+		"do_not_restart_healthy_node_if_not_green": func(
 			candidate v1.Pod,
 			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
