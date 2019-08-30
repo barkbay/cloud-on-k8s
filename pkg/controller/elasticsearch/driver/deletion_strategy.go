@@ -27,7 +27,7 @@ const (
 type Predicate func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
-type Sort func(allPods []*v1.Pod, state *ESState) error
+type Sort func(allPods []*vs1.Pod, state *ESState) error
 
 // DeletionStrategy defines the strategy when some Pods must be deleted.
 // 1. Pods are sorted

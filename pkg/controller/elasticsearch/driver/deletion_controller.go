@@ -20,7 +20,7 @@ import (
 // to determine which Pods can be safely deleted.
 type DeletionController interface {
 	// Delete goes thought the candidates and actually deletes the ones
-	Delete(pod []*v1.Pod) (victims []*v1.Pod, err error)
+	Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error)
 }
 
 // DefaultDeletionController is the default deletion controller.
@@ -55,9 +55,9 @@ func NewDeletionController(
 	}
 }
 
-// Delete runs through a list of potential victims and select the ones that can be deleted.
-func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims []*v1.Pod, err error) {
-	if len(potentialVictims) == 0 {
+// Delete runs through a list of potential candidates and select the ones that can be deleted.
+func (d *DefaultDeletionController) Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error) {
+	if len(candidates) == 0 {
 		return nil, nil
 	}
 	es := k8s.ExtractNamespacedName(d.es)
@@ -66,7 +66,7 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 		return
 	}
 
-	// Start Step 4.2: expectations are empty, try to find some victims
+	// Start Step 4.2: expectations are empty, try to find some deletedPods
 
 	// Check if we are not over disruption budget
 	// Upscale is done, we should have the required number of Pods
@@ -82,26 +82,26 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 	}
 	allowedDeletions := maxUnavailable - missingPods
 	// If maxUnavailable is reached the deletion controller still allows one unhealthy Pod to be restarted.
-	// TODO: Should we make the difference between MaxUnavailable and MaxRestarting ?
+	// TODO: Should we make the difference between MaxUnavailable and MaxConcurrentRestarting ?
 	maxUnavailableReached := (maxUnavailable - missingPods) <= 0
 
 	// Step 2. Sort the Pods to get the ones with the higher priority
-	err = d.strategy.SortFunction()(potentialVictims, d.state)
+	err = d.strategy.SortFunction()(candidates, d.state)
 	if err != nil {
 		return nil, err
 	}
 
 	// Step 3: Apply predicates
 	predicates := d.strategy.Predicates()
-	for _, candidate := range potentialVictims {
+	for _, candidate := range candidates {
 		if ok, err := d.runPredicates(candidate, predicates, maxUnavailableReached); err != nil {
 			return nil, err
 		} else if ok {
 			candidate := candidate
 			// Remove from healthy nodes if it was there
 			delete(d.healthyPods, k8s.ExtractNamespacedName(candidate))
-			// Append to the victims list
-			victims = append(victims, candidate)
+			// Append to the deletedPods list
+			deletedPods = append(deletedPods, candidate)
 			allowedDeletions = allowedDeletions - 1
 			if allowedDeletions <= 0 {
 				break
@@ -112,16 +112,16 @@ func (d *DefaultDeletionController) Delete(potentialVictims []*v1.Pod) (victims 
 	if err := prepareClusterForNodeRestart(d.esClient, *d.state); err != nil {
 		return nil, err
 	}
-	for _, victim := range victims {
-		d.expectations.ExpectRestart(victim)
-		err := d.delete(victim)
+	for _, deletedPod := range deletedPods {
+		d.expectations.ExpectRestart(deletedPod)
+		err := d.delete(deletedPod)
 		if err != nil {
-			d.expectations.RemoveExpectation(victim)
-			return victims, err
+			d.expectations.RemoveExpectation(deletedPod)
+			return deletedPods, err
 		}
 	}
 
-	return victims, nil
+	return deletedPods, nil
 }
 
 func (d *DefaultDeletionController) delete(pod *v1.Pod) error {

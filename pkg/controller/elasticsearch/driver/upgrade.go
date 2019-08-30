@@ -99,8 +99,8 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		return results.WithResult(defaultRequeue)
 	}
 
-	healthyPods, potentialVictims, err := ctx.podsToBeUpdate()
-	if len(potentialVictims) == 0 {
+	healthyPods, candidates, err := ctx.podsToBeUpdate()
+	if len(candidates) == 0 {
 		return results
 	}
 	deletionController := NewDeletionController(
@@ -112,7 +112,7 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 		healthyPods,
 		ctx.deleteExpectations,
 	)
-	_, err = deletionController.Delete(potentialVictims)
+	_, err = deletionController.Delete(candidates)
 	if errors.IsConflict(err) || errors.IsNotFound(err) {
 		// Cache is not up to date or Pod has been deleted by someone else
 		// (could be the statefulset controller)
