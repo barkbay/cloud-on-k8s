@@ -103,7 +103,7 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	if len(candidates) == 0 {
 		return results
 	}
-	deletionController := NewDeletionController(
+	deletionController := NewDeletionDriver(
 		ctx.client,
 		ctx.esClient,
 		&ctx.ES,

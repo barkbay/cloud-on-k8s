@@ -16,15 +16,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// DeletionController is a controller that given a context uses a plugable strategy
+// DeletionDriver is a controller that given a context uses a plugable strategy
 // to determine which Pods can be safely deleted.
-type DeletionController interface {
+type DeletionDriver interface {
 	// Delete goes thought the candidates and actually deletes the ones
 	Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error)
 }
 
-// DefaultDeletionController is the default deletion controller.
-type DefaultDeletionController struct {
+// DefaultDeletionDriver is the default deletion driver.
+type DefaultDeletionDriver struct {
 	client       k8s.Client
 	esClient     esclient.Client
 	es           *v1alpha1.Elasticsearch
@@ -34,8 +34,8 @@ type DefaultDeletionController struct {
 	expectations *RestartExpectations
 }
 
-// NewDeletionController creates a new default deletion controller.
-func NewDeletionController(
+// NewDeletionDriver creates a new default deletion driver.
+func NewDeletionDriver(
 	client k8s.Client,
 	esClient esclient.Client,
 	es *v1alpha1.Elasticsearch,
@@ -43,8 +43,8 @@ func NewDeletionController(
 	masterNodesNames []string,
 	healthyPods map[types.NamespacedName]*v1.Pod,
 	expectations *RestartExpectations,
-) *DefaultDeletionController {
-	return &DefaultDeletionController{
+) *DefaultDeletionDriver {
+	return &DefaultDeletionDriver{
 		client:       client,
 		esClient:     esClient,
 		es:           es,
@@ -56,7 +56,7 @@ func NewDeletionController(
 }
 
 // Delete runs through a list of potential candidates and select the ones that can be deleted.
-func (d *DefaultDeletionController) Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error) {
+func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error) {
 	if len(candidates) == 0 {
 		return nil, nil
 	}
@@ -81,7 +81,7 @@ func (d *DefaultDeletionController) Delete(candidates []*v1.Pod) (deletedPods []
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
 	allowedDeletions := maxUnavailable - missingPods
-	// If maxUnavailable is reached the deletion controller still allows one unhealthy Pod to be restarted.
+	// If maxUnavailable is reached the deletion driver still allows one unhealthy Pod to be restarted.
 	// TODO: Should we make the difference between MaxUnavailable and MaxConcurrentRestarting ?
 	maxUnavailableReached := (maxUnavailable - missingPods) <= 0
 
@@ -124,7 +124,7 @@ func (d *DefaultDeletionController) Delete(candidates []*v1.Pod) (deletedPods []
 	return deletedPods, nil
 }
 
-func (d *DefaultDeletionController) delete(pod *v1.Pod) error {
+func (d *DefaultDeletionDriver) delete(pod *v1.Pod) error {
 	uid := pod.UID
 	return d.client.Delete(pod, func(options *client.DeleteOptions) {
 		if options.Preconditions == nil {
@@ -135,7 +135,7 @@ func (d *DefaultDeletionController) delete(pod *v1.Pod) error {
 }
 
 // TODO: Add some debug log to explain which predicates prevent a Pod to be restarted
-func (d *DefaultDeletionController) runPredicates(
+func (d *DefaultDeletionDriver) runPredicates(
 	candidate *v1.Pod,
 	predicates map[string]Predicate,
 	maxUnavailableReached bool,
