@@ -111,7 +111,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Po
 	if err := prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
 		return nil, err
 	}
-	// TODO: If master is changed into a data node it must be excluded
+	// TODO: If master is changed into a data node it must be excluded or we should update m_m_n
 	for _, deletedPod := range deletedPods {
 		d.expectations.ExpectRestart(&deletedPod)
 		err := d.delete(&deletedPod)
@@ -147,7 +147,7 @@ func (d *DefaultDeletionDriver) runPredicates(
 			return false, err
 		}
 		if !canDelete {
-			log.V(1).Info("predicate %s failed", name)
+			log.Info("predicate failed", "pod_name", candidate.Name, "predicate_name", name)
 			//skip this Pod, it can't be deleted for the moment
 			return false, nil
 		}
