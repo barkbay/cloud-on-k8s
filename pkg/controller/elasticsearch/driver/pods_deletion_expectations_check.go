@@ -67,7 +67,7 @@ func (p *podCheck) MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error
 	}
 
 	// Make sure all nodes scheduled for upgrade are back into the cluster.
-	nodesInCluster, err := p.NodeInCluster(pod.Name)
+	nodesInCluster, err := p.NodesInCluster([]string{pod.Name})
 	if err != nil {
 		return false, err
 	}

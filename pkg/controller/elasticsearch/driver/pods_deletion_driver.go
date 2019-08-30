@@ -28,7 +28,7 @@ type DefaultDeletionDriver struct {
 	client       k8s.Client
 	esClient     esclient.Client
 	es           *v1alpha1.Elasticsearch
-	state        *ESState
+	state        ESState
 	healthyPods  PodsByName
 	strategy     DeletionStrategy
 	expectations *RestartExpectations
@@ -39,7 +39,7 @@ func NewDeletionDriver(
 	client k8s.Client,
 	esClient esclient.Client,
 	es *v1alpha1.Elasticsearch,
-	state *ESState,
+	state ESState,
 	masterNodesNames []string,
 	healthyPods map[types.NamespacedName]*v1.Pod,
 	expectations *RestartExpectations,
@@ -109,7 +109,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.
 		}
 	}
 
-	if err := prepareClusterForNodeRestart(d.esClient, *d.state); err != nil {
+	if err := prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
 		return nil, err
 	}
 	for _, deletedPod := range deletedPods {

@@ -89,30 +89,20 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	//  Instead of green health, we could look at shards status, taking into account nodes
 	//  we scheduled for a restart (maybe not restarted yet).
 
-	// Is the cluster ready for the node upgrade?
-	clusterReady, err := clusterReadyForNodeRestart(ctx.ES, ctx.esState)
-	if err != nil {
-		return results.WithError(err)
-	}
-	if !clusterReady {
-		// retry later
-		return results.WithResult(defaultRequeue)
-	}
-
 	healthyPods, candidates, err := ctx.podsToBeUpdate()
 	if len(candidates) == 0 {
 		return results
 	}
-	deletionController := NewDeletionDriver(
+	deletionDriver := NewDeletionDriver(
 		ctx.client,
 		ctx.esClient,
 		&ctx.ES,
-		&ctx.esState,
+		ctx.esState,
 		ctx.masterNodesNames,
 		healthyPods,
 		ctx.deleteExpectations,
 	)
-	_, err = deletionController.Delete(candidates)
+	_, err = deletionDriver.Delete(candidates)
 	if errors.IsConflict(err) || errors.IsNotFound(err) {
 		// Cache is not up to date or Pod has been deleted by someone else
 		// (could be the statefulset controller)
@@ -147,7 +137,7 @@ func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error)
 				return healthyPods, toBeDeletedPods, err
 			}
 			if errors.IsNotFound(err) {
-				// Pod does not exist, continue the loop as the absence will be accounted by the deletion controller
+				// Pod does not exist, continue the loop as the absence will be accounted by the deletion driver
 				continue
 			}
 			alreadyUpgraded, err := ctx.podUpgradeDone(pod, statefulSet.Status.UpdateRevision)
@@ -170,26 +160,6 @@ func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error)
 	return healthyPods, toBeDeletedPods, nil
 }
 
-// clusterReadyForNodeRestart returns true if the ES cluster allows a node to be restarted
-// with minimized downtime and no unexpected data loss.
-func clusterReadyForNodeRestart(es v1alpha1.Elasticsearch, esState ESState) (bool, error) {
-	// Check the cluster health: only allow node restart if health is green.
-	// This would cause downtime if some shards have 0 replicas, but we consider that's on the user.
-	// TODO: we could technically still restart a node if the cluster is yellow,
-	//  as long as there are other copies of the shards in-sync on other nodes
-	// TODO: the fact we rely on a cached health here would prevent more than 1 restart
-	//  in a single reconciliation
-	green, err := esState.GreenHealth()
-	if err != nil {
-		return false, err
-	}
-	if !green {
-		log.Info("Skipping node rolling upgrade since cluster is not green", "namespace", es.Namespace, "name", es.Name)
-		return false, nil
-	}
-	return true, nil
-}
-
 func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
 	if !pod.DeletionTimestamp.IsZero() {
 		return false, nil
@@ -199,7 +169,7 @@ func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
 		return false, nil
 	}
 	// has the node joined the cluster yet?
-	inCluster, err := esState.NodeInCluster(pod.Name)
+	inCluster, err := esState.NodesInCluster([]string{pod.Name})
 	if err != nil {
 		return false, err
 	}

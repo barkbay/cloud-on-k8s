@@ -27,7 +27,7 @@ const (
 type Predicate func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
-type Sort func(allPods []*vs1.Pod, state *ESState) error
+type Sort func(allPods []*v1.Pod, state ESState) error
 
 // DeletionStrategy defines the strategy when some Pods must be deleted.
 // 1. Pods are sorted
@@ -39,14 +39,14 @@ type DeletionStrategy interface {
 
 // NewDefaultDeletionStrategy returns the default deletion strategy
 func NewDefaultDeletionStrategy(
-	state *ESState,
+	state ESState,
 	healthyPods PodsByName,
 	masterNodesNames []string,
 ) *DefaultDeletionStrategy {
 	return &DefaultDeletionStrategy{
 		masterNodesNames: masterNodesNames,
 		healthyPods:      healthyPods,
-		state:            state,
+		esState:          state,
 	}
 }
 
@@ -54,14 +54,14 @@ func NewDefaultDeletionStrategy(
 type DefaultDeletionStrategy struct {
 	masterNodesNames []string
 	healthyPods      PodsByName
-	state            *ESState
+	esState          ESState
 }
 
 // SortFunction is the default sort function, masters have lower priority as
 // we want to update the nodes first.
 // If 2 Pods are of the same type then use the reverse ordinal order
 func (d *DefaultDeletionStrategy) SortFunction() Sort {
-	return func(allPods []*v1.Pod, state *ESState) (err error) {
+	return func(allPods []*v1.Pod, state ESState) (err error) {
 		sort.Slice(allPods[:], func(i, j int) bool {
 			pod1 := allPods[i]
 			pod2 := allPods[j]
@@ -205,6 +205,21 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		"Do_Not_Delete_Pods_With_Same_Shards": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
+		},
+		// If MaxUnavailable is not green
+		"Do_Not_Restart_Healthy_Node_If_Green": func(
+			candidate *v1.Pod,
+			expectedDeletions []*v1.Pod,
+			maxUnavailableReached bool,
+		) (b bool, e error) {
+			green, err := d.esState.GreenHealth()
+			if err != nil {
+				return false, err
+			}
+			if !green && !k8s.IsPodReady(*candidate) {
+				return true, nil
+			}
+			return false, nil
 		},
 	}
 }

@@ -16,7 +16,7 @@ import (
 // ESState gives information about Elasticsearch current status.
 type ESState interface {
 	// NodesInCluster returns true if the given nodes exist in the Elasticsearch cluster.
-	NodeInCluster(nodeName string) (bool, error)
+	NodesInCluster(nodeNames []string) (bool, error)
 	// ShardAllocationsEnabled returns true if shards allocation are enabled in the cluster.
 	ShardAllocationsEnabled() (bool, error)
 	// GreenHealth returns true if the cluster health is currently green.
@@ -72,11 +72,12 @@ func (n *memoizingNodes) initialize() error {
 	return nil
 }
 
-func (n *memoizingNodes) NodeInCluster(nodeName string) (bool, error) {
+// NodesInCluster returns true if the given nodes exist in the Elasticsearch cluster.
+func (n *memoizingNodes) NodesInCluster(nodeNames []string) (bool, error) {
 	if err := initOnce(&n.once, n.initialize); err != nil {
 		return false, err
 	}
-	return stringsutil.StringInSlice(nodeName, n.nodes), nil
+	return stringsutil.StringsInSlice(nodeNames, n.nodes), nil
 }
 
 // -- Shards allocation enabled
