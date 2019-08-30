@@ -24,10 +24,10 @@ const (
 )
 
 // Predicate is a function that indicates if a Pod can be (or not) deleted.
-type Predicate func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (bool, error)
+type Predicate func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
-type Sort func(allPods []*v1.Pod, state ESState) error
+type Sort func(allPods []v1.Pod, state ESState) error
 
 // DeletionStrategy defines the strategy when some Pods must be deleted.
 // 1. Pods are sorted
@@ -59,14 +59,15 @@ type DefaultDeletionStrategy struct {
 
 // SortFunction is the default sort function, masters have lower priority as
 // we want to update the nodes first.
-// If 2 Pods are of the same type then use the reverse ordinal order
+// If 2 Pods are of the same type then use the reverse ordinal order.
+// TODO: Add some priority to unhealthy (bootlooping) Pods
 func (d *DefaultDeletionStrategy) SortFunction() Sort {
-	return func(allPods []*v1.Pod, state ESState) (err error) {
+	return func(allPods []v1.Pod, state ESState) (err error) {
 		sort.Slice(allPods[:], func(i, j int) bool {
 			pod1 := allPods[i]
 			pod2 := allPods[j]
-			if (label.IsMasterNode(*pod1) && label.IsMasterNode(*pod2)) ||
-				(!label.IsMasterNode(*pod1) && !label.IsMasterNode(*pod2)) { // same type, use the reverse name function
+			if (label.IsMasterNode(pod1) && label.IsMasterNode(pod2)) ||
+				(!label.IsMasterNode(pod1) && !label.IsMasterNode(pod2)) { // same type, use the reverse name function
 				ssetName1, ord1, err := sset.StatefulSetName(pod1.Name)
 				if err != nil {
 					return false
@@ -81,7 +82,7 @@ func (d *DefaultDeletionStrategy) SortFunction() Sort {
 				}
 				return strings.Compare(ssetName1, ssetName2) == -1
 			}
-			if label.IsMasterNode(*pod1) && !label.IsMasterNode(*pod2) {
+			if label.IsMasterNode(pod1) && !label.IsMasterNode(pod2) {
 				// pod2 has higher priority since it is a node
 				return false
 			}
@@ -98,27 +99,27 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// This is to prevent a situation where MaxUnavailable is reached and we
 		// can't make some progress even if the user has updated the spec.
 		"Do_Not_Restart_Healthy_Node_If_MaxUnavailable_Reached": func(
-			candidate *v1.Pod,
-			expectedDeletions []*v1.Pod,
+			candidate v1.Pod,
+			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
-			if maxUnavailableReached && k8s.IsPodReady(*candidate) {
+			if maxUnavailableReached && k8s.IsPodReady(candidate) {
 				return false, nil
 			}
 			return true, nil
 		},
 		// One master at a time
 		"One_Master_At_A_Time": func(
-			candidate *v1.Pod,
-			expectedDeletions []*v1.Pod,
+			candidate v1.Pod,
+			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			// If candidate is not a master then we don't care
-			if !label.IsMasterNode(*candidate) {
+			if !label.IsMasterNode(candidate) {
 				return true, nil
 			}
 			for _, pod := range expectedDeletions {
-				if label.IsMasterNode(*pod) {
+				if label.IsMasterNode(pod) {
 					return false, nil
 				}
 			}
@@ -129,9 +130,9 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// 1. All Pods are Pending
 		// 2. All Pods have failed several times during the last minutes
 		// TODO: Mostly to do a test, not sure about this one
-		"Do_Not_Degrade_Quorum": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"Do_Not_Degrade_Quorum": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
-			if !label.IsMasterNode(*candidate) {
+			if !label.IsMasterNode(candidate) {
 				return true, nil
 			}
 			// Get the expected masters
@@ -144,9 +145,9 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 
 			// Get the healthy masters
-			var healthyMasters []*v1.Pod
+			var healthyMasters []v1.Pod
 			for _, pod := range d.healthyPods {
-				if label.IsMasterNode(*pod) {
+				if label.IsMasterNode(pod) {
 					pod := pod
 					healthyMasters = append(healthyMasters, pod)
 				}
@@ -154,9 +155,9 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			minimumMasterNodes := settings.Quorum(expectedMasters)
 			return len(healthyMasters) > minimumMasterNodes, nil
 		},
-		"Do_Not_Delete_Last_Healthy_Master": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"Do_Not_Delete_Last_Healthy_Master": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
-			if !label.IsMasterNode(*candidate) {
+			if !label.IsMasterNode(candidate) {
 				return true, nil
 			}
 
@@ -166,21 +167,21 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 				return true, nil
 			}
 
-			var healthyMasters []*v1.Pod
+			var healthyMasters []v1.Pod
 			candidateIsHealthy := false
 			for _, expectedMaster := range d.masterNodesNames {
 				for healthyPodName, healthyPod := range d.healthyPods {
-					if !label.IsMasterNode(*healthyPod) {
+					if !label.IsMasterNode(healthyPod) {
 						continue
 					}
 					master := types.NamespacedName{
 						Name:      expectedMaster,
 						Namespace: candidate.Namespace,
 					}
-					if candidate.Name == healthyPodName.Name {
+					if candidate.Name == healthyPodName {
 						candidateIsHealthy = true
 					}
-					if healthyPodName == master {
+					if healthyPodName == master.Name {
 						healthyMasters = append(healthyMasters, healthyPod)
 					}
 				}
@@ -192,7 +193,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"Skip_Unknown_LongTerminating_Pods": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"Skip_Unknown_LongTerminating_Pods": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			if candidate.DeletionTimestamp != nil && candidate.Status.Reason == NodeUnreachablePodReason {
 				// kubelet is unresponsive, Unknown Pod, do not try to delete it
 				return false, nil
@@ -202,21 +203,26 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"Do_Not_Delete_Pods_With_Same_Shards": func(candidate *v1.Pod, expectedDeletions []*v1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"Do_Not_Delete_Pods_With_Same_Shards": func(candidate v1.Pod, expectedDeletions []v1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
 		},
-		// If MaxUnavailable is not green
-		"Do_Not_Restart_Healthy_Node_If_Green": func(
-			candidate *v1.Pod,
-			expectedDeletions []*v1.Pod,
+		// In Yellow or Red status only allow unhealthy Pods to be restarted.
+		// This is intended to unlock some situations where the cluster is not green and
+		// a Pod has to be restarted a second time.
+		"Do_Not_Restart_Healthy_Node_If_Not_Green": func(
+			candidate v1.Pod,
+			expectedDeletions []v1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			green, err := d.esState.GreenHealth()
 			if err != nil {
 				return false, err
 			}
-			if !green && !k8s.IsPodReady(*candidate) {
+			if green {
+				return true, nil
+			}
+			if !k8s.IsPodReady(candidate) {
 				return true, nil
 			}
 			return false, nil

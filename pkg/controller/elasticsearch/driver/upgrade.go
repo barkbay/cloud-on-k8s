@@ -27,26 +27,42 @@ func (d *defaultDriver) handleRollingUpgrades(
 	// We need an up-to-date ES state, but avoid requesting information we may not need.
 	esState := NewMemoizingESState(esClient)
 
-	// Maybe upgrade some of the nodes.
-	res := newRollingUpgrade(d, esClient, esState, statefulSets, masterNodesNames).run()
-	results.WithResults(res)
-
-	podChecker := &podCheck{
-		Client:        d.Client,
-		statefulSets:  statefulSets,
-		ESState:       esState,
-		Elasticsearch: &d.ES,
-	}
-	noRestartInProgress, err := d.DeleteExpectations.MayBeClearExpectations(k8s.ExtractNamespacedName(&d.ES), podChecker)
+	// Step 1: get all the pods
+	podsStatus, err := getPodsStatus(d.Client, d.ES, statefulSets, esState)
 	if err != nil {
 		return results.WithError(err)
 	}
-	if noRestartInProgress {
-		// Maybe re-enable shards allocation if upgraded nodes are back into the cluster.
-		res := d.MaybeEnableShardsAllocation(esClient, esState, statefulSets)
-		results.WithResults(res)
+
+	// Step 2: check if we have all the Pods
+	if len(podsStatus.missing) > 0 {
+		log.V(1).Info("cannot upgrade cluster because of missing Pods",
+			"es_name", d.ES.Name,
+			"es_namespace", d.ES.Namespace,
+			"missing_pods", podsStatus.missing,
+		)
 	}
-	return results
+
+	// Step 3: check expectations
+	expectationsCleared, err := d.DeleteExpectations.MayBeClearExpectations(
+		k8s.ExtractNamespacedName(&d.ES),
+		&podCheck{
+			Client:        d.Client,
+			Elasticsearch: &d.ES,
+		},
+	)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !expectationsCleared {
+		log.Info("expectation not cleared", "es_name", d.ES.Name, "es_namespace", d.ES.Namespace)
+		return results.WithResult(defaultRequeue)
+	}
+
+	// Maybe upgrade some of the nodes.
+	results.WithResults(newRollingUpgrade(d, esClient, esState, *podsStatus, statefulSets, masterNodesNames).run())
+
+	// Maybe re-enable shards allocation if upgraded nodes are back into the cluster.
+	return results.WithResults(d.MaybeEnableShardsAllocation(esClient, esState, statefulSets))
 }
 
 type rollingUpgradeCtx struct {
@@ -55,6 +71,7 @@ type rollingUpgradeCtx struct {
 	statefulSets       sset.StatefulSetList
 	esClient           esclient.Client
 	esState            ESState
+	podsStatus         PodsStatus
 	deleteExpectations *RestartExpectations
 	masterNodesNames   []string
 	podUpgradeDone     func(pod corev1.Pod, expectedRevision string) (bool, error)
@@ -64,6 +81,7 @@ func newRollingUpgrade(
 	d *defaultDriver,
 	esClient esclient.Client,
 	esState ESState,
+	podsStatus PodsStatus,
 	statefulSets sset.StatefulSetList,
 	masterNodesNames []string,
 ) rollingUpgradeCtx {
@@ -73,6 +91,7 @@ func newRollingUpgrade(
 		statefulSets:       statefulSets,
 		esClient:           esClient,
 		esState:            esState,
+		podsStatus:         podsStatus,
 		podUpgradeDone:     podUpgradeDone,
 		deleteExpectations: d.DeleteExpectations,
 		masterNodesNames:   masterNodesNames,
@@ -89,20 +108,16 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	//  Instead of green health, we could look at shards status, taking into account nodes
 	//  we scheduled for a restart (maybe not restarted yet).
 
-	healthyPods, candidates, err := ctx.podsToBeUpdate()
-	if len(candidates) == 0 {
-		return results
-	}
 	deletionDriver := NewDeletionDriver(
 		ctx.client,
 		ctx.esClient,
 		&ctx.ES,
 		ctx.esState,
 		ctx.masterNodesNames,
-		healthyPods,
+		ctx.podsStatus.healthy,
 		ctx.deleteExpectations,
 	)
-	_, err = deletionDriver.Delete(candidates)
+	_, err := deletionDriver.Delete(ctx.podsStatus.toUpdate)
 	if errors.IsConflict(err) || errors.IsNotFound(err) {
 		// Cache is not up to date or Pod has been deleted by someone else
 		// (could be the statefulset controller)
@@ -115,13 +130,73 @@ func (ctx rollingUpgradeCtx) run() *reconciler.Results {
 	return results
 }
 
+// TODO: move this to sset package
 // PodsByName is a map of Pods
-type PodsByName map[types.NamespacedName]*corev1.Pod
+type PodsByName map[string]corev1.Pod
 
-func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error) {
-	healthyPods := make(PodsByName)
-	var toBeDeletedPods []*corev1.Pod
-	toUpdate := ctx.statefulSets.ToUpdate()
+type PodsStatus struct {
+	currents PodsByName
+	healthy  PodsByName
+	toUpdate []corev1.Pod
+	missing  []string
+}
+
+func getPodsStatus(
+	client k8s.Client,
+	ES v1alpha1.Elasticsearch,
+	statefulSets sset.StatefulSetList,
+	esState ESState,
+) (*PodsStatus, error) {
+	// 1. Get all current Pods for this cluster
+	currents, err := sset.GetActualPodsForCluster(client, ES)
+	if err != nil {
+		return nil, err
+	}
+	// Create a map to lookup missing ones
+	currentsByName := make(PodsByName, len(currents))
+	for _, pod := range currents {
+		currentsByName[pod.Name] = pod
+	}
+
+	// 2. Get missing Pods
+	expectedPods := statefulSets.PodNames()
+	missingPods := []string{}
+	for _, expectedPod := range expectedPods {
+		if _, found := currentsByName[expectedPod]; !found {
+			missingPods = append(missingPods, expectedPod)
+		}
+	}
+
+	// 2. Get the healthy ones
+	healthyPods := make(PodsByName, len(currents))
+	for _, pod := range currents {
+		healthyPod, err := podIsHealthy(esState, pod)
+		if err != nil {
+			return nil, err
+		}
+		if healthyPod {
+			healthyPods[pod.Name] = pod
+		}
+	}
+	// 3. Get the ones that need an update
+	toUpdate, err := podsToBeUpdate(client, statefulSets)
+	if err != nil {
+		return nil, err
+	}
+	return &PodsStatus{
+		currents: currentsByName,
+		toUpdate: toUpdate,
+		missing:  missingPods,
+		healthy:  healthyPods,
+	}, nil
+}
+
+func podsToBeUpdate(
+	client k8s.Client,
+	statefulSets sset.StatefulSetList,
+) ([]corev1.Pod, error) {
+	var toBeDeletedPods []corev1.Pod
+	toUpdate := statefulSets.ToUpdate()
 	for _, statefulSet := range toUpdate {
 		// Inspect each pod, starting from the highest ordinal, and decrement the idx to allow
 		// pod upgrades to go through, controlled by the StatefulSet controller.
@@ -132,35 +207,28 @@ func (ctx rollingUpgradeCtx) podsToBeUpdate() (PodsByName, []*corev1.Pod, error)
 			podRef := types.NamespacedName{Namespace: statefulSet.Namespace, Name: podName}
 			// retrieve pod to inspect its revision label
 			var pod corev1.Pod
-			err := ctx.client.Get(podRef, &pod)
+			err := client.Get(podRef, &pod)
 			if err != nil && !errors.IsNotFound(err) {
-				return healthyPods, toBeDeletedPods, err
+				return toBeDeletedPods, err
 			}
 			if errors.IsNotFound(err) {
 				// Pod does not exist, continue the loop as the absence will be accounted by the deletion driver
 				continue
 			}
-			alreadyUpgraded, err := ctx.podUpgradeDone(pod, statefulSet.Status.UpdateRevision)
+			alreadyUpgraded, err := podUpgradeDone(pod, statefulSet.Status.UpdateRevision)
 			if err != nil {
-				return healthyPods, toBeDeletedPods, err
-			}
-			healthyPod, err := podIsHealthy(ctx.client, ctx.esState, pod)
-			if err != nil {
-				return healthyPods, toBeDeletedPods, err
-			}
-			if healthyPod {
-				healthyPods[podRef] = &pod
+				return toBeDeletedPods, err
 			}
 
 			if !alreadyUpgraded {
-				toBeDeletedPods = append(toBeDeletedPods, &pod)
+				toBeDeletedPods = append(toBeDeletedPods, pod)
 			}
 		}
 	}
-	return healthyPods, toBeDeletedPods, nil
+	return toBeDeletedPods, nil
 }
 
-func podIsHealthy(c k8s.Client, esState ESState, pod corev1.Pod) (bool, error) {
+func podIsHealthy(esState ESState, pod corev1.Pod) (bool, error) {
 	if !pod.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
@@ -204,6 +272,23 @@ func (d *defaultDriver) MaybeEnableShardsAllocation(
 	}
 	if alreadyEnabled {
 		return results
+	}
+
+	// Make sure all nodes are back into the cluster.
+	// We can't specifically check which ones have been updated.
+	nodesInCluster, err := esState.NodesInCluster(statefulSets.PodNames())
+	if err != nil {
+		return results.WithError(err)
+	}
+
+	// TODO: Do we need a timeout here ? If some node(s) never come back the cluster will stay yellow.
+	if !nodesInCluster {
+		log.V(1).Info(
+			"Some upgraded nodes are not back in the cluster yet, keeping shard allocations disabled",
+			"namespace", d.ES.Namespace,
+			"es_name", d.ES.Name,
+		)
+		return results.WithResult(defaultRequeue)
 	}
 
 	log.Info("Enabling shards allocation", "namespace", d.ES.Namespace, "es_name", d.ES.Name)

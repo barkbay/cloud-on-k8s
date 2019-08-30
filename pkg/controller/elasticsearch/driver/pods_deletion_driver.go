@@ -5,7 +5,6 @@
 package driver
 
 import (
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
@@ -41,7 +40,7 @@ func NewDeletionDriver(
 	es *v1alpha1.Elasticsearch,
 	state ESState,
 	masterNodesNames []string,
-	healthyPods map[types.NamespacedName]*v1.Pod,
+	healthyPods PodsByName,
 	expectations *RestartExpectations,
 ) *DefaultDeletionDriver {
 	return &DefaultDeletionDriver{
@@ -56,16 +55,11 @@ func NewDeletionDriver(
 }
 
 // Delete runs through a list of potential candidates and select the ones that can be deleted.
-func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.Pod, err error) {
+func (d *DefaultDeletionDriver) Delete(candidates []v1.Pod) (deletedPods []v1.Pod, err error) {
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 	es := k8s.ExtractNamespacedName(d.es)
-	if len(d.expectations.GetExpectedRestarts(es)) > 0 {
-		// TODO: Try to adopt / re-enqueue a deletion (Step 4.1)
-		return
-	}
-
 	// Start Step 4.2: expectations are empty, try to find some deletedPods
 
 	// Check if we are not over disruption budget
@@ -75,15 +69,15 @@ func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.
 		return nil, err
 	}
 	expectedPods := statefulSets.PodNames()
-	missingPods := len(expectedPods) - len(d.healthyPods)
+	unhealthyPods := len(expectedPods) - len(d.healthyPods)
 	maxUnavailable := 1
 	if d.es.Spec.UpdateStrategy.ChangeBudget != nil {
 		maxUnavailable = d.es.Spec.UpdateStrategy.ChangeBudget.MaxUnavailable
 	}
-	allowedDeletions := maxUnavailable - missingPods
+	allowedDeletions := maxUnavailable - unhealthyPods
 	// If maxUnavailable is reached the deletion driver still allows one unhealthy Pod to be restarted.
 	// TODO: Should we make the difference between MaxUnavailable and MaxConcurrentRestarting ?
-	maxUnavailableReached := (maxUnavailable - missingPods) <= 0
+	maxUnavailableReached := (maxUnavailable - unhealthyPods) <= 0
 
 	// Step 2. Sort the Pods to get the ones with the higher priority
 	err = d.strategy.SortFunction()(candidates, d.state)
@@ -99,7 +93,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.
 		} else if ok {
 			candidate := candidate
 			// Remove from healthy nodes if it was there
-			delete(d.healthyPods, k8s.ExtractNamespacedName(candidate))
+			delete(d.healthyPods, candidate.Name)
 			// Append to the deletedPods list
 			deletedPods = append(deletedPods, candidate)
 			allowedDeletions = allowedDeletions - 1
@@ -113,10 +107,10 @@ func (d *DefaultDeletionDriver) Delete(candidates []*v1.Pod) (deletedPods []*v1.
 		return nil, err
 	}
 	for _, deletedPod := range deletedPods {
-		d.expectations.ExpectRestart(deletedPod)
-		err := d.delete(deletedPod)
+		d.expectations.ExpectRestart(&deletedPod)
+		err := d.delete(&deletedPod)
 		if err != nil {
-			d.expectations.RemoveExpectation(deletedPod)
+			d.expectations.RemoveExpectation(&deletedPod)
 			return deletedPods, err
 		}
 	}
@@ -136,7 +130,7 @@ func (d *DefaultDeletionDriver) delete(pod *v1.Pod) error {
 
 // TODO: Add some debug log to explain which predicates prevent a Pod to be restarted
 func (d *DefaultDeletionDriver) runPredicates(
-	candidate *v1.Pod,
+	candidate v1.Pod,
 	predicates map[string]Predicate,
 	maxUnavailableReached bool,
 ) (bool, error) {

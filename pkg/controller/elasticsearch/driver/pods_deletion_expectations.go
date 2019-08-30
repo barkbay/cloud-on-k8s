@@ -49,11 +49,11 @@ type PodWithTTL struct {
 
 type podsWithTTL map[types.NamespacedName]*PodWithTTL
 
-func (p podsWithTTL) toPods() []*v1.Pod {
-	result := make([]*v1.Pod, len(p))
+func (p podsWithTTL) toPods() []v1.Pod {
+	result := make([]v1.Pod, len(p))
 	i := 0
 	for _, pod := range p {
-		result[i] = pod.Pod
+		result[i] = *pod.Pod
 		i++
 	}
 	return result
@@ -92,22 +92,20 @@ func clusterFromPod(meta metav1.Object) *types.NamespacedName {
 	return nil
 }
 
-// ExpectationController is used to check if a Pod can be removed from the expectations.
-// TODO: do we need an interface ? A lambda could be enough ?
-type ExpectationController interface {
-	// MayBeRemoved is the function used to check if a Pod can be removed.
-	MayBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error)
+type expectationCheck interface {
+	// canBeRemoved is the function used to check if a Pod can be removed.
+	canBeRemoved(pod *PodWithTTL, ttl time.Duration) (bool, error)
 }
 
 // MayBeClearExpectations goes through all the Pod and check if they have been restarted.
 // If yes, expectations are cleared.
 func (d *RestartExpectations) MayBeClearExpectations(
 	cluster types.NamespacedName,
-	controller ExpectationController,
+	controller expectationCheck,
 ) (bool, error) {
 	pods := d.getOrCreateRestartExpectations(cluster)
 	for _, pod := range pods.podsWithTTL {
-		mayBeRemoved, err := controller.MayBeRemoved(pod, d.ttl)
+		mayBeRemoved, err := controller.canBeRemoved(pod, d.ttl)
 		if err != nil {
 			return false, err
 		}
@@ -121,7 +119,7 @@ func (d *RestartExpectations) MayBeClearExpectations(
 }
 
 // GetExpectedRestarts returns the expectation for a given cluster.
-func (d *RestartExpectations) GetExpectedRestarts(cluster types.NamespacedName) []*v1.Pod {
+func (d *RestartExpectations) GetExpectedRestarts(cluster types.NamespacedName) []v1.Pod {
 	return d.getOrCreateRestartExpectations(cluster).toPods()
 }
 
