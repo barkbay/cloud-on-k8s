@@ -53,6 +53,8 @@ func (d *defaultDriver) handleRollingUpgrades(
 	if err != nil {
 		return results.WithError(err)
 	}
+	// expectations are not cleared, we have some Pods in cache which are supposed to be deleted, it would be unsafe
+	// to take some decisions, requeue immediately.
 	if !expectationsCleared {
 		log.Info("expectation not cleared", "es_name", d.ES.Name, "es_namespace", d.ES.Namespace)
 		return results.WithResult(defaultRequeue)
@@ -65,7 +67,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 		return results.WithError(err)
 	}
 	if len(deletedPods) > 0 {
-		// Some Pods have just been deleted, keep shards allocation disabled
+		// Some Pods have just been deleted, we don't need to try to enable shards allocation.
 		return results.WithResult(defaultRequeue)
 	}
 	if len(podsStatus.toUpdate) > len(deletedPods) {
