@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/expectations"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -72,7 +74,7 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 
 		finalizers:     finalizer.NewHandler(client),
 		dynamicWatches: watches.NewDynamicWatches(),
-		expectations:   reconciler.NewExpectations(),
+		expectations:   expectations.NewExpectations(),
 
 		Parameters: params,
 	}
@@ -171,7 +173,7 @@ type ReconcileElasticsearch struct {
 
 	// expectations help dealing with inconsistencies in our client cache,
 	// by marking resources updates as expected, and skipping some operations if the cache is not up-to-date.
-	expectations *reconciler.Expectations
+	expectations *expectations.Expectations
 
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration int64

@@ -28,6 +28,17 @@ func (d *defaultDriver) handleRollingUpgrades(
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
+	// We need to check that all the expectations are met before continuing.
+	// This is to be sure that none of the previous steps has changed the state and we are running
+	// with a stale cache.
+	ok, err := d.expectationsMet(statefulSets)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !ok {
+		return results.WithResult(defaultRequeue)
+	}
+
 	// Maybe upgrade some of the nodes.
 	res := newRollingUpgrade(d, esClient, esState, statefulSets).run()
 	results.WithResults(res)
@@ -285,6 +296,20 @@ func (d *defaultDriver) MaybeEnableShardsAllocation(
 	if !done {
 		log.V(1).Info(
 			"Rolling upgrade not over yet, some pods don't have the updated revision, keeping shard allocations disabled",
+			"namespace", d.ES.Namespace,
+			"es_name", d.ES.Name,
+		)
+		return results.WithResult(defaultRequeue)
+	}
+
+	// Check if we have some deletions in progress
+	satisfiedDeletion, err := d.Expectations.SatisfiedDeletions(k8s.ExtractNamespacedName(&d.ES), d)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !satisfiedDeletion {
+		log.V(1).Info(
+			"Rolling upgrade not over yet, still waiting for some Pods to be deleted, keeping shard allocations disabled",
 			"namespace", d.ES.Namespace,
 			"es_name", d.ES.Name,
 		)
