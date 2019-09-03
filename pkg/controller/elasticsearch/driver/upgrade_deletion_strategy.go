@@ -5,9 +5,12 @@
 package driver
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
@@ -165,7 +168,11 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"do_not_delete_last_healthy_master": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_delete_last_healthy_master": func(
+			candidate corev1.Pod,
+			expectedDeletions []corev1.Pod,
+			maxUnavailableReached bool,
+		) (b bool, e error) {
 			// If candidate is not a master then we don't care
 			if !label.IsMasterNode(candidate) {
 				return true, nil
@@ -203,7 +210,11 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"skip_unknown_or_long_terminating_pods": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
+		"skip_unknown_or_long_terminating_pods": func(
+			candidate corev1.Pod,
+			expectedDeletions []corev1.Pod,
+			maxUnavailableReached bool,
+		) (b bool, e error) {
 			if candidate.DeletionTimestamp != nil && candidate.Status.Reason == NodeUnreachablePodReason {
 				// kubelet is unresponsive, Unknown Pod, do not try to delete it
 				return false, nil
@@ -213,8 +224,38 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"do_not_delete_pods_with_same_shards": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
-			// TODO: We should not delete 2 Pods with the same shards
+		// We should not delete 2 Pods with the same shards
+		"do_not_delete_pods_with_same_shards": func(
+			candidate corev1.Pod,
+			expectedDeletions []corev1.Pod,
+			maxUnavailableReached bool,
+		) (b bool, e error) {
+			if len(expectedDeletions) == 0 {
+				// Do not do unnecessary request
+				return true, nil
+			}
+			clusterState, err := d.esState.GetClusterState()
+			if err != nil {
+				return false, err
+			}
+			shards := clusterState.GetShardsByNode()
+			shardsOnCandidate, ok := shards[candidate.Name]
+			if !ok {
+				// No shards on this node
+				return true, nil
+			}
+
+			for _, deletedPod := range expectedDeletions {
+				shardsOnDeletePod, ok := shards[deletedPod.Name]
+				if !ok {
+					// No shards on the deleted pod
+					continue
+				}
+				if conflict(shardsOnCandidate, shardsOnDeletePod) {
+					return false, nil
+				}
+			}
+			fmt.Printf("%v", shards)
 			return true, nil
 		},
 		// In Yellow or Red status only allow unhealthy Pods to be restarted.
@@ -238,4 +279,15 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			return false, nil
 		},
 	}
+}
+
+func conflict(shards1, shards2 []client.Shard) bool {
+	for _, shards1 := range shards1 {
+		for _, shards2 := range shards2 {
+			if shards1.Index == shards2.Index && shards1.Shard == shards2.Shard {
+				return true
+			}
+		}
+	}
+	return false
 }
