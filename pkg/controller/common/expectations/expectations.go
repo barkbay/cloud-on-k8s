@@ -48,6 +48,32 @@ func (e *Expectations) ExpectDeletion(pod v1.Pod) {
 	expectedPods[k8s.ExtractNamespacedName(&pod)] = pod.ObjectMeta
 }
 
+// ExpectDelete registers an expected deletion for the given Pod.
+func (e *Expectations) CancelExpectedDeletion(pod v1.Pod) {
+	cluster, exists := label.ClusterFromResourceLabels(pod.GetObjectMeta())
+	if !exists {
+		return // Should not happen as all Pods should have the correct labels
+	}
+	var expectedPods map[types.NamespacedName]metav1.ObjectMeta
+	expectedPods, exists = e.deletions[cluster]
+	if !exists {
+		return
+	}
+	delete(expectedPods, k8s.ExtractNamespacedName(&pod))
+}
+
+func (e *Expectations) GetExpectedDeletion(es types.NamespacedName) []metav1.ObjectMeta {
+	expectedPods, exists := e.deletions[es]
+	if !exists {
+		return nil
+	}
+	metas := make([]metav1.ObjectMeta, len(expectedPods))
+	for _, v := range expectedPods {
+		metas = append(metas, v)
+	}
+	return metas
+}
+
 // DeletionChecker is used to check if a Pod can be remove from the deletions expectations.
 type DeletionChecker interface {
 	CanRemoveExpectation(meta metav1.ObjectMeta) (bool, error)

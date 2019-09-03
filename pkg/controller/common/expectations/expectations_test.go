@@ -66,6 +66,10 @@ func TestExpectations_ExpectDeletion(t *testing.T) {
 		Namespace: "ns2",
 		Name:      "cluster2",
 	}
+	testCluster3 := types.NamespacedName{
+		Namespace: "ns2",
+		Name:      "cluster3",
+	}
 
 	e := NewExpectations()
 	// Initial state
@@ -83,6 +87,23 @@ func TestExpectations_ExpectDeletion(t *testing.T) {
 	e.ExpectDeletion(newPod(testCluster1, "pod1_2"))
 	assert.Equal(t, len(e.deletions[testCluster1]), 2)
 	assert.Equal(t, len(e.deletions[testCluster2]), 1)
+
+	e.ExpectDeletion(newPod(testCluster1, "pod1_3"))
+	assert.Equal(t, len(e.deletions[testCluster1]), 3)
+	assert.Equal(t, len(e.deletions[testCluster2]), 1)
+
+	e.CancelExpectedDeletion(newPod(testCluster1, "pod1_1"))
+	assert.Equal(t, len(e.deletions[testCluster1]), 2)
+	assert.Equal(t, len(e.deletions[testCluster2]), 1)
+
+	e.CancelExpectedDeletion(newPod(testCluster1, "pod1_2"))
+	assert.Equal(t, len(e.deletions[testCluster1]), 1)
+	assert.Equal(t, len(e.deletions[testCluster2]), 1)
+
+	e.CancelExpectedDeletion(newPod(testCluster3, "pod3_1"))
+	assert.Equal(t, len(e.deletions[testCluster1]), 1)
+	assert.Equal(t, len(e.deletions[testCluster2]), 1)
+	assert.Equal(t, len(e.deletions[testCluster3]), 0)
 
 	checker := cluster1DeletionChecker{}
 	satisfied, err := e.SatisfiedDeletions(testCluster1, checker)

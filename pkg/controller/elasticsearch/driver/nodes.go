@@ -110,7 +110,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		esState,
 		actualStatefulSets,
 	)*/
-	rollingUpgradesRes := d.handleRollingUpgrades(esClient, esState, actualStatefulSets)
+	rollingUpgradesRes := d.handleRollingUpgrades(esClient, esState, actualStatefulSets, expectedResources.MasterNodesNames())
 	results.WithResults(rollingUpgradesRes)
 	if rollingUpgradesRes.HasError() {
 		return results

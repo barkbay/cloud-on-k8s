@@ -6,6 +6,8 @@ package sset
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -93,4 +95,13 @@ func PodReconciliationDoneForSset(c k8s.Client, statefulSet appsv1.StatefulSet) 
 	}
 
 	return true, nil
+}
+
+// StatefulSetName returns the name of the statefulset a Pod belongs to.
+func StatefulSetName(podName string) (ssetName string, ordinal int32, err error) {
+	// TODO: maybe a little bit hacky
+	ordinalPos := strings.LastIndex(podName, "-")
+	ordinalAsString := podName[ordinalPos+1:]
+	ordinalAsInt, err := strconv.Atoi(ordinalAsString)
+	return podName[:ordinalPos], int32(ordinalAsInt), err
 }

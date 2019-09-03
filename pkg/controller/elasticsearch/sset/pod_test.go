@@ -148,3 +148,39 @@ func Test_PodReconciliationDoneForSset(t *testing.T) {
 		})
 	}
 }
+
+func TestStatefulSetName(t *testing.T) {
+	type args struct {
+		podName string
+	}
+	tests := []struct {
+		name         string
+		args         args
+		wantSsetName string
+		wantOrdinal  int32
+		wantErr      bool
+	}{
+		{
+			name:         "Get the name of the StatefulSet from a Pod",
+			args:         args{podName: "foo-14"},
+			wantErr:      false,
+			wantOrdinal:  14,
+			wantSsetName: "foo",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSsetName, gotOrdinal, err := StatefulSetName(tt.args.podName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("StatefulSetName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotSsetName != tt.wantSsetName {
+				t.Errorf("StatefulSetName() gotSsetName = %v, want %v", gotSsetName, tt.wantSsetName)
+			}
+			if gotOrdinal != tt.wantOrdinal {
+				t.Errorf("StatefulSetName() gotOrdinal = %v, want %v", gotOrdinal, tt.wantOrdinal)
+			}
+		})
+	}
+}
