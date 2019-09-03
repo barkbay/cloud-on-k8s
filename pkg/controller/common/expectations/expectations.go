@@ -62,18 +62,6 @@ func (e *Expectations) CancelExpectedDeletion(pod v1.Pod) {
 	delete(expectedPods, k8s.ExtractNamespacedName(&pod))
 }
 
-func (e *Expectations) GetExpectedDeletion(es types.NamespacedName) []metav1.ObjectMeta {
-	expectedPods, exists := e.deletions[es]
-	if !exists {
-		return nil
-	}
-	metas := make([]metav1.ObjectMeta, len(expectedPods))
-	for _, v := range expectedPods {
-		metas = append(metas, v)
-	}
-	return metas
-}
-
 // DeletionChecker is used to check if a Pod can be remove from the deletions expectations.
 type DeletionChecker interface {
 	CanRemoveExpectation(meta metav1.ObjectMeta) (bool, error)

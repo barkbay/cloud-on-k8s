@@ -5,15 +5,14 @@
 package driver
 
 import (
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/expectations"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/expectations"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DeletionDriver is a controller that given a context uses a plugable strategy
@@ -60,12 +59,12 @@ func NewDeletionDriver(
 }
 
 // Delete runs through a list of potential candidates and select the ones that can be deleted.
+// Do not run this function unless driver expectations are met.
 func (d *DefaultDeletionDriver) Delete(candidates []corev1.Pod) (deletedPods []corev1.Pod, err error) {
 	if len(candidates) == 0 {
 		return deletedPods, nil
 	}
 	es := k8s.ExtractNamespacedName(d.es)
-	// Start Step 4.2: expectations are empty, try to find some deletedPods
 
 	// Check if we are not over disruption budget
 	// Upscale is done, we should have the required number of Pods
@@ -94,7 +93,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []corev1.Pod) (deletedPods []c
 	// Step 3: Apply predicates
 	predicates := d.strategy.Predicates()
 	for _, candidate := range candidates {
-		if ok, err := d.runPredicates(candidate, predicates, maxUnavailableReached); err != nil {
+		if ok, err := d.runPredicates(candidate, deletedPods, predicates, maxUnavailableReached); err != nil {
 			return deletedPods, err
 		} else if ok {
 			candidate := candidate
@@ -142,15 +141,14 @@ func (d *DefaultDeletionDriver) delete(pod *corev1.Pod) error {
 	})
 }
 
-// TODO: Add some debug log to explain which predicates prevent a Pod to be restarted
 func (d *DefaultDeletionDriver) runPredicates(
 	candidate corev1.Pod,
+	deletedPods []corev1.Pod,
 	predicates map[string]Predicate,
 	maxUnavailableReached bool,
 ) (bool, error) {
-	expectedDeletions := d.expectations.GetExpectedDeletion(k8s.ExtractNamespacedName(d.es))
 	for name, predicate := range predicates {
-		canDelete, err := predicate(candidate, expectedDeletions, maxUnavailableReached)
+		canDelete, err := predicate(candidate, deletedPods, maxUnavailableReached)
 		if err != nil {
 			return false, err
 		}

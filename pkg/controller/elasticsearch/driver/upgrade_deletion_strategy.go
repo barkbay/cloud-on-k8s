@@ -13,7 +13,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -27,7 +26,7 @@ const (
 )
 
 // Predicate is a function that indicates if a Pod can be (or not) deleted.
-type Predicate func(candidate corev1.Pod, expectedDeletions []metav1.ObjectMeta, maxUnavailableReached bool) (bool, error)
+type Predicate func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (bool, error)
 
 // Sort is a function that sorts the remaining candidates
 type Sort func(allPods []corev1.Pod, state ESState) error
@@ -106,7 +105,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// can't make some progress even if the user has updated the spec.
 		"do_not_restart_healthy_node_if_MaxUnavailable_reached": func(
 			candidate corev1.Pod,
-			expectedDeletions []metav1.ObjectMeta,
+			expectedDeletions []corev1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			if maxUnavailableReached && k8s.IsPodReady(candidate) {
@@ -117,7 +116,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// One master at a time
 		"one_master_at_a_time": func(
 			candidate corev1.Pod,
-			expectedDeletions []metav1.ObjectMeta,
+			expectedDeletions []corev1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			// If candidate is not a master then we don't care
@@ -125,7 +124,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 				return true, nil
 			}
 			for _, pod := range expectedDeletions {
-				if isMasterNode(pod) {
+				if label.IsMasterNode(pod) {
 					return false, nil
 				}
 			}
@@ -144,7 +143,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// Force an upgrade of all the data nodes before upgrading the last master
 		"do_not_delete_last_master_if_datanodes_are_not_upgraded": func(
 			candidate corev1.Pod,
-			expectedDeletions []metav1.ObjectMeta,
+			expectedDeletions []corev1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			// If candidate is not a master then we don't care
@@ -166,7 +165,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"do_not_delete_last_healthy_master": func(candidate corev1.Pod, expectedDeletions []metav1.ObjectMeta, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_delete_last_healthy_master": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// If candidate is not a master then we don't care
 			if !label.IsMasterNode(candidate) {
 				return true, nil
@@ -204,7 +203,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"skip_unknown_or_long_terminating_pods": func(candidate corev1.Pod, expectedDeletions []metav1.ObjectMeta, maxUnavailableReached bool) (b bool, e error) {
+		"skip_unknown_or_long_terminating_pods": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			if candidate.DeletionTimestamp != nil && candidate.Status.Reason == NodeUnreachablePodReason {
 				// kubelet is unresponsive, Unknown Pod, do not try to delete it
 				return false, nil
@@ -214,7 +213,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			}
 			return true, nil
 		},
-		"do_not_delete_pods_with_same_shards": func(candidate corev1.Pod, expectedDeletions []metav1.ObjectMeta, maxUnavailableReached bool) (b bool, e error) {
+		"do_not_delete_pods_with_same_shards": func(candidate corev1.Pod, expectedDeletions []corev1.Pod, maxUnavailableReached bool) (b bool, e error) {
 			// TODO: We should not delete 2 Pods with the same shards
 			return true, nil
 		},
@@ -223,7 +222,7 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 		// a Pod has to be restarted a second time.
 		"do_not_restart_healthy_node_if_not_green": func(
 			candidate corev1.Pod,
-			expectedDeletions []metav1.ObjectMeta,
+			expectedDeletions []corev1.Pod,
 			maxUnavailableReached bool,
 		) (b bool, e error) {
 			green, err := d.esState.GreenHealth()
@@ -239,8 +238,4 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			return false, nil
 		},
 	}
-}
-
-func isMasterNode(meta metav1.ObjectMeta) bool {
-	return label.NodeTypesMasterLabelName.HasValue(true, meta.Labels)
 }
