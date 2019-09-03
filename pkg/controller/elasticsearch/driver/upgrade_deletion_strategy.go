@@ -180,7 +180,6 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 
 			// If only one master node is expected this cluster is not H.A.
 			if len(d.masterNodesNames) < 2 {
-				// I the cluster is configured with 1 or 2 nodes it is not H.A.
 				return true, nil
 			}
 

@@ -93,7 +93,7 @@ func (d *DefaultDeletionDriver) Delete(candidates []corev1.Pod) (deletedPods []c
 	// Step 3: Apply predicates
 	predicates := d.strategy.Predicates()
 	for _, candidate := range candidates {
-		if ok, err := d.runPredicates(candidate, deletedPods, predicates, maxUnavailableReached); err != nil {
+		if ok, err := runPredicates(candidate, deletedPods, predicates, maxUnavailableReached); err != nil {
 			return deletedPods, err
 		} else if ok {
 			candidate := candidate
@@ -113,11 +113,11 @@ func (d *DefaultDeletionDriver) Delete(candidates []corev1.Pod) (deletedPods []c
 		return deletedPods, nil
 	}
 
-	// Disable
+	// Disable shard allocation
 	if err := d.prepareClusterForNodeRestart(d.esClient, d.state); err != nil {
 		return deletedPods, err
 	}
-	// TODO: If master is changed into a data node it must be excluded or we should update m_m_n
+	// TODO: If master is changed into a data node (or the opposite) it must be excluded or we should update m_m_n
 	for _, deletedPod := range deletedPods {
 		d.expectations.ExpectDeletion(deletedPod)
 		err := d.delete(&deletedPod)
@@ -141,7 +141,7 @@ func (d *DefaultDeletionDriver) delete(pod *corev1.Pod) error {
 	})
 }
 
-func (d *DefaultDeletionDriver) runPredicates(
+func runPredicates(
 	candidate corev1.Pod,
 	deletedPods []corev1.Pod,
 	predicates map[string]Predicate,
