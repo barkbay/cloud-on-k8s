@@ -22,6 +22,7 @@ func newPod(namespace, name string, master, data, healthy bool) corev1.Pod {
 	labels := map[string]string{}
 	label.NodeTypesMasterLabelName.Set(master, labels)
 	label.NodeTypesDataLabelName.Set(data, labels)
+	pod.Labels = labels
 	if healthy {
 		pod.Status = corev1.PodStatus{
 			Conditions: []corev1.PodCondition{
@@ -112,7 +113,6 @@ func TestDeletionStrategy_Predicates(t *testing.T) {
 				healthyPods: map[string]corev1.Pod{
 					"masters-0": newPod("ns1", "masters-0", true, true, true),
 					"masters-1": newPod("ns1", "masters-1", true, true, true),
-					"masters-2": newPod("ns1", "masters-2", true, true, false),
 				},
 				toUpdate: []corev1.Pod{
 					newPod("ns1", "masters-0", true, true, true),
@@ -126,6 +126,28 @@ func TestDeletionStrategy_Predicates(t *testing.T) {
 			},
 			args: args{
 				candidate: newPod("ns1", "masters-1", true, true, true),
+			},
+			deleted: false,
+			wantErr: false,
+		},
+		{
+			name: "1 master and 1 node, wait for the node to be upgraded first",
+			fields: fields{
+				masterNodesNames: []string{"masters-0"},
+				healthyPods: map[string]corev1.Pod{
+					"masters-0": newPod("ns1", "masters-0", true, true, true),
+				},
+				toUpdate: []corev1.Pod{
+					newPod("ns1", "masters-0", true, false, true),
+					newPod("ns1", "node-0", false, true, false),
+				},
+				esState: &testESState{
+					inCluster: []string{"masters-0"},
+					green:     true,
+				},
+			},
+			args: args{
+				candidate: newPod("ns1", "masters-0", true, true, true),
 			},
 			deleted: false,
 			wantErr: false,

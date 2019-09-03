@@ -154,6 +154,9 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 				return true, nil
 			}
 			for _, pod := range d.toUpdate {
+				if candidate.Name == pod.Name {
+					continue
+				}
 				if label.IsMasterNode(pod) {
 					// There's some others master alive, allow this one to be deleted
 					return true, nil
