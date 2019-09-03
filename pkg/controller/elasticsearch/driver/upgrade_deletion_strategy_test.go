@@ -152,6 +152,51 @@ func TestDeletionStrategy_Predicates(t *testing.T) {
 			deleted: false,
 			wantErr: false,
 		},
+		{
+			name: "Do not delete healthy node if not green",
+			fields: fields{
+				masterNodesNames: []string{"masters-0"},
+				healthyPods: map[string]corev1.Pod{
+					"masters-0": newPod("ns1", "masters-0", true, true, true),
+				},
+				toUpdate: []corev1.Pod{
+					newPod("ns1", "masters-0", true, true, true),
+				},
+				esState: &testESState{
+					inCluster: []string{"masters-0"},
+					green:     false,
+				},
+			},
+			args: args{
+				candidate: newPod("ns1", "masters-0", true, true, true),
+			},
+			deleted: false,
+			wantErr: false,
+		},
+		{
+			name: "Allow deletion of unhealthy node if not green",
+			fields: fields{
+				masterNodesNames: []string{"masters-0", "masters-1", "masters-2"},
+				healthyPods: map[string]corev1.Pod{
+					"masters-0": newPod("ns1", "masters-0", true, true, true),
+					"masters-1": newPod("ns1", "masters-1", true, true, true),
+				},
+				toUpdate: []corev1.Pod{
+					newPod("ns1", "masters-0", true, true, true),
+					newPod("ns1", "masters-1", true, true, true),
+					newPod("ns1", "masters-2", true, true, false),
+				},
+				esState: &testESState{
+					inCluster: []string{"masters-0", "masters-1"},
+					green:     false,
+				},
+			},
+			args: args{
+				candidate: newPod("ns1", "masters-2", true, true, false),
+			},
+			deleted: true,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		s := NewDefaultDeletionStrategy(tt.fields.esState, tt.fields.healthyPods, tt.fields.toUpdate, tt.fields.masterNodesNames)

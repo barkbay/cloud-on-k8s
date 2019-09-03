@@ -126,6 +126,12 @@ func (d *DefaultDeletionStrategy) Predicates() map[string]Predicate {
 			if !label.IsMasterNode(candidate) {
 				return true, nil
 			}
+			// If candidate is not healthy we want give it a chance to restart
+			_, healthy := d.healthyPods[candidate.Name]
+			if !healthy {
+				return true, nil
+			}
+
 			for _, pod := range expectedDeletions {
 				if label.IsMasterNode(pod) {
 					return false, nil
