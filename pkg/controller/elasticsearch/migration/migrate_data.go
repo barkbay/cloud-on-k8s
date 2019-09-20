@@ -10,20 +10,35 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/observer"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
+var log = logf.Log.WithName("migration")
+
 func shardIsMigrating(toMigrate client.Shard, others []client.Shard) bool {
+	log.Info("check if shard is migrating",
+		"state", toMigrate.State,
+		"node", toMigrate.Node,
+		"shard", toMigrate.Shard,
+	)
 	if toMigrate.IsRelocating() || toMigrate.IsInitializing() {
+		log.Info("Shard is migrating (relocating or initializing")
 		return true // being migrated away or weirdly just initializing
 	}
 	if !toMigrate.IsStarted() {
+		log.Info("Shard not migrating because not started")
 		return false // early return as we are interested only in started shards for migration purposes
 	}
 	for _, otherCopy := range others {
 		if otherCopy.IsStarted() {
+			log.Info("Shard not migrating because other copy is started",
+				"other_state", otherCopy.State,
+				"other_shard", otherCopy.Shard,
+				"other_node", otherCopy.Node)
 			return false // found another shard copy
 		}
 	}
+	log.Info("Shard is migrating (relocating or initializing")
 	return true // we assume other copies are initializing or there are no other copies
 }
 
