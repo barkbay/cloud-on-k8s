@@ -170,6 +170,7 @@ func calculatePerformableDownscale(
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
 			return performableDownscale
 		}
+		ssetLogger(downscale.statefulSet).Info("Data migration is over, go for node deletion", "node", node)
 		// data migration over: allow pod to be removed
 		performableDownscale.targetReplicas--
 		state.recordOneRemoval(downscale.statefulSet)

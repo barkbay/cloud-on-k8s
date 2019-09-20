@@ -45,6 +45,7 @@ func shardIsMigrating(toMigrate client.Shard, others []client.Shard) bool {
 // nodeIsMigratingData is the core of IsMigratingData just with any I/O
 // removed to facilitate testing. See IsMigratingData for a high-level description.
 func nodeIsMigratingData(nodeName string, shards []client.Shard, exclusions map[string]struct{}) bool {
+	log.Info("nodeIsMigratingData", "pod", nodeName, "shards", shards, "exclusions", exclusions)
 	// all other shards not living on the node that is about to go away mapped to their corresponding shard keys
 	othersByShard := make(map[string][]client.Shard)
 	// all shard copies currently living on the node leaving the cluster
@@ -80,6 +81,7 @@ func nodeIsMigratingData(nodeName string, shards []client.Shard, exclusions map[
 // and checks if there is at least one other copy of the shard in the cluster
 // that is started and not relocating.
 func IsMigratingData(state observer.State, podName string, exclusions []string) bool {
+	log.Info("IsMigratingData", "pod", podName, "exclusions", exclusions)
 	clusterState := state.ClusterState
 	if clusterState == nil || clusterState.IsEmpty() {
 		return true // we don't know if the request timed out or the cluster has not formed yet
