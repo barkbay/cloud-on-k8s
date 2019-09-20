@@ -81,7 +81,7 @@ func nodeIsMigratingData(nodeName string, shards []client.Shard, exclusions map[
 // and checks if there is at least one other copy of the shard in the cluster
 // that is started and not relocating.
 func IsMigratingData(state observer.State, podName string, exclusions []string) bool {
-	log.Info("IsMigratingData", "pod", podName, "exclusions", exclusions)
+	log.Info("IsMigratingData", "pod", podName, "exclusions", exclusions, "clusterState", state.ClusterState)
 	clusterState := state.ClusterState
 	if clusterState == nil || clusterState.IsEmpty() {
 		return true // we don't know if the request timed out or the cluster has not formed yet

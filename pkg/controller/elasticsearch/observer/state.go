@@ -36,7 +36,7 @@ func RetrieveState(ctx context.Context, cluster types.NamespacedName, esClient e
 		clusterState, err := esClient.GetClusterState(ctx)
 		if err != nil {
 			// This is expected to happen from time to time
-			log.V(1).Info("Unable to retrieve cluster state", "error", err, "namespace", cluster.Namespace, "es_name", cluster.Name)
+			log.Info("Unable to retrieve cluster state", "error", err, "namespace", cluster.Namespace, "es_name", cluster.Name)
 			clusterStateChan <- nil
 			return
 		}
