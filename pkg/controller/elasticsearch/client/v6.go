@@ -27,7 +27,7 @@ func (c *clientV6) GetClusterRoutingAllocation(ctx context.Context) (ClusterRout
 	return settings, c.get(ctx, "/_cluster/settings", &settings)
 }
 
-func (c *clientV6) GetClusterState(ctx context.Context) (ClusterState, error) {
+func (c *clientV6) GetShards(ctx context.Context) (ClusterState, error) {
 	var clusterState ClusterState
 	return clusterState, c.get(ctx, "/_cluster/state/dispatcher,master_node,nodes,routing_table", &clusterState)
 }
