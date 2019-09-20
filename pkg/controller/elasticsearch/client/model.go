@@ -210,6 +210,11 @@ func (s Shard) IsInitializing() bool {
 	return s.State == INITIALIZING
 }
 
+// IsInitializing is true if the shard is currently initializing on the node.
+func (s Shard) IsUnassigned() bool {
+	return s.State == UNASSIGNED
+}
+
 // Key is a composite key of index name and shard number that identifies all
 // copies of a shard across nodes.
 func (s Shard) Key() string {

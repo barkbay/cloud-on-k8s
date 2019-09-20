@@ -86,6 +86,12 @@ func IsMigratingData(state observer.State, podName string, exclusions []string) 
 	if clusterState == nil || clusterState.IsEmpty() {
 		return true // we don't know if the request timed out or the cluster has not formed yet
 	}
+	for _, shard := range clusterState.GetShards() {
+		if shard.Primary && shard.IsUnassigned() {
+			log.Info("Unassigned primary shard", "index", shard.Index, "shard", shard.Shard)
+			return true // a primary shard is not assigned, data could still live on a node being removed
+		}
+	}
 	excludedNodes := make(map[string]struct{}, len(exclusions))
 	for _, name := range exclusions {
 		excludedNodes[name] = struct{}{}
