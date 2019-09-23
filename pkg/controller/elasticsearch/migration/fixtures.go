@@ -41,10 +41,6 @@ type fakeAllocationSetter struct {
 	value string
 }
 
-func NewFakeAllocationSetter() esclient.AllocationSetter {
-	return &fakeAllocationSetter{}
-}
-
 func (f *fakeAllocationSetter) ExcludeFromShardAllocation(nodes string) error {
 	f.value = nodes
 	return nil
