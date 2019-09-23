@@ -90,7 +90,10 @@ func scheduleDataMigrations(esClient esclient.Client, leavingNodes []string) err
 	if len(leavingNodes) != 0 {
 		log.V(1).Info("Migrating data away from nodes", "nodes", leavingNodes)
 	}
-	return migration.MigrateData(esClient, leavingNodes)
+	return migration.MigrateData(
+		esclient.NewAllocationSetter(esClient),
+		leavingNodes,
+	)
 }
 
 // attemptDownscale attempts to decrement the number of replicas of the given StatefulSet,
@@ -110,7 +113,10 @@ func attemptDownscale(
 
 	case downscale.isReplicaDecrease():
 		// adjust the theoretical downscale to one we can safely perform
-		performable := calculatePerformableDownscale(ctx, state, downscale, allLeavingNodes)
+		performable, err := calculatePerformableDownscale(ctx, state, downscale, allLeavingNodes)
+		if err != nil {
+			return true, err
+		}
 		if !performable.isReplicaDecrease() {
 			// no downscale can be performed for now, let's requeue
 			return true, nil
@@ -151,7 +157,7 @@ func calculatePerformableDownscale(
 	state *downscaleState,
 	downscale ssetDownscale,
 	allLeavingNodes []string,
-) ssetDownscale {
+) (ssetDownscale, error) {
 	// create another downscale based on the provided one, for which we'll slowly decrease target replicas
 	performableDownscale := ssetDownscale{
 		statefulSet:     downscale.statefulSet,
@@ -162,20 +168,24 @@ func calculatePerformableDownscale(
 	for _, node := range downscale.leavingNodeNames() {
 		if canDownscale, reason := checkDownscaleInvariants(*state, downscale.statefulSet); !canDownscale {
 			ssetLogger(downscale.statefulSet).V(1).Info("Cannot downscale StatefulSet", "node", node, "reason", reason)
-			return performableDownscale
+			return performableDownscale, nil
 		}
-		if migration.IsMigratingData(ctx.observedState, node, allLeavingNodes) {
+		migrating, err := migration.IsMigratingData(esclient.NewShardLister(ctx.esClient), node, allLeavingNodes)
+		if err != nil {
+			return performableDownscale, err
+		}
+		if migrating {
 			ssetLogger(downscale.statefulSet).V(1).Info("Data migration not over yet, skipping node deletion", "node", node)
 			ctx.reconcileState.UpdateElasticsearchMigrating(ctx.resourcesState, ctx.observedState)
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
-			return performableDownscale
+			return performableDownscale, nil
 		}
 		ssetLogger(downscale.statefulSet).Info("Data migration is over, go for node deletion", "node", node)
 		// data migration over: allow pod to be removed
 		performableDownscale.targetReplicas--
 		state.recordOneRemoval(downscale.statefulSet)
 	}
-	return performableDownscale
+	return performableDownscale, nil
 }
 
 // doDownscale schedules nodes removal for the given downscale, and updates zen settings accordingly.

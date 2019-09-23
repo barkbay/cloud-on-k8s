@@ -62,7 +62,7 @@ type Client interface {
 	// GetClusterInfo get the cluster information at /
 	GetClusterInfo(ctx context.Context) (Info, error)
 	// GetShards returns the current shards
-	GetShards(ctx context.Context) (ClusterState, error)
+	GetShards(ctx context.Context) (Shards, error)
 	// GetClusterRoutingAllocation retrieves the cluster routing allocation settings.
 	GetClusterRoutingAllocation(ctx context.Context) (ClusterRoutingAllocation, error)
 	// UpdateSettings updates the settings of a cluster.

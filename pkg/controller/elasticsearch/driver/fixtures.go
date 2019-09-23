@@ -295,8 +295,8 @@ func loadFileBytes(fileName string) []byte {
 	return contents
 }
 
-func (t *testESState) GetClusterState() (*esclient.ClusterState, error) {
-	var cs esclient.ClusterState
+func (t *testESState) GetShards() (*esclient.Shards, error) {
+	var cs esclient.Shards
 	sampleClusterState := loadFileBytes("cluster_state.json")
 	err := json.Unmarshal(sampleClusterState, &cs)
 	return &cs, err

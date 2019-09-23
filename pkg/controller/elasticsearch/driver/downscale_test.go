@@ -419,12 +419,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale possible from 3 to 2",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{
-						// all migrations are over
-						ClusterState: &esclient.ClusterState{
-							ClusterName: "cluster-name",
-						},
-					},
+					observedState: observer.State{},
 				},
 				downscale: ssetDownscale{
 					initialReplicas: 3,
@@ -442,12 +437,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: one master already removed",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{
-						// all migrations are over
-						ClusterState: &esclient.ClusterState{
-							ClusterName: "cluster-name",
-						},
-					},
+					observedState: observer.State{},
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -468,12 +458,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale only possible from 3 to 2 instead of 3 to 1 (1 master at a time)",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{
-						// all migrations are over
-						ClusterState: &esclient.ClusterState{
-							ClusterName: "cluster-name",
-						},
-					},
+					observedState: observer.State{},
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -632,13 +617,8 @@ func Test_attemptDownscale(t *testing.T) {
 				k8sClient:      k8sClient,
 				expectations:   expectations.NewExpectations(),
 				reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-				observedState: observer.State{
-					// all migrations are over
-					ClusterState: &esclient.ClusterState{
-						ClusterName: "cluster-name",
-					},
-				},
-				esClient: &fakeESClient{},
+				observedState:  observer.State{},
+				esClient:       &fakeESClient{},
 			}
 			// do the downscale
 			_, err := attemptDownscale(downscaleCtx, tt.downscale, tt.state, nil, tt.statefulSets)
