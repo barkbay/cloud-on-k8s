@@ -295,9 +295,22 @@ func loadFileBytes(fileName string) []byte {
 	return contents
 }
 
-func (t *testESState) GetShards() (*esclient.Shards, error) {
+type fakeShardLister struct {
+	shards esclient.Shards
+	err    error
+}
+
+func (f *fakeShardLister) GetShards() (esclient.Shards, error) {
+	return f.shards, f.err
+}
+
+func newFakeShardLister(shards esclient.Shards) esclient.ShardLister {
+	return &fakeShardLister{shards: shards}
+}
+
+func newFakeShardFromFile(fileName string) esclient.ShardLister {
 	var cs esclient.Shards
-	sampleClusterState := loadFileBytes("cluster_state.json")
+	sampleClusterState := loadFileBytes(fileName)
 	err := json.Unmarshal(sampleClusterState, &cs)
-	return &cs, err
+	return &fakeShardLister{shards: cs, err: err}
 }

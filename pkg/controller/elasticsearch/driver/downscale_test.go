@@ -8,6 +8,17 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/expectations"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
+	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/nodespec"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,19 +28,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/expectations"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
-	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/nodespec"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/observer"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
 
 // Sample StatefulSets to use in tests
@@ -114,35 +112,13 @@ func TestHandleDownscale(t *testing.T) {
 		k8sClient:      k8sClient,
 		expectations:   expectations.NewExpectations(),
 		reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-		observedState: observer.State{
-			ClusterState: &esclient.ClusterState{
-				ClusterName: "cluster-name",
-				Nodes: map[string]esclient.ClusterStateNode{
-					// nodes from 1st sset
-					"ssetMaster3Replicas-0": {Name: "ssetMaster3Replicas-0"},
-					"ssetMaster3Replicas-1": {Name: "ssetMaster3Replicas-1"},
-					"ssetMaster3Replicas-2": {Name: "ssetMaster3Replicas-2"},
-					// nodes from 2nd sset
-					"ssetData4Replicas-0": {Name: "ssetData4Replicas-0"},
-					"ssetData4Replicas-1": {Name: "ssetData4Replicas-1"},
-					"ssetData4Replicas-2": {Name: "ssetData4Replicas-2"},
-					"ssetData4Replicas-3": {Name: "ssetData4Replicas-3"},
-				},
-				RoutingTable: esclient.RoutingTable{
-					Indices: map[string]esclient.Shards{
-						"index-1": {
-							Shards: map[string][]esclient.Shard{
-								"0": {
-									// node ssetData4Replicas-2 cannot leave the cluster because of this shard
-									{Index: "index-1", Shard: 0, State: esclient.STARTED, Node: "ssetData4Replicas-2"},
-								},
-							},
-						},
-					},
-				},
+		shardLister: newFakeShardLister(
+			esclient.Shards{
+				{Index: "index-1", Shard: "0", State: esclient.STARTED, Node: "ssetData4Replicas-2"},
 			},
-		},
-		esClient: esClient,
+		),
+		allocationSetter: esclient.NewAllocationSetter(esClient),
+		esClient:         esClient,
 	}
 
 	// request master nodes downscale from 3 to 1 replicas
@@ -206,7 +182,11 @@ func TestHandleDownscale(t *testing.T) {
 	require.NoError(t, k8sClient.Delete(&podsSsetMaster3Replicas[1]))
 
 	// once data migration is over the downscale should continue for next data nodes
-	downscaleCtx.observedState.ClusterState.RoutingTable.Indices["index-1"].Shards["0"][0].Node = "ssetData4Replicas-1"
+	downscaleCtx.shardLister = newFakeShardLister(
+		esclient.Shards{
+			{Index: "index-1", Shard: "0", State: esclient.STARTED, Node: "ssetData4Replicas-1"},
+		},
+	)
 	nodespec.UpdateReplicas(&expectedAfterDownscale[1], common.Int32(2))
 	results = HandleDownscale(downscaleCtx, requestedStatefulSets, actual.Items)
 	require.False(t, results.HasError())
@@ -395,9 +375,10 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 		allLeavingNodes []string
 	}
 	tests := []struct {
-		name string
-		args args
-		want ssetDownscale
+		name    string
+		args    args
+		want    ssetDownscale
+		wantErr bool
 	}{
 		{
 			name: "no downscale planned",
@@ -419,7 +400,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale possible from 3 to 2",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{},
+					shardLister: newFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					initialReplicas: 3,
@@ -437,7 +418,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: one master already removed",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{},
+					shardLister: newFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -458,7 +439,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale only possible from 3 to 2 instead of 3 to 1 (1 master at a time)",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{},
+					shardLister: newFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -479,12 +460,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: cannot remove the last master",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{
-						// all migrations are over
-						ClusterState: &esclient.ClusterState{
-							ClusterName: "cluster-name",
-						},
-					},
+					shardLister: newFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -501,34 +477,13 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 				targetReplicas:  1,
 			},
 		},
-		{
-			name: "downscale not possible: data migration not ready",
-			args: args{
-				ctx: downscaleContext{
-					observedState: observer.State{
-						// cluster state is not populated
-						ClusterState: nil,
-					},
-					reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-				},
-				downscale: ssetDownscale{
-					statefulSet:     ssetMaster3Replicas,
-					initialReplicas: 3,
-					targetReplicas:  1,
-				},
-				state:           &downscaleState{masterRemovalInProgress: false, runningMasters: 3},
-				allLeavingNodes: []string{"node-1", "node-2"},
-			},
-			want: ssetDownscale{
-				statefulSet:     ssetMaster3Replicas,
-				initialReplicas: 3,
-				targetReplicas:  3,
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePerformableDownscale(tt.args.ctx, tt.args.state, tt.args.downscale, tt.args.allLeavingNodes)
+			got, err := calculatePerformableDownscale(tt.args.ctx, tt.args.state, tt.args.downscale, tt.args.allLeavingNodes)
+			if (err != nil) != tt.wantErr {
+
+			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("calculatePerformableDownscale() got = %v, want %v", got, tt.want)
 			}
@@ -617,7 +572,7 @@ func Test_attemptDownscale(t *testing.T) {
 				k8sClient:      k8sClient,
 				expectations:   expectations.NewExpectations(),
 				reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-				observedState:  observer.State{},
+				shardLister:    newFakeShardLister(esclient.Shards{}),
 				esClient:       &fakeESClient{},
 			}
 			// do the downscale
