@@ -14,6 +14,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/migration"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
@@ -112,7 +113,7 @@ func TestHandleDownscale(t *testing.T) {
 		k8sClient:      k8sClient,
 		expectations:   expectations.NewExpectations(),
 		reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-		shardLister: newFakeShardLister(
+		shardLister: migration.NewFakeShardLister(
 			esclient.Shards{
 				{Index: "index-1", Shard: "0", State: esclient.STARTED, Node: "ssetData4Replicas-2"},
 			},
@@ -182,7 +183,7 @@ func TestHandleDownscale(t *testing.T) {
 	require.NoError(t, k8sClient.Delete(&podsSsetMaster3Replicas[1]))
 
 	// once data migration is over the downscale should continue for next data nodes
-	downscaleCtx.shardLister = newFakeShardLister(
+	downscaleCtx.shardLister = migration.NewFakeShardLister(
 		esclient.Shards{
 			{Index: "index-1", Shard: "0", State: esclient.STARTED, Node: "ssetData4Replicas-1"},
 		},
@@ -400,7 +401,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale possible from 3 to 2",
 			args: args{
 				ctx: downscaleContext{
-					shardLister: newFakeShardLister(esclient.Shards{}),
+					shardLister: migration.NewFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					initialReplicas: 3,
@@ -418,7 +419,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: one master already removed",
 			args: args{
 				ctx: downscaleContext{
-					shardLister: newFakeShardLister(esclient.Shards{}),
+					shardLister: migration.NewFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -439,7 +440,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale only possible from 3 to 2 instead of 3 to 1 (1 master at a time)",
 			args: args{
 				ctx: downscaleContext{
-					shardLister: newFakeShardLister(esclient.Shards{}),
+					shardLister: migration.NewFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -460,7 +461,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: cannot remove the last master",
 			args: args{
 				ctx: downscaleContext{
-					shardLister: newFakeShardLister(esclient.Shards{}),
+					shardLister: migration.NewFakeShardLister(esclient.Shards{}),
 				},
 				downscale: ssetDownscale{
 					statefulSet:     ssetMaster3Replicas,
@@ -572,7 +573,7 @@ func Test_attemptDownscale(t *testing.T) {
 				k8sClient:      k8sClient,
 				expectations:   expectations.NewExpectations(),
 				reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
-				shardLister:    newFakeShardLister(esclient.Shards{}),
+				shardLister:    migration.NewFakeShardLister(esclient.Shards{}),
 				esClient:       &fakeESClient{},
 			}
 			// do the downscale

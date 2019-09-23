@@ -5,12 +5,7 @@
 package driver
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"path/filepath"
-
 	"github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
-	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
@@ -284,33 +279,4 @@ func (t *testESState) NodesInCluster(nodeNames []string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func loadFileBytes(fileName string) []byte {
-	contents, err := ioutil.ReadFile(filepath.Join("testdata", fileName))
-	if err != nil {
-		panic(err)
-	}
-
-	return contents
-}
-
-type fakeShardLister struct {
-	shards esclient.Shards
-	err    error
-}
-
-func (f *fakeShardLister) GetShards() (esclient.Shards, error) {
-	return f.shards, f.err
-}
-
-func newFakeShardLister(shards esclient.Shards) esclient.ShardLister {
-	return &fakeShardLister{shards: shards}
-}
-
-func newFakeShardFromFile(fileName string) esclient.ShardLister {
-	var cs esclient.Shards
-	sampleClusterState := loadFileBytes(fileName)
-	err := json.Unmarshal(sampleClusterState, &cs)
-	return &fakeShardLister{shards: cs, err: err}
 }
