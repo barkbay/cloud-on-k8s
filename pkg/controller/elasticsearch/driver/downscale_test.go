@@ -483,7 +483,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := calculatePerformableDownscale(tt.args.ctx, tt.args.state, tt.args.downscale, tt.args.allLeavingNodes)
 			if (err != nil) != tt.wantErr {
-
+				t.Errorf("calculatePerformableDownscale() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("calculatePerformableDownscale() got = %v, want %v", got, tt.want)

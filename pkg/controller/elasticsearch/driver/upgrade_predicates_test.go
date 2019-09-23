@@ -390,10 +390,6 @@ func TestUpgradePodsDeletion_Delete(t *testing.T) {
 			green:     tt.fields.green,
 		}
 		esClient := &fakeESClient{}
-		shardLister := tt.fields.shardLister
-		if shardLister == nil {
-			shardLister = migration.NewFakeShardLister(client.Shards{})
-		}
 		ctx := rollingUpgradeCtx{
 			client: k8s.WrapClient(
 				fake.NewFakeClient(tt.fields.upgradeTestPods.toPods(tt.fields.podFilter)...),
