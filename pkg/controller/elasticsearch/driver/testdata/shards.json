@@ -1,42 +1,37 @@
 [{
   "state": "STARTED",
-  "primary": false,
+  "prirep": "r",
   "node": "elasticsearch-sample-es-nodes-0",
-  "relocating_node": null,
-  "shard": 0,
+  "shard": "0",
   "index": ".security-7"
 },
   {
     "state": "STARTED",
-    "primary": true,
+    "prirep": "p",
     "node": "elasticsearch-sample-es-nodes-1",
-    "relocating_node": null,
-    "shard": 0,
+    "shard": "0",
     "index": ".security-7"
 
   },
   {
     "state": "STARTED",
-    "primary": true,
+    "prirep": "p",
     "node": "elasticsearch-sample-es-nodes-2",
-    "relocating_node": null,
-    "shard": 0,
+    "shard": "0",
     "index": "twitter"
   },
   {
     "state": "STARTED",
-    "primary": true,
+    "prirep": "p",
     "node": "elasticsearch-sample-es-nodes-3",
-    "relocating_node": null,
-    "shard": 0,
+    "shard": "0",
     "index": ".kibana_1"
   },
   {
     "state": "STARTED",
-    "primary": false,
+    "prirep": "r",
     "node": "elasticsearch-sample-es-nodes-4",
-    "relocating_node": null,
-    "shard": 0,
+    "shard": "0",
     "index": ".kibana_1"
   }
 ]

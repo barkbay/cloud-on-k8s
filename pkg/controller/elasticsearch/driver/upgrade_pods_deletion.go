@@ -7,7 +7,6 @@ package driver
 import (
 	"sort"
 
-	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
@@ -34,7 +33,7 @@ func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 	// Step 2: Apply predicates
 	predicateContext := NewPredicateContext(
 		ctx.esState,
-		esclient.NewShardLister(ctx.esClient),
+		ctx.shardLister,
 		ctx.healthyPods,
 		ctx.podsToUpgrade,
 		ctx.expectedMasters,

@@ -33,7 +33,7 @@ func fakeEsClient(healthRespErr, stateRespErr, licenseRespErr bool) client.Clien
 		}
 
 		if strings.Contains(req.URL.RequestURI(), "state") {
-			respBody = ioutil.NopCloser(bytes.NewBufferString(fixtures.ClusterStateSample))
+			respBody = ioutil.NopCloser(bytes.NewBufferString(fixtures.SampleIndices))
 			if stateRespErr {
 				statusCode = 500
 			}
