@@ -35,7 +35,7 @@ func TestParseShards(t *testing.T) {
 	}{
 		{
 			name: "Can parse populated routing table",
-			args: fixtures.SampleIndices,
+			args: fixtures.SampleShards,
 			want: []Shard{
 				{Index: "sample-data-2", Shard: "0", Prirep: "p", State: STARTED, Node: "stack-sample-es-lkrjf7224s"},
 				{Index: "sample-data-2", Shard: "1", Prirep: "r", State: STARTED, Node: "stack-sample-es-4fxm76vnwj"},
@@ -44,7 +44,7 @@ func TestParseShards(t *testing.T) {
 		},
 		{
 			name: "Can parse an empty routing table",
-			args: fixtures.NoIndices,
+			args: fixtures.NoShards,
 			want: []Shard{},
 		},
 	}
@@ -77,7 +77,7 @@ func TestShardsByNode(t *testing.T) {
 	}{
 		{
 			name: "Can parse populated routing table",
-			args: fixtures.SampleIndices,
+			args: fixtures.SampleShards,
 			want: map[string][]Shard{
 				"stack-sample-es-lkrjf7224s": {{Index: "sample-data-2", Shard: "0", Prirep: "p", State: STARTED, Node: "stack-sample-es-lkrjf7224s"}},
 				"stack-sample-es-4fxm76vnwj": {{Index: "sample-data-2", Shard: "1", Prirep: "r", State: STARTED, Node: "stack-sample-es-4fxm76vnwj"}},

@@ -112,9 +112,6 @@ type Shard struct {
 	Shard  string `json:"shard"`
 	Prirep string `json:"prirep"`
 	State  string `json:"state"`
-	Docs   string `json:"docs"`
-	Store  string `json:"store"`
-	IP     string `json:"ip"`
 	// Node is the node name not the Node id
 	Node string `json:"node"`
 }
@@ -148,11 +145,6 @@ func (s Shard) IsStarted() bool {
 // IsInitializing is true if the shard is currently initializing on the node.
 func (s Shard) IsInitializing() bool {
 	return s.State == INITIALIZING
-}
-
-// IsInitializing is true if the shard is currently initializing on the node.
-func (s Shard) IsUnassigned() bool {
-	return s.State == UNASSIGNED
 }
 
 // Key is a composite key of index name and shard number that identifies all

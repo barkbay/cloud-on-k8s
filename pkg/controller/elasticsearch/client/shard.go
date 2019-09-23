@@ -13,7 +13,7 @@ type AllocationSetter interface {
 	ExcludeFromShardAllocation(nodes string) error
 }
 
-// ShardLister captures Elasticsearch API calls around allocation filtering.
+// ShardLister captures Elasticsearch API calls around shards retrieval.
 type ShardLister interface {
 	GetShards() (Shards, error)
 }

@@ -5,7 +5,7 @@
 package fixtures
 
 const (
-	SampleIndices = `
+	SampleShards = `
 [{
 		"state": "STARTED",
 		"prirep": "p",
@@ -29,7 +29,7 @@ const (
 	}
 ]
 `
-	NoIndices = `
+	NoShards = `
 []
 `
 )
