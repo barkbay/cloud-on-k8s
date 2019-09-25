@@ -9,9 +9,13 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
+var log = logf.Log.WithName("driver")
+
 func shardIsMigrating(toMigrate client.Shard, others []client.Shard) bool {
+	log.Info("shardIsMigrating", "toMigrate", toMigrate, "others", others)
 	if toMigrate.IsRelocating() || toMigrate.IsInitializing() {
 		return true // being migrated away or weirdly just initializing
 	}
@@ -29,6 +33,7 @@ func shardIsMigrating(toMigrate client.Shard, others []client.Shard) bool {
 // nodeIsMigratingData is the core of IsMigratingData just with any I/O
 // removed to facilitate testing. See IsMigratingData for a high-level description.
 func nodeIsMigratingData(nodeName string, shards client.Shards, exclusions map[string]struct{}) bool {
+	log.Info("nodeIsMigratingData", "nodeName", nodeName, "shards", shards, "exclusions", exclusions)
 	// all other shards not living on the node that is about to go away mapped to their corresponding shard keys
 	othersByShard := make(map[string][]client.Shard)
 	// all shard copies currently living on the node leaving the cluster
@@ -65,6 +70,7 @@ func nodeIsMigratingData(nodeName string, shards client.Shards, exclusions map[s
 // that is started and not relocating.
 func IsMigratingData(shardLister esclient.ShardLister, podName string, exclusions []string) (bool, error) {
 	shards, err := shardLister.GetShards()
+	log.Info("IsMigratingData", "shards", shards, "err", err, "podName", podName, "exclusions", exclusions)
 	if err != nil {
 		return false, err
 	}

@@ -37,7 +37,7 @@ func HandleDownscale(
 
 	// migrate data away from nodes that should be removed, if leavingNodes is empty, it clears any existing settings
 	if len(leavingNodes) != 0 {
-		log.V(1).Info("Migrating data away from nodes", "nodes", leavingNodes)
+		log.Info("Migrating data away from nodes", "nodes", leavingNodes)
 	}
 	if err := migration.MigrateData(downscaleCtx.allocationSetter, leavingNodes); err != nil {
 		return results.WithError(err)
