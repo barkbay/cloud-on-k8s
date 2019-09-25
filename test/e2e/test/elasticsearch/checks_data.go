@@ -38,8 +38,8 @@ func NewDataIntegrityCheck(k *test.K8sClient, b Builder) *DataIntegrityCheck {
 		sampleData: map[string]interface{}{
 			"foo": "bar",
 		},
-		docCount:    5,
-		numShards:   3,
+		docCount:    10,
+		numShards:   50,
 		numReplicas: dataIntegrityReplicas(b),
 	}
 }
