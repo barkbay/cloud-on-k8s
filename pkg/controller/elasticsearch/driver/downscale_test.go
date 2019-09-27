@@ -34,8 +34,8 @@ import (
 
 // Sample StatefulSets to use in tests
 var (
-	clusterName         = "cluster-name"
-	readyStatus         = corev1.PodStatus{
+	clusterName = "cluster-name"
+	readyStatus = corev1.PodStatus{
 		Conditions: []corev1.PodCondition{
 			{Status: corev1.ConditionTrue, Type: corev1.ContainersReady},
 			{Status: corev1.ConditionTrue, Type: corev1.PodReady},
@@ -460,8 +460,7 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible from 3 to 2 (would violate maxUnavailable)",
 			args: args{
 				ctx: downscaleContext{
-					observedState: observer.State{
-					},
+					observedState: observer.State{},
 				},
 				downscale: ssetDownscale{
 					initialReplicas: 3,
@@ -542,9 +541,8 @@ func Test_calculatePerformableDownscale(t *testing.T) {
 			name: "downscale not possible: data migration not ready",
 			args: args{
 				ctx: downscaleContext{
-					shardLister: migration.NewFakeShardLister(esclient.Shards{}),
-					observedState: observer.State{
-					},
+					shardLister:    migration.NewFakeShardLister(esclient.Shards{}),
+					observedState:  observer.State{},
 					reconcileState: reconcile.NewState(v1alpha1.Elasticsearch{}),
 				},
 				downscale: ssetDownscale{
