@@ -31,8 +31,16 @@ func HandleDownscale(
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
+	// make sure we only downscale nodes we're allowed to
+	downscaleState, err := newDownscaleState(downscaleCtx.k8sClient, downscaleCtx.es)
+	if err != nil {
+		return results.WithError(err)
+	}
+
 	// compute the list of StatefulSet downscales to perform
-	downscales := calculateDownscales(expectedStatefulSets, actualStatefulSets)
+	// downscaleState is used to compute which nodes are really allowed and can be safely be removed
+	downscales := calculateDownscales(expectedStatefulSets, actualStatefulSets, downscaleState)
+	// leaving nodes takes into account downscaleState, so they are the nodes that are really allowed to be deleted
 	leavingNodes := leavingNodeNames(downscales)
 
 	// migrate data away from nodes that should be removed, if leavingNodes is empty, it clears any existing settings
@@ -40,12 +48,6 @@ func HandleDownscale(
 		log.V(1).Info("Migrating data away from nodes", "nodes", leavingNodes)
 	}
 	if err := migration.MigrateData(downscaleCtx.allocationSetter, leavingNodes); err != nil {
-		return results.WithError(err)
-	}
-
-	// make sure we only downscale nodes we're allowed to
-	downscaleState, err := newDownscaleState(downscaleCtx.k8sClient, downscaleCtx.es)
-	if err != nil {
 		return results.WithError(err)
 	}
 
@@ -66,7 +68,13 @@ func HandleDownscale(
 
 // calculateDownscales compares expected and actual StatefulSets to return a list of ssetDownscale.
 // We also include StatefulSets removal (0 replicas) in those downscales.
-func calculateDownscales(expectedStatefulSets sset.StatefulSetList, actualStatefulSets sset.StatefulSetList) []ssetDownscale {
+func calculateDownscales(
+	expectedStatefulSets sset.StatefulSetList,
+	actualStatefulSets sset.StatefulSetList,
+	// downscaleState is used to compute early in the downscale process which nodes will leave
+	// the idea is to avoid to exclude all the nodes of a statefulset if only a subset will be removed in this iteration
+	state *downscaleState,
+) []ssetDownscale {
 	downscales := []ssetDownscale{}
 	for _, actualSset := range actualStatefulSets {
 		actualReplicas := sset.GetReplicas(actualSset)
@@ -77,11 +85,32 @@ func calculateDownscales(expectedStatefulSets sset.StatefulSetList, actualStatef
 		}
 		if expectedReplicas == 0 || // removal
 			expectedReplicas < actualReplicas { // downscale
+			// check downscale invariant to not remove an important node
+			if canDownscale, reason := checkDownscaleInvariants(*state, actualSset); !canDownscale {
+				ssetLogger(actualSset).V(1).Info("Cannot downscale StatefulSet", "reason", reason)
+				continue
+			}
+			// nextReplicas is either:
+			// * 0 in case of deletion
+			// * max of (actualReplicas minus the allowed budget, expectedReplicas)
+			removalsAllowed := int32(state.removalsAllowed)
+			if label.IsMasterNodeSet(actualSset) {
+				removalsAllowed = 1 // Only one removal allowed for masters
+			}
+			nextReplicas := actualReplicas - removalsAllowed
+			if expectedReplicas > nextReplicas {
+				nextReplicas = expectedReplicas // Do not go below the expected replicas
+			}
+			if nextReplicas < 0 { // sset is being deleted
+				nextReplicas = 0
+			}
 			downscales = append(downscales, ssetDownscale{
 				statefulSet:     actualSset,
 				initialReplicas: actualReplicas,
-				targetReplicas:  expectedReplicas,
+				targetReplicas:  nextReplicas, // expectedReplicas takes into account the budget
 			})
+			// Update the state
+			state.recordRemoval(actualSset, int(actualReplicas-nextReplicas))
 		}
 	}
 	return downscales
@@ -103,8 +132,8 @@ func attemptDownscale(
 		return false, removeStatefulSetResources(ctx.k8sClient, ctx.es, downscale.statefulSet)
 
 	case downscale.isReplicaDecrease():
-		// adjust the theoretical downscale to one we can safely perform
-		performable, err := calculatePerformableDownscale(ctx, state, downscale, allLeavingNodes)
+		// adjust the theoretical downscale to one we can safely perform by checking if the data have been migrated
+		performable, err := calculatePerformableDownscale(ctx, downscale, allLeavingNodes)
 		if err != nil {
 			return true, err
 		}
@@ -140,12 +169,11 @@ func removeStatefulSetResources(k8sClient k8s.Client, es v1alpha1.Elasticsearch,
 	return k8sClient.Delete(&statefulSet)
 }
 
-// calculatePerformableDownscale updates the given downscale target replicas to account for nodes
-// which cannot be safely deleted yet.
+// calculatePerformableDownscale iterates through the leaving nodes and  updates the given downscale target replicas
+// to account for nodes which cannot be safely deleted yet because they still have some shards.
 // It returns the updated downscale and a boolean indicating whether a requeue should be done.
 func calculatePerformableDownscale(
 	ctx downscaleContext,
-	state *downscaleState,
 	downscale ssetDownscale,
 	allLeavingNodes []string,
 ) (ssetDownscale, error) {
@@ -157,10 +185,6 @@ func calculatePerformableDownscale(
 	}
 	// iterate on all leaving nodes (ordered by highest ordinal first)
 	for _, node := range downscale.leavingNodeNames() {
-		if canDownscale, reason := checkDownscaleInvariants(*state, downscale.statefulSet); !canDownscale {
-			ssetLogger(downscale.statefulSet).V(1).Info("Cannot downscale StatefulSet", "node", node, "reason", reason)
-			return performableDownscale, nil
-		}
 		migrating, err := migration.IsMigratingData(ctx.shardLister, node, allLeavingNodes)
 		if err != nil {
 			return performableDownscale, err
@@ -174,7 +198,6 @@ func calculatePerformableDownscale(
 		ssetLogger(downscale.statefulSet).Info("Data migration completed successfully, starting node deletion", "node", node)
 		// data migration over: allow pod to be removed
 		performableDownscale.targetReplicas--
-		state.recordOneRemoval(downscale.statefulSet)
 	}
 	return performableDownscale, nil
 }

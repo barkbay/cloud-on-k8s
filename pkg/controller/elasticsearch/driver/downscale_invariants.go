@@ -84,6 +84,15 @@ func (s *downscaleState) recordOneRemoval(statefulSet appsv1.StatefulSet) {
 		s.masterRemovalInProgress = true
 		s.runningMasters--
 	}
-
 	s.removalsAllowed--
+}
+
+// recordRemoval updates the state to consider a n-replica downscale of the given statefulSet.
+func (s *downscaleState) recordRemoval(statefulSet appsv1.StatefulSet, downscaledReplicas int) {
+	if label.IsMasterNodeSet(statefulSet) {
+		// only care about master nodes here
+		s.masterRemovalInProgress = true
+		s.runningMasters -= downscaledReplicas
+	}
+	s.removalsAllowed -= downscaledReplicas
 }
