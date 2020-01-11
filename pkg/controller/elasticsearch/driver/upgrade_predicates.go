@@ -144,7 +144,7 @@ var predicates = [...]Predicate{
 	{
 		// If health is not Green or Yellow only allow unhealthy Pods to be restarted.
 		// This is intended to unlock some situations where the cluster is not green and
-		// a Pod has to be restarted a second time.
+		// a Pod has to be restarted a second time. Note that it only applies to data nodes.
 		name: "only_restart_healthy_node_if_green_or_yellow",
 		fn: func(
 			context PredicateContext,
@@ -158,8 +158,16 @@ var predicates = [...]Predicate{
 			if err != nil {
 				return false, err
 			}
-			if health == esv1.ElasticsearchGreenHealth || health == esv1.ElasticsearchYellowHealth {
+			switch health {
+			case esv1.ElasticsearchGreenHealth:
 				return true, nil
+			case esv1.ElasticsearchYellowHealth:
+				// If cluster health is yellow, only allow data nodes to be restarted:
+				// * Deleting dedicated master nodes would not help to improve the cluster health.
+				// * It would give some priority to master nodes in the upgrade process which is something we don't want.
+				if label.IsDataNode(candidate) {
+					return true, nil
+				}
 			}
 			_, healthy := context.healthyPods[candidate.Name]
 			if !healthy {
