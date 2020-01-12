@@ -420,6 +420,42 @@ func TestUpgradePodsDeletion_Delete(t *testing.T) {
 			wantShardsAllocationDisabled: true,
 		},
 		{
+			// This test checks that if the cluster health is yellow and if some data nodes can not temporarily
+			// be restarted then we don't delete dedicated master nodes because:
+			// * Deleting dedicated master nodes would not help to improve the cluster health.
+			// * It would give some priority to master nodes in the upgrade process which is something we don't want.
+			name: "Do not delete a dedicated master node if cluster health is yellow",
+			fields: fields{
+				upgradeTestPods: newUpgradeTestPods(
+					newTestPod("masters-0").isMaster(true).isData(false).isHealthy(true).needsUpgrade(true).isInCluster(true).withVersion("7.4.0"),
+					newTestPod("data-0").isMaster(true).isData(true).isHealthy(true).needsUpgrade(true).isInCluster(true).withVersion("7.4.0"),
+					newTestPod("data-1").isMaster(true).isData(true).isHealthy(true).needsUpgrade(false).isInCluster(true).withVersion("7.5.0"),
+				),
+				maxUnavailable: 1,
+				health:         esv1.ElasticsearchYellowHealth,
+				shardLister: migration.NewFakeShardLister(client.Shards{
+					client.Shard{
+						Index:    "index_a",
+						Shard:    "0",
+						State:    "STARTED",
+						NodeName: "data-0", // data-0 can't be restarted for the moment because it is holding the last shard
+						Type:     "p",
+					},
+					client.Shard{
+						Index:    "index_a",
+						Shard:    "0",
+						State:    "UNASSIGNED",
+						NodeName: "",
+						Type:     "r",
+					},
+				}),
+				podFilter: nothing,
+			},
+			deleted:                      []string{},
+			wantErr:                      false,
+			wantShardsAllocationDisabled: false,
+		},
+		{
 			name: "Do not delete the node with the last remaining started shard",
 			fields: fields{
 				esVersion: "7.5.0",
