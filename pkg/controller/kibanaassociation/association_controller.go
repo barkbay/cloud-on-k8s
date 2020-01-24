@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/utils/rbac"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,8 +73,8 @@ var (
 
 // Add creates a new Association Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager, params operator.Parameters) error {
-	r := newReconciler(mgr, params)
+func Add(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
+	r := newReconciler(mgr, accessReviewer, params)
 	c, err := add(mgr, r)
 	if err != nil {
 		return err
@@ -81,14 +83,15 @@ func Add(mgr manager.Manager, params operator.Parameters) error {
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileAssociation {
+func newReconciler(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) *ReconcileAssociation {
 	client := k8s.WrapClient(mgr.GetClient())
 	return &ReconcileAssociation{
-		Client:     client,
-		scheme:     mgr.GetScheme(),
-		watches:    watches.NewDynamicWatches(),
-		recorder:   mgr.GetEventRecorderFor(name),
-		Parameters: params,
+		Client:         client,
+		accessReviewer: accessReviewer,
+		scheme:         mgr.GetScheme(),
+		watches:        watches.NewDynamicWatches(),
+		recorder:       mgr.GetEventRecorderFor(name),
+		Parameters:     params,
 	}
 }
 
@@ -107,9 +110,10 @@ var _ reconcile.Reconciler = &ReconcileAssociation{}
 // ReconcileAssociation reconciles a Kibana resource for association with Elasticsearch
 type ReconcileAssociation struct {
 	k8s.Client
-	scheme   *runtime.Scheme
-	recorder record.EventRecorder
-	watches  watches.DynamicWatches
+	accessReviewer rbac.AccessReviewer
+	scheme         *runtime.Scheme
+	recorder       record.EventRecorder
+	watches        watches.DynamicWatches
 	operator.Parameters
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration uint64
@@ -262,6 +266,15 @@ func (r *ReconcileAssociation) reconcileInternal(kibana *kbv1.Kibana) (commonv1.
 			return commonv1.AssociationPending, nil
 		}
 		return commonv1.AssociationFailed, err
+	}
+
+	allowed, err := r.accessReviewer.AccessAllowed(kibana.Spec.ServiceAccountName, kibana.Namespace, &es)
+	if err != nil {
+		return commonv1.AssociationPending, err
+	}
+	if !allowed {
+		log.Info("Connection not allowed", "kibana", kibanaKey, "serviceAccount", kibana.Spec.ServiceAccountName, "es", esRefKey)
+		return commonv1.AssociationPending, nil
 	}
 
 	if err := association.ReconcileEsUser(

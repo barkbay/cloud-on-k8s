@@ -39,6 +39,12 @@ type ApmServerSpec struct {
 	// SecureSettings is a list of references to Kubernetes secrets containing sensitive configuration options for APM Server.
 	// See: https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-apm-server.html#k8s-apm-secure-settings
 	SecureSettings []commonv1beta1.SecretSource `json:"secureSettings,omitempty"`
+
+	// ServiceAccountName is the name of the ServiceAccount to use to run this pod.
+	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+	// TODO: If this field is not duplicated here then it does not appear in the CRD
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
 
 // ApmServerHealth expresses the status of the Apm Server instances.
