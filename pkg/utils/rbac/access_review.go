@@ -79,7 +79,7 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 
 	sar, err = s.client.AuthorizationV1().SubjectAccessReviews().Create(sar)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	log.Info("Access review", "result", sar.Status)
 	if sar.Status.Denied {
