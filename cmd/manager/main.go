@@ -325,7 +325,7 @@ func execute() {
 			log.Error(err, "unable to create controller", "controller", "Kibana")
 			os.Exit(1)
 		}
-		if err = asesassn.Add(mgr, params); err != nil {
+		if err = asesassn.Add(mgr, accessReviewer, params); err != nil {
 			log.Error(err, "unable to create controller", "controller", "ApmServerElasticsearchAssociation")
 			os.Exit(1)
 		}

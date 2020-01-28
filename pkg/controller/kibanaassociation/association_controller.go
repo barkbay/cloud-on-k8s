@@ -281,8 +281,14 @@ func (r *ReconcileAssociation) reconcileInternal(kibana *kbv1.Kibana) (commonv1.
 		return commonv1.AssociationPending, err
 	}
 	if !allowed {
-		log.Info("Connection not allowed", "kibana", kibanaKey, "serviceAccount", kibana.Spec.ServiceAccountName, "es", esRefKey)
-		return commonv1.AssociationPending, nil
+		log.Info("Association not allowed",
+			"kibana_name", kibanaKey.Name,
+			"kibana_namespace", kibanaKey.Namespace,
+			"serviceAccount", kibana.Spec.ServiceAccountName,
+			"es_name", esRefKey.Name,
+			"es_namespace", esRefKey.Namespace,
+		)
+		return commonv1.AssociationDenied, nil
 	}
 
 	if err := association.ReconcileEsUser(
