@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
+
 	"github.com/elastic/cloud-on-k8s/pkg/utils/rbac"
 
 	corev1 "k8s.io/api/core/v1"
@@ -160,8 +162,10 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
+	results := reconciler.Results{}
 	newStatus, err := r.reconcileInternal(&kibana)
 	if err != nil {
+		results.WithError(err)
 		k8s.EmitErrorEvent(r.recorder, err, &kibana, events.EventReconciliationError, "Reconciliation error: %v", err)
 	}
 
@@ -184,7 +188,11 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 			events.EventAssociationStatusChange,
 			"Association status changed from [%s] to [%s]", oldStatus, newStatus)
 	}
-	return resultFromStatus(newStatus), err
+
+	return results.
+		WithResult(rbac.NextReconciliation(r.accessReviewer)).
+		WithResult(resultFromStatus(newStatus)).
+		Aggregate()
 }
 
 func resultFromStatus(status commonv1.AssociationStatus) reconcile.Result {

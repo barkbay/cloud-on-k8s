@@ -3,6 +3,9 @@ package rbac
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	authorizationapi "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -107,4 +110,17 @@ var _ AccessReviewer = &yesAccessReviewer{}
 
 func (s *yesAccessReviewer) AccessAllowed(serviceAccount string, sourceNamespace string, object runtime.Object) (bool, error) {
 	return true, nil
+}
+
+// NextReconciliation returns a reconcile result depending on the implementation of the AccessReviewer.
+// It is mostly used when using the subjectAccessReviewer implementation in which case a next reconcile loop should be
+// triggered later to keep the association in sync with the RBAC roles and bindings.
+// See https://github.com/elastic/cloud-on-k8s/issues/2468#issuecomment-579157063
+func NextReconciliation(accessReviewer AccessReviewer) reconcile.Result {
+	switch accessReviewer.(type) {
+	case *subjectAccessReviewer:
+		return reconcile.Result{RequeueAfter: 15 * time.Minute}
+	default:
+		return reconcile.Result{}
+	}
 }

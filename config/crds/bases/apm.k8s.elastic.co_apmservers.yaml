@@ -6051,8 +6051,8 @@ spec:
                 type: object
               type: array
             serviceAccountName:
-              description: 'ServiceAccountName is the name of the ServiceAccount to
-                use to run this pod. More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/'
+              description: ServiceAccountName is the name of the ServiceAccount to
+                use to check access to objects in different namespaces.
               type: string
             version:
               description: Version of the APM Server.

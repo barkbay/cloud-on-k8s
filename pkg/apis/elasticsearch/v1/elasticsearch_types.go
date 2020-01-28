@@ -46,8 +46,7 @@ type ElasticsearchSpec struct {
 	// +kubebuilder:validation:Optional
 	SecureSettings []commonv1.SecretSource `json:"secureSettings,omitempty"`
 
-	// ServiceAccountName is the name of the ServiceAccount to use to run this pod.
-	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+	// ServiceAccountName is the name of the ServiceAccount to use to check access to objects in different namespaces.
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
