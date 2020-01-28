@@ -288,7 +288,9 @@ func (r *ReconcileAssociation) reconcileInternal(kibana *kbv1.Kibana) (commonv1.
 			"es_name", esRefKey.Name,
 			"es_namespace", esRefKey.Namespace,
 		)
-		return commonv1.AssociationDenied, nil
+		// Ensure that user in Elasticsearch is deleted to prevent illegitimate access
+		err := user.DeleteUser(r.Client, NewUserLabelSelector(kibanaKey))
+		return commonv1.AssociationPending, err
 	}
 
 	if err := association.ReconcileEsUser(

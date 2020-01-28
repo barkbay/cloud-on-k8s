@@ -278,7 +278,9 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(apmServer
 			"es_name", es.Name,
 			"es_namespace", es.Namespace,
 		)
-		return commonv1.AssociationDenied, nil
+		// Ensure that user in Elasticsearch is deleted to prevent illegitimate access
+		err := user.DeleteUser(r.Client, NewUserLabelSelector(assocKey))
+		return commonv1.AssociationPending, err
 	}
 
 	if err := association.ReconcileEsUser(

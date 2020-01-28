@@ -84,7 +84,7 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 	if err != nil {
 		return false, err
 	}
-	log.Info("Access review", "result", sar.Status)
+	log.V(1).Info("Access review", "result", sar.Status)
 	if sar.Status.Denied {
 		return false, nil
 	}

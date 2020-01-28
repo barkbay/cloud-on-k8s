@@ -15,7 +15,6 @@ type AssociationStatus string
 const (
 	AssociationUnknown     AssociationStatus = ""
 	AssociationPending     AssociationStatus = "Pending"
-	AssociationDenied      AssociationStatus = "Denied"
 	AssociationEstablished AssociationStatus = "Established"
 	AssociationFailed      AssociationStatus = "Failed"
 )
