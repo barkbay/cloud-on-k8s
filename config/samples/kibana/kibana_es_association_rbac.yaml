@@ -23,7 +23,7 @@ rules:
 #  - elasticsearch-sample
 #  - an-other-elasticsearch-cluster
   verbs:
-  - update
+  - get
 ---
 apiVersion: v1
 kind: ServiceAccount

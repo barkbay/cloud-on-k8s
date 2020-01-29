@@ -1,11 +1,13 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License;
+// you may not use this file except in compliance with the Elastic License.
+
 package rbac
 
 import (
 	"fmt"
 	"strings"
 	"time"
-
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	authorizationapi "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -14,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -70,11 +73,12 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 		Spec: authorizationapi.SubjectAccessReviewSpec{
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				Namespace: metaObject.GetNamespace(),
-				Verb:      "update",
+				Verb:      "get",
 				Resource:  plural,
-				Group:     strings.ToLower(object.GetObjectKind().GroupVersionKind().Group),
-				Version:   strings.ToLower(object.GetObjectKind().GroupVersionKind().Version),
-				Name:      metaObject.GetName(),
+				//Subresource: "association",
+				Group:   strings.ToLower(object.GetObjectKind().GroupVersionKind().Group),
+				Version: strings.ToLower(object.GetObjectKind().GroupVersionKind().Version),
+				Name:    metaObject.GetName(),
 			},
 			User: ServiceAccountUsernamePrefix + sourceNamespace + ":" + serviceAccount,
 		},
@@ -91,7 +95,7 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 	return sar.Status.Allowed, nil
 }
 
-// Dirty and lazy hack to get the plural form
+// Lazy hack to get the plural form
 func toPlural(singular string) (string, error) {
 	switch singular {
 	case "Elasticsearch":
