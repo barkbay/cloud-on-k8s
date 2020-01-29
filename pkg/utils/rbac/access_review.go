@@ -112,7 +112,7 @@ type yesAccessReviewer struct{}
 
 var _ AccessReviewer = &yesAccessReviewer{}
 
-func (s *yesAccessReviewer) AccessAllowed(serviceAccount string, sourceNamespace string, object runtime.Object) (bool, error) {
+func (s *yesAccessReviewer) AccessAllowed(_ string, _ string, _ runtime.Object) (bool, error) {
 	return true, nil
 }
 
