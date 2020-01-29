@@ -52,7 +52,8 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 	}
 
 	allErrs := field.ErrorList{}
-	for _, msg := range validation.IsDNS1123Subdomain(serviceAccount) { // TODO: should be done in a dedicated place but there's no validation for APM or Kibana yet.
+	// This validation could be done in other places but it is important to be sure that it is done before any access review.
+	for _, msg := range validation.IsDNS1123Subdomain(serviceAccount) {
 		allErrs = append(allErrs, &field.Error{Type: field.ErrorTypeInvalid, Field: "serviceAccount", BadValue: serviceAccount, Detail: msg})
 	}
 	if len(allErrs) > 0 {
@@ -75,10 +76,9 @@ func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNames
 				Namespace: metaObject.GetNamespace(),
 				Verb:      "get",
 				Resource:  plural,
-				//Subresource: "association",
-				Group:   strings.ToLower(object.GetObjectKind().GroupVersionKind().Group),
-				Version: strings.ToLower(object.GetObjectKind().GroupVersionKind().Version),
-				Name:    metaObject.GetName(),
+				Group:     strings.ToLower(object.GetObjectKind().GroupVersionKind().Group),
+				Version:   strings.ToLower(object.GetObjectKind().GroupVersionKind().Version),
+				Name:      metaObject.GetName(),
 			},
 			User: ServiceAccountUsernamePrefix + sourceNamespace + ":" + serviceAccount,
 		},

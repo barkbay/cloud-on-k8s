@@ -147,7 +147,7 @@ func init() {
 	)
 	Cmd.Flags().Bool(
 		RbacControlledReferencesFlag,
-		true, // TODO: Set to false for backward compatibility
+		false, // Set to false for backward compatibility
 		"enables role based access control for references on resources accross namespaces ",
 	)
 	Cmd.Flags().String(
