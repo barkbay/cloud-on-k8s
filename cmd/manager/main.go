@@ -309,7 +309,7 @@ func execute() {
 	if rbacControlledReferences {
 		accessReviewer = rbac.NewSubjectAccessReviewer(clientset)
 	} else {
-		accessReviewer = rbac.NewYesAccessReviewer()
+		accessReviewer = rbac.NewPermissiveAccessReviewer()
 	}
 
 	if operator.HasRole(operator.NamespaceOperator, roles) {

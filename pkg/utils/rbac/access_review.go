@@ -42,8 +42,8 @@ func NewSubjectAccessReviewer(client kubernetes.Interface) AccessReviewer {
 	}
 }
 
-func NewYesAccessReviewer() AccessReviewer {
-	return &yesAccessReviewer{}
+func NewPermissiveAccessReviewer() AccessReviewer {
+	return &permissiveAccessReviewer{}
 }
 
 func (s *subjectAccessReviewer) AccessAllowed(serviceAccount string, sourceNamespace string, object runtime.Object) (bool, error) {
@@ -108,11 +108,11 @@ func toPlural(singular string) (string, error) {
 	return "", fmt.Errorf("unknown singular kind: %s", singular)
 }
 
-type yesAccessReviewer struct{}
+type permissiveAccessReviewer struct{}
 
-var _ AccessReviewer = &yesAccessReviewer{}
+var _ AccessReviewer = &permissiveAccessReviewer{}
 
-func (s *yesAccessReviewer) AccessAllowed(_ string, _ string, _ runtime.Object) (bool, error) {
+func (s *permissiveAccessReviewer) AccessAllowed(_ string, _ string, _ runtime.Object) (bool, error) {
 	return true, nil
 }
 

@@ -198,7 +198,7 @@ func TestNextReconciliation(t *testing.T) {
 		},
 		{
 			name:                "No requeue if there is no access control",
-			args:                args{accessReviewer: NewYesAccessReviewer()},
+			args:                args{accessReviewer: NewPermissiveAccessReviewer()},
 			wantNonZeroDuration: false,
 		},
 	}
