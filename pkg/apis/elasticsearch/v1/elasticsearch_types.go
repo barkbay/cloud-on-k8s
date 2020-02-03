@@ -50,6 +50,16 @@ type ElasticsearchSpec struct {
 	// Can only be used if ECK is configured for checking references RBAC.
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// RemoteClusters allow specifying some remote clusters. It makes it easy to establish a trusted and secured association
+	// with them. It can be used for Cross Cluster Replication or Cross Cluster Replication.
+	// +optional
+	RemoteClusters RemoteClusters `json:"remoteClusters,omitempty"`
+}
+
+// RemoteClusters defines some remote Elasticsearch clusters.
+type RemoteClusters struct {
+	K8sLocal []commonv1.ObjectSelector `json:"k8sLocal"`
 }
 
 // NodeCount returns the total number of nodes of the Elasticsearch cluster

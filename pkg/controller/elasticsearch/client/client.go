@@ -84,6 +84,8 @@ type Client interface {
 	GetNodes(ctx context.Context) (Nodes, error)
 	// GetNodesStats calls the _nodes/stats api to return a map(nodeName -> NodeStats)
 	GetNodesStats(ctx context.Context) (NodesStats, error)
+	// UpdateSettings updates the settings of a cluster.
+	UpdateSettings(ctx context.Context, settings Settings) error
 	// ClusterBootstrappedForZen2 returns true if the cluster is relying on zen2 orchestration.
 	ClusterBootstrappedForZen2(ctx context.Context) (bool, error)
 	// AddVotingConfigExclusions sets the transient and persistent setting of the same name in cluster settings.
