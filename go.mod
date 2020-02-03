@@ -27,7 +27,7 @@ require (
 	github.com/imdario/mergo v0.3.8
 	github.com/influxdata/tdigest v0.0.1 // indirect
 	github.com/magiconair/properties v1.8.1
-	github.com/openshift/api v0.0.0-20200127192224-ffde1bfabb9f
+	github.com/openshift/api v0.0.0-20200127192224-ffde1bfabb9f // indirect
 	github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pkg/errors v0.8.1
