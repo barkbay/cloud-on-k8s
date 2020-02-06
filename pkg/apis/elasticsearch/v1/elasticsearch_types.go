@@ -59,7 +59,7 @@ type ElasticsearchSpec struct {
 
 // RemoteClusters defines some remote Elasticsearch clusters.
 type RemoteClusters struct {
-	K8sLocal []commonv1.ObjectSelector `json:"k8sLocal"`
+	K8sLocal []commonv1.ObjectSelector `json:"k8sLocal,omitempty"`
 }
 
 // NodeCount returns the total number of nodes of the Elasticsearch cluster

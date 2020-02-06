@@ -29,9 +29,9 @@ func TransportServiceName(esName string) string {
 	return esv1.TransportService(esName)
 }
 
-// NewDiscoveryService returns the discovery service associated to the given cluster
+// NewTransportService returns the transport service associated to the given cluster
 // It is used by nodes to talk to each other.
-func NewDiscoveryService(es esv1.Elasticsearch) *corev1.Service {
+func NewTransportService(es esv1.Elasticsearch) *corev1.Service {
 	nsn := k8s.ExtractNamespacedName(&es)
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{

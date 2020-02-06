@@ -8,6 +8,8 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/certificates/remoteca"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
@@ -40,6 +42,11 @@ func Reconcile(
 	certRotation certificates.RotationParams,
 ) (*CertificateResources, *reconciler.Results) {
 	results := &reconciler.Results{}
+
+	// reconcile remote clusters certificates
+	if err := remoteca.ReconcileCertificateAuthorities(driver.K8sClient(), es); err != nil {
+		results.WithError(err)
+	}
 
 	labels := label.NewLabels(k8s.ExtractNamespacedName(&es))
 

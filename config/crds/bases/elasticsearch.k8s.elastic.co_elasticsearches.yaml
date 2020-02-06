@@ -6881,8 +6881,6 @@ spec:
                       - name
                       type: object
                     type: array
-                required:
-                - k8sLocal
                 type: object
               secureSettings:
                 description: 'SecureSettings is a list of references to Kubernetes

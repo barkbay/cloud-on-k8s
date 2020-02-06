@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/remoteca"
+
 	// allow gcp authentication
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
@@ -337,6 +339,10 @@ func execute() {
 			os.Exit(1)
 		}
 		if err = kbassn.Add(mgr, accessReviewer, params); err != nil {
+			log.Error(err, "unable to create controller", "controller", "KibanaAssociation")
+			os.Exit(1)
+		}
+		if err = remoteca.Add(mgr, accessReviewer, params); err != nil {
 			log.Error(err, "unable to create controller", "controller", "KibanaAssociation")
 			os.Exit(1)
 		}

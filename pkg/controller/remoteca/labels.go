@@ -2,14 +2,17 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package remotecluster
+package remoteca
 
 import (
+	"fmt"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -23,7 +26,7 @@ const (
 	certsInternalSecretName = "remote-ca"
 )
 
-func trustRelationshipObjectMeta(
+func remoteCAObjectMeta(
 	name string,
 	owner *esv1.Elasticsearch,
 	remote types.NamespacedName,
@@ -45,5 +48,15 @@ func remoteCASecretName(
 	localClusterName string,
 	remoteCluster types.NamespacedName,
 ) string {
-	return esv1.ESNamer.Suffix(localClusterName, remoteCluster.Namespace, remoteCluster.Name, certsInternalSecretName)
+	return esv1.ESNamer.Suffix(
+		fmt.Sprintf("%s-%s-%s", localClusterName, remoteCluster.Namespace, remoteCluster.Name),
+		certsInternalSecretName,
+	)
+}
+
+func GetRemoteCAMatchingLabel(esName string) client.MatchingLabels {
+	return map[string]string{
+		label.ClusterNameLabelName: esName,
+		common.TypeLabelName:       TypeLabelValue,
+	}
 }

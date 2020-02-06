@@ -123,6 +123,11 @@ func (d *defaultDriver) Reconcile() *reconciler.Results {
 		return results.WithError(err)
 	}
 
+	_, err := common.ReconcileService(d.Client, d.Scheme(), services.NewTransportService(d.ES), &d.ES)
+	if err != nil {
+		return results.WithError(err)
+	}
+
 	externalService, err := common.ReconcileService(d.Client, d.Scheme(), services.NewExternalService(d.ES), &d.ES)
 	if err != nil {
 		return results.WithError(err)
