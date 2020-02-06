@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/remotecluster"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -210,6 +212,16 @@ func (d *defaultDriver) Reconcile() *reconciler.Results {
 			return controller.Result{}, err
 		},
 	)
+
+	if esReachable {
+		err = remotecluster.UpdateRemoteCluster(d.Client, esClient, d.ES)
+		if err != nil {
+			msg := "Could not update remote clusters in Elasticsearch settings"
+			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
+			log.Error(err, msg)
+			results.WithResult(defaultRequeue)
+		}
+	}
 
 	// Compute seed hosts based on current masters with a podIP
 	if err := settings.UpdateSeedHostsConfigMap(d.Client, d.Scheme(), d.ES, resourcesState.AllPods); err != nil {

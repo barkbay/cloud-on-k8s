@@ -21,6 +21,5 @@ func (c *clientV6) GetRemoteClusters() ([]string, error) {
 		return nil, err
 	}
 	var clusters []string
-	for
 	return clusters, nil
 }
