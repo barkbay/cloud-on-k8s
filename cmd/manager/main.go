@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/remoteca"
-
 	// allow gcp authentication
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
@@ -41,6 +39,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
 	controllerscheme "github.com/elastic/cloud-on-k8s/pkg/controller/common/scheme"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/remotecluster/remoteca"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana"
 	kbassn "github.com/elastic/cloud-on-k8s/pkg/controller/kibanaassociation"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/license"
