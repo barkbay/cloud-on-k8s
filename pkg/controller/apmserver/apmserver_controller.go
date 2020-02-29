@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	apmcerts "github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/config"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
@@ -184,7 +185,7 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 	defer tracing.EndTransaction(tx)
 
 	var as apmv1.ApmServer
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &as); err != nil {
+	if err := association.FetchWithAssociation(ctx, r.Client, request, commonv1.ApmServerEs, &as); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.onDelete(types.NamespacedName{
 				Namespace: request.Namespace,
@@ -219,7 +220,11 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	if !association.IsConfiguredIfSet(&as, r.recorder) {
+	isConfiguredIfSet, err := association.IsConfiguredIfSet(&as, commonv1.ApmServerEs, r.recorder)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if !isConfiguredIfSet {
 		return reconcile.Result{}, nil
 	}
 
@@ -347,8 +352,12 @@ func (r *ReconcileApmServer) deploymentParams(
 		_, _ = configChecksum.Write([]byte(params.keystoreResources.Version))
 	}
 
-	if as.AssociationConf().CAIsConfigured() {
-		esCASecretName := as.AssociationConf().GetCASecretName()
+	associationConf, err := as.AssociationConf(commonv1.ApmServerEs)
+	if err != nil {
+		return deployment.Params{}, err
+	}
+	if associationConf.CAIsConfigured() {
+		esCASecretName := associationConf.GetCASecretName()
 		// TODO: use apmServerCa to generate cert for deployment
 
 		// TODO: this is a little ugly as it reaches into the ES controller bits

@@ -138,7 +138,7 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 	defer tracing.EndTransaction(tx)
 
 	var kibana kbv1.Kibana
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &kibana); err != nil {
+	if err := association.FetchWithAssociation(ctx, r.Client, request, commonv1.KibanaEs, &kibana); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Kibana has been deleted, remove artifacts related to the association.
 			return reconcile.Result{}, r.onDelete(types.NamespacedName{
@@ -258,7 +258,10 @@ func (r *ReconcileAssociation) reconcileInternal(ctx context.Context, kibana *kb
 		return commonv1.AssociationFailed, err
 	}
 
-	userSecretKey := association.UserKey(kibana, kibanaUserSuffix)
+	userSecretKey, err := association.UserKey(kibana, commonv1.KibanaEs, kibanaUserSuffix)
+	if err != nil {
+		return commonv1.AssociationFailed, err
+	}
 	// watch the user secret in the ES namespace
 	if err := r.watches.Secrets.AddHandler(watches.NamedWatch{
 		Name:    elasticsearchWatchName(kibanaKey),
@@ -289,6 +292,7 @@ func (r *ReconcileAssociation) reconcileInternal(ctx context.Context, kibana *kb
 		r.Client,
 		r.scheme,
 		kibana,
+		commonv1.KibanaEs,
 		map[string]string{
 			AssociationLabelName:      kibana.Name,
 			AssociationLabelNamespace: kibana.Namespace,
@@ -322,16 +326,20 @@ func (r *ReconcileAssociation) updateAssociationConf(ctx context.Context, expect
 	span, _ := apm.StartSpan(ctx, "update_assoc_conf", tracing.SpanTypeApp)
 	defer span.End()
 
-	if !reflect.DeepEqual(expectedESAssoc, kibana.AssociationConf()) {
+	associationConf, err := kibana.AssociationConf(commonv1.KibanaEs)
+	if err != nil {
+		return commonv1.AssociationPending, err
+	}
+	if !reflect.DeepEqual(expectedESAssoc, associationConf) {
 		log.Info("Updating Kibana spec with Elasticsearch backend configuration", "namespace", kibana.Namespace, "kibana_name", kibana.Name)
-		if err := association.UpdateAssociationConf(r.Client, kibana, expectedESAssoc); err != nil {
+		if err := association.UpdateAssociationConf(r.Client, commonv1.KibanaEs, kibana, expectedESAssoc); err != nil {
 			if errors.IsConflict(err) {
 				return commonv1.AssociationPending, nil
 			}
 			log.Error(err, "Failed to update association configuration", "namespace", kibana.Namespace, "kibana_name", kibana.Name)
 			return commonv1.AssociationPending, err
 		}
-		kibana.SetAssociationConf(expectedESAssoc)
+		kibana.SetAssociationConf(commonv1.KibanaEs, expectedESAssoc)
 	}
 	return commonv1.AssociationEstablished, nil
 }
@@ -344,7 +352,7 @@ func (r *ReconcileAssociation) Unbind(kibana commonv1.Associated) error {
 		return err
 	}
 	// Also remove the association configuration
-	return association.RemoveAssociationConf(r.Client, kibana)
+	return association.RemoveAssociationConf(r.Client, commonv1.KibanaEs, kibana)
 }
 
 func (r *ReconcileAssociation) getElasticsearch(ctx context.Context, kibana *kbv1.Kibana, esRefKey types.NamespacedName) (esv1.Elasticsearch, commonv1.AssociationStatus, error) {
@@ -362,7 +370,7 @@ func (r *ReconcileAssociation) getElasticsearch(ctx context.Context, kibana *kbv
 			// remove connection details if they are set
 			span, _ = apm.StartSpan(ctx, "remove_assoc_conf", tracing.SpanTypeApp)
 			defer span.End()
-			if err := association.RemoveAssociationConf(r.Client, kibana); err != nil && !errors.IsConflict(err) {
+			if err := association.RemoveAssociationConf(r.Client, commonv1.KibanaEs, kibana); err != nil && !errors.IsConflict(err) {
 				log.Error(err, "Failed to remove Elasticsearch configuration from Kibana object",
 					"namespace", kibana.Namespace, "kibana_name", kibana.Name)
 				return es, commonv1.AssociationPending, err

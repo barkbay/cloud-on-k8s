@@ -18,32 +18,42 @@ import (
 func ElasticsearchAuthSettings(
 	c k8s.Client,
 	associated commonv1.Associated,
+	associationConf commonv1.AssociationConf,
 ) (username, password string, err error) {
-	assocConf := associated.AssociationConf()
-	if !assocConf.AuthIsConfigured() {
+	if !associationConf.AuthIsConfigured() {
 		return "", "", nil
 	}
-
-	secretObjKey := types.NamespacedName{Namespace: associated.GetNamespace(), Name: assocConf.AuthSecretName}
+	secretObjKey := types.NamespacedName{Namespace: associated.GetNamespace(), Name: associationConf.AuthSecretName}
 	var secret v1.Secret
 	if err := c.Get(secretObjKey, &secret); err != nil {
 		return "", "", err
 	}
-	return assocConf.AuthSecretKey, string(secret.Data[assocConf.AuthSecretKey]), nil
+	return associationConf.AuthSecretKey, string(secret.Data[associationConf.AuthSecretKey]), nil
 }
 
 // IsConfiguredIfSet checks if an association is set in the spec and if it has been configured by an association controller.
 // This is used to prevent the deployment of an associated resource while the association is not yet fully configured.
-func IsConfiguredIfSet(associated commonv1.Associated, r record.EventRecorder) bool {
-	esRef := associated.ElasticsearchRef()
-	if (&esRef).IsDefined() && !associated.AssociationConf().IsConfigured() {
+func IsConfiguredIfSet(
+	associated commonv1.Associated,
+	associationKind commonv1.AssociationKind,
+	r record.EventRecorder,
+) (bool, error) {
+	esRef, err := associated.AssociationRef(associationKind)
+	if err != nil {
+		return false, err
+	}
+	assocConf, err := associated.AssociationConf(associationKind)
+	if err != nil {
+		return false, err
+	}
+	if (&esRef).IsDefined() && !assocConf.IsConfigured() {
 		r.Event(associated, v1.EventTypeWarning, events.EventAssociationError, "Elasticsearch backend is not configured")
 		log.Info("Elasticsearch association not established: skipping associated resource deployment reconciliation",
 			"kind", associated.GetObjectKind().GroupVersionKind().Kind,
 			"namespace", associated.GetNamespace(),
 			"name", associated.GetName(),
 		)
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }

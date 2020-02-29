@@ -334,6 +334,20 @@ spec:
               image:
                 description: Image is the APM Server Docker image to deploy.
                 type: string
+              kibanaRef:
+                description: KibanaRef is a reference to a Kibana instance running
+                  in the same Kubernetes cluster.
+                properties:
+                  name:
+                    description: Name of the Kubernetes object.
+                    type: string
+                  namespace:
+                    description: Namespace of the Kubernetes object. If empty, defaults
+                      to the current namespace.
+                    type: string
+                required:
+                - name
+                type: object
               podTemplate:
                 description: PodTemplate provides customisation options (labels, annotations,
                   affinity rules, resource requests, and so on) for the APM Server

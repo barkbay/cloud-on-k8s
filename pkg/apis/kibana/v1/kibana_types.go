@@ -74,8 +74,8 @@ func (k Kibana) IsMarkedForDeletion() bool {
 	return !k.DeletionTimestamp.IsZero()
 }
 
-func (k *Kibana) ElasticsearchRef() commonv1.ObjectSelector {
-	return k.Spec.ElasticsearchRef
+func (k *Kibana) AssociationRef(associationKind commonv1.AssociationKind) (commonv1.ObjectSelector, error) {
+	return k.Spec.ElasticsearchRef, nil
 }
 
 func (k *Kibana) SecureSettings() []commonv1.SecretSource {
@@ -86,12 +86,13 @@ func (k *Kibana) ServiceAccountName() string {
 	return k.Spec.ServiceAccountName
 }
 
-func (k *Kibana) AssociationConf() *commonv1.AssociationConf {
-	return k.assocConf
+func (k *Kibana) AssociationConf(associationKind commonv1.AssociationKind) (*commonv1.AssociationConf, error) {
+	return k.assocConf, nil
 }
 
-func (k *Kibana) SetAssociationConf(assocConf *commonv1.AssociationConf) {
-	k.assocConf = assocConf
+func (k *Kibana) SetAssociationConf(associationKind commonv1.AssociationKind, associationConf *commonv1.AssociationConf) error {
+	k.assocConf = associationConf
+	return nil
 }
 
 // RequiresAssociation returns true if the spec specifies an Elasticsearch reference.

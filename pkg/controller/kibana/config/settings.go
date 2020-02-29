@@ -68,7 +68,12 @@ func NewConfigSettings(ctx context.Context, client k8s.Client, kb kbv1.Kibana, v
 		return CanonicalConfig{}, err
 	}
 
-	cfg := settings.MustCanonicalConfig(baseSettings(&kb))
+	assocConf, err := kb.AssociationConf(commonv1.KibanaEs)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
+
+	cfg := settings.MustCanonicalConfig(baseSettings(&kb, assocConf))
 	kibanaTLSCfg := settings.MustCanonicalConfig(kibanaTLSSettings(kb))
 	versionSpecificCfg := VersionDefaults(&kb, v)
 
@@ -84,7 +89,7 @@ func NewConfigSettings(ctx context.Context, client k8s.Client, kb kbv1.Kibana, v
 		return CanonicalConfig{cfg}, nil
 	}
 
-	username, password, err := association.ElasticsearchAuthSettings(client, &kb)
+	username, password, err := association.ElasticsearchAuthSettings(client, &kb, *assocConf)
 	if err != nil {
 		return CanonicalConfig{}, err
 	}
@@ -94,7 +99,7 @@ func NewConfigSettings(ctx context.Context, client k8s.Client, kb kbv1.Kibana, v
 		filteredCurrCfg,
 		versionSpecificCfg,
 		kibanaTLSCfg,
-		settings.MustCanonicalConfig(elasticsearchTLSSettings(kb)),
+		settings.MustCanonicalConfig(elasticsearchTLSSettings(assocConf)),
 		settings.MustCanonicalConfig(
 			map[string]interface{}{
 				ElasticsearchUsername: username,
@@ -154,7 +159,7 @@ func filterExistingConfig(cfg *settings.CanonicalConfig) (*settings.CanonicalCon
 	return filteredCfg, nil
 }
 
-func baseSettings(kb *kbv1.Kibana) map[string]interface{} {
+func baseSettings(kb *kbv1.Kibana, associationConf *commonv1.AssociationConf) map[string]interface{} {
 	conf := map[string]interface{}{
 		ServerName: kb.Name,
 		ServerHost: "0",
@@ -164,7 +169,7 @@ func baseSettings(kb *kbv1.Kibana) map[string]interface{} {
 	}
 
 	if kb.RequiresAssociation() {
-		conf[ElasticsearchHosts] = []string{kb.AssociationConf().GetURL()}
+		conf[ElasticsearchHosts] = []string{associationConf.GetURL()}
 	}
 
 	return conf
@@ -181,13 +186,13 @@ func kibanaTLSSettings(kb kbv1.Kibana) map[string]interface{} {
 	}
 }
 
-func elasticsearchTLSSettings(kb kbv1.Kibana) map[string]interface{} {
+func elasticsearchTLSSettings(associationConf *commonv1.AssociationConf) map[string]interface{} {
 	cfg := map[string]interface{}{
 		ElasticsearchSslVerificationMode: "certificate",
 	}
 
-	if kb.AssociationConf().GetCACertProvided() {
-		esCertsVolumeMountPath := es.CaCertSecretVolume(kb).VolumeMount().MountPath
+	if associationConf.GetCACertProvided() {
+		esCertsVolumeMountPath := es.CaCertSecretVolume(associationConf).VolumeMount().MountPath
 		cfg[ElasticsearchSslCertificateAuthorities] = path.Join(esCertsVolumeMountPath, certificates.CAFileName)
 	}
 

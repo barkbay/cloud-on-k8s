@@ -35,6 +35,9 @@ type ApmServerSpec struct {
 	// ElasticsearchRef is a reference to the output Elasticsearch cluster running in the same Kubernetes cluster.
 	ElasticsearchRef commonv1.ObjectSelector `json:"elasticsearchRef,omitempty"`
 
+	// KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.
+	KibanaRef commonv1.ObjectSelector `json:"kibanaRef,omitempty"`
+
 	// PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the APM Server pods.
 	// +kubebuilder:validation:Optional
 	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -90,9 +93,10 @@ type ApmServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec      ApmServerSpec             `json:"spec,omitempty"`
-	Status    ApmServerStatus           `json:"status,omitempty"`
-	assocConf *commonv1.AssociationConf `json:"-"` //nolint:govet
+	Spec            ApmServerSpec             `json:"spec,omitempty"`
+	Status          ApmServerStatus           `json:"status,omitempty"`
+	esAssocConf     *commonv1.AssociationConf `json:"-"` //nolint:govet
+	kibanaAssocConf *commonv1.AssociationConf `json:"-"` //nolint:govet
 }
 
 // +kubebuilder:object:root=true
@@ -113,24 +117,42 @@ func (as *ApmServer) IsMarkedForDeletion() bool {
 	return !as.DeletionTimestamp.IsZero()
 }
 
-func (as *ApmServer) ElasticsearchRef() commonv1.ObjectSelector {
-	return as.Spec.ElasticsearchRef
+func (as *ApmServer) AssociationRef(associationKind commonv1.AssociationKind) (commonv1.ObjectSelector, error) {
+	switch associationKind {
+	case commonv1.ApmServerEs:
+		return as.Spec.ElasticsearchRef, nil
+	case commonv1.ApmServerKibana:
+		return as.Spec.KibanaRef, nil
+	}
+	return commonv1.ObjectSelector{}, associationKind.UnmanagedError(as)
 }
 
 func (as *ApmServer) SecureSettings() []commonv1.SecretSource {
 	return as.Spec.SecureSettings
 }
 
-func (as *ApmServer) AssociationConf() *commonv1.AssociationConf {
-	return as.assocConf
+func (as *ApmServer) AssociationConf(associationKind commonv1.AssociationKind) (*commonv1.AssociationConf, error) {
+	switch associationKind {
+	case commonv1.ApmServerEs:
+		return as.esAssocConf, nil
+	case commonv1.ApmServerKibana:
+		return as.kibanaAssocConf, nil
+	}
+	return nil, associationKind.UnmanagedError(as)
 }
 
 func (as *ApmServer) ServiceAccountName() string {
 	return as.Spec.ServiceAccountName
 }
 
-func (as *ApmServer) SetAssociationConf(assocConf *commonv1.AssociationConf) {
-	as.assocConf = assocConf
+func (as *ApmServer) SetAssociationConf(associationKind commonv1.AssociationKind, assocConf *commonv1.AssociationConf) error {
+	switch associationKind {
+	case commonv1.ApmServerEs:
+		as.esAssocConf = assocConf
+	case commonv1.ApmServerKibana:
+		as.kibanaAssocConf = assocConf
+	}
+	return associationKind.UnmanagedError(as)
 }
 
 // EffectiveVersion returns the version reported by APM server. For development builds APM server does not use the SNAPSHOT suffix.

@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
@@ -129,9 +130,13 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		_, _ = configChecksum.Write([]byte(keystoreResources.Version))
 	}
 	kbNamespacedName := k8s.ExtractNamespacedName(kb)
+	associationConf, err := kb.AssociationConf(commonv1.KibanaEs)
+	if err != nil {
+		return deployment.Params{}, err
+	}
 	// we need to deref the secret here (if any) to include it in the checksum otherwise Kibana will not be rolled on contents changes
-	if kb.AssociationConf().AuthIsConfigured() {
-		esAuthSecret := types.NamespacedName{Name: kb.AssociationConf().GetAuthSecretName(), Namespace: kb.Namespace}
+	if associationConf.AuthIsConfigured() {
+		esAuthSecret := types.NamespacedName{Name: associationConf.GetAuthSecretName(), Namespace: kb.Namespace}
 		if err := d.dynamicWatches.Secrets.AddHandler(watches.NamedWatch{
 			Name:    secretWatchKey(kbNamespacedName),
 			Watched: []types.NamespacedName{esAuthSecret},
@@ -143,16 +148,16 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		if err := d.client.Get(esAuthSecret, &sec); err != nil {
 			return deployment.Params{}, err
 		}
-		_, _ = configChecksum.Write(sec.Data[kb.AssociationConf().GetAuthSecretKey()])
+		_, _ = configChecksum.Write(sec.Data[associationConf.GetAuthSecretKey()])
 	} else {
 		d.dynamicWatches.Secrets.RemoveHandlerForKey(secretWatchKey(kbNamespacedName))
 	}
 
 	volumes := []commonvolume.SecretVolume{config.SecretVolume(*kb)}
 
-	if kb.AssociationConf().CAIsConfigured() {
+	if associationConf.CAIsConfigured() {
 		var esPublicCASecret corev1.Secret
-		key := types.NamespacedName{Namespace: kb.Namespace, Name: kb.AssociationConf().GetCASecretName()}
+		key := types.NamespacedName{Namespace: kb.Namespace, Name: associationConf.GetCASecretName()}
 		// watch for changes in the CA secret
 		if err := d.dynamicWatches.Secrets.AddHandler(watches.NamedWatch{
 			Name:    secretWatchKey(kbNamespacedName),
@@ -170,7 +175,7 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		}
 
 		// TODO: this is a little ugly as it reaches into the ES controller bits
-		esCertsVolume := es.CaCertSecretVolume(*kb)
+		esCertsVolume := es.CaCertSecretVolume(associationConf)
 		volumes = append(volumes, esCertsVolume)
 		for i := range kibanaPodSpec.Spec.InitContainers {
 			kibanaPodSpec.Spec.InitContainers[i].VolumeMounts = append(kibanaPodSpec.Spec.InitContainers[i].VolumeMounts,
@@ -239,7 +244,11 @@ func (d *driver) Reconcile(
 	params operator.Parameters,
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
-	if !association.IsConfiguredIfSet(kb, d.recorder) {
+	isSet, err := association.IsConfiguredIfSet(kb, commonv1.KibanaEs, d.recorder)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !isSet {
 		return results
 	}
 

@@ -44,20 +44,24 @@ func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalCo
 		return nil, err
 	}
 
+	associationConf, err := as.AssociationConf(commonv1.ApmServerEs)
+	if err != nil {
+		return nil, err
+	}
 	outputCfg := settings.NewCanonicalConfig()
-	if as.AssociationConf().IsConfigured() {
+	if associationConf.IsConfigured() {
 		// Get username and password
-		username, password, err := association.ElasticsearchAuthSettings(c, as)
+		username, password, err := association.ElasticsearchAuthSettings(c, as, *associationConf)
 		if err != nil {
 			return nil, err
 		}
 
 		tmpOutputCfg := map[string]interface{}{
-			"output.elasticsearch.hosts":    []string{as.AssociationConf().GetURL()},
+			"output.elasticsearch.hosts":    []string{associationConf.GetURL()},
 			"output.elasticsearch.username": username,
 			"output.elasticsearch.password": password,
 		}
-		if as.AssociationConf().GetCACertProvided() {
+		if associationConf.GetCACertProvided() {
 			tmpOutputCfg["output.elasticsearch.ssl.certificate_authorities"] = []string{filepath.Join(CertificatesDir, certificates.CAFileName)}
 		}
 
