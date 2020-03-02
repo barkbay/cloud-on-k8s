@@ -27,17 +27,16 @@ const (
 type Associated interface {
 	metav1.Object
 	runtime.Object
-	AssociationResolvers() []AssociationResolver
 	ServiceAccountName() string
 }
 
-type AssociationResolver interface {
+// +kubebuilder:object:generate=false
+type AssociationManager interface {
+	Associated
 	RequiresAssociation() bool
 	AssociationRef() ObjectSelector
 	AssociationConf() *AssociationConf
 	SetAssociationConf(*AssociationConf)
-	ConfigurationPrefix() string
-	ConfigurationAnnotation() string
 }
 
 // AssociationConf holds the association configuration of an Elasticsearch cluster.

@@ -26,7 +26,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	kbcerts "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/es"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/label"
 	kbname "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/name"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/pod"
@@ -106,7 +105,7 @@ func (d *driver) getStrategyType(kb *kbv1.Kibana) (appsv1.DeploymentStrategyType
 	return appsv1.RollingUpdateDeploymentStrategyType, nil
 }
 
-func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
+func (d *driver) deploymentParams(kb *kbv1.Kibana, cfgHelper association.ConfigurationHelper) (deployment.Params, error) {
 	// setup a keystore with secure settings in an init container, if specified by the user
 	keystoreResources, err := keystore.NewResources(
 		d,
@@ -129,7 +128,7 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		_, _ = configChecksum.Write([]byte(keystoreResources.Version))
 	}
 	kbNamespacedName := k8s.ExtractNamespacedName(kb)
-	associationConf := kb.AssociationConf()
+	associationConf := cfgHelper.AssociationConf()
 
 	// we need to deref the secret here (if any) to include it in the checksum otherwise Kibana will not be rolled on contents changes
 	if associationConf.AuthIsConfigured() {
@@ -171,8 +170,8 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 			_, _ = configChecksum.Write(certPem)
 		}
 
-		esCertsVolume := es.CaCertSecretVolume(associationConf)
-		volumes = append(volumes, esCertsVolume)
+		esCertsVolume := cfgHelper.SslVolume()
+		volumes = append(volumes, cfgHelper.SslVolume())
 		for i := range kibanaPodSpec.Spec.InitContainers {
 			kibanaPodSpec.Spec.InitContainers[i].VolumeMounts = append(kibanaPodSpec.Spec.InitContainers[i].VolumeMounts,
 				esCertsVolume.VolumeMount())
@@ -237,10 +236,11 @@ func (d *driver) Reconcile(
 	ctx context.Context,
 	state *State,
 	kb *kbv1.Kibana,
+	cfgHelper association.ConfigurationHelper,
 	params operator.Parameters,
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
-	isSet, err := association.IsConfiguredIfSet(kb, kb, d.recorder)
+	isSet, err := association.IsConfiguredIfSet(kb, []association.ConfigurationHelper{cfgHelper}, d.recorder)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -259,7 +259,7 @@ func (d *driver) Reconcile(
 		return results
 	}
 
-	kbSettings, err := config.NewConfigSettings(ctx, d.client, *kb, d.version)
+	kbSettings, err := config.NewConfigSettings(ctx, d.client, *kb, cfgHelper, d.version)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -272,7 +272,7 @@ func (d *driver) Reconcile(
 	span, _ := apm.StartSpan(ctx, "reconcile_deployment", tracing.SpanTypeApp)
 	defer span.End()
 
-	deploymentParams, err := d.deploymentParams(kb)
+	deploymentParams, err := d.deploymentParams(kb, cfgHelper)
 	if err != nil {
 		return results.WithError(err)
 	}

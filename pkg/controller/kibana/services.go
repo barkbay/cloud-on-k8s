@@ -5,6 +5,9 @@
 package kibana
 
 import (
+	"strconv"
+
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 	corev1 "k8s.io/api/core/v1"
 
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
@@ -33,4 +36,9 @@ func NewService(kb kbv1.Kibana) *corev1.Service {
 	}
 
 	return defaults.SetServiceDefaults(&svc, labels, labels, ports)
+}
+
+// ExternalServiceURL returns the URL used to reach Kibana's external endpoint
+func ExternalServiceURL(kb kbv1.Kibana) string {
+	return stringsutil.Concat(kb.Spec.HTTP.Protocol(), "://", kbname.HTTPService(kb.Name), ".", kb.Namespace, ".svc:", strconv.Itoa(pod.HTTPPort))
 }

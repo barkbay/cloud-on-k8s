@@ -117,13 +117,6 @@ func (as *ApmServer) IsMarkedForDeletion() bool {
 	return !as.DeletionTimestamp.IsZero()
 }
 
-func (as *ApmServer) AssociationResolvers() []commonv1.AssociationResolver {
-	return []commonv1.AssociationResolver{
-		&ApmEsAssociationResolver{as},
-		&ApmKibanaAssociationResolver{as},
-	}
-}
-
 // ApmServer / Elasticsearch association helper
 type ApmEsAssociationResolver struct {
 	*ApmServer
@@ -145,14 +138,6 @@ func (a *ApmEsAssociationResolver) SetAssociationConf(assocConf *commonv1.Associ
 	a.esAssocConf = assocConf
 }
 
-func (*ApmEsAssociationResolver) ConfigurationPrefix() string {
-	return "output.elasticsearch"
-}
-
-func (a *ApmEsAssociationResolver) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/es-conf"
-}
-
 // ApmServer / Kibana association helper
 type ApmKibanaAssociationResolver struct {
 	*ApmServer
@@ -172,14 +157,6 @@ func (a *ApmKibanaAssociationResolver) AssociationConf() *commonv1.AssociationCo
 
 func (a *ApmKibanaAssociationResolver) SetAssociationConf(assocConf *commonv1.AssociationConf) {
 	a.kibanaAssocConf = assocConf
-}
-
-func (*ApmKibanaAssociationResolver) ConfigurationPrefix() string {
-	return "apm-server.kibana"
-}
-
-func (a *ApmKibanaAssociationResolver) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/kibana-conf"
 }
 
 func (as *ApmServer) SecureSettings() []commonv1.SecretSource {

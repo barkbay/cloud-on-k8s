@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
+
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
@@ -136,7 +138,8 @@ func (r *ReconcileKibana) Reconcile(request reconcile.Request) (reconcile.Result
 
 	// retrieve the kibana object
 	var kb kbv1.Kibana
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &kb); err != nil {
+	cfgHelper := config.ConfigurationHelper(r.Client, &kb)
+	if err := association.FetchWithAssociation(ctx, r.Client, request, &kb, []association.ConfigurationHelper{cfgHelper}); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.onDelete(types.NamespacedName{
 				Namespace: request.Namespace,
@@ -177,7 +180,7 @@ func (r *ReconcileKibana) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 
 	// main reconciliation logic
-	return r.doReconcile(ctx, request, &kb)
+	return r.doReconcile(ctx, request, &kb, cfgHelper)
 }
 
 func (r *ReconcileKibana) isCompatible(ctx context.Context, kb *kbv1.Kibana) (bool, error) {
@@ -189,14 +192,14 @@ func (r *ReconcileKibana) isCompatible(ctx context.Context, kb *kbv1.Kibana) (bo
 	return compat, err
 }
 
-func (r *ReconcileKibana) doReconcile(ctx context.Context, request reconcile.Request, kb *kbv1.Kibana) (reconcile.Result, error) {
+func (r *ReconcileKibana) doReconcile(ctx context.Context, request reconcile.Request, kb *kbv1.Kibana, cfgHelper association.ConfigurationHelper) (reconcile.Result, error) {
 	driver, err := newDriver(r, r.scheme, r.dynamicWatches, r.recorder, kb)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
 	state := NewState(request, kb)
-	results := driver.Reconcile(ctx, &state, kb, r.params)
+	results := driver.Reconcile(ctx, &state, kb, cfgHelper, r.params)
 
 	// update status
 	err = r.updateStatus(ctx, state)

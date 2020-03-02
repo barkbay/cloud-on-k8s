@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	apmcerts "github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/config"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
@@ -32,7 +31,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/pod"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/maps"
@@ -59,16 +57,13 @@ const (
 	name                    = "apmserver-controller"
 	esCAChecksumLabelName   = "apm.k8s.elastic.co/es-ca-file-checksum"
 	configChecksumLabelName = "apm.k8s.elastic.co/config-file-checksum"
-
-	// ApmBaseDir is the base directory of the APM server
-	ApmBaseDir = "/usr/share/apm-server"
 )
 
 var (
 	log = logf.Log.WithName(name)
 
 	// ApmServerBin is the apm server binary file
-	ApmServerBin = filepath.Join(ApmBaseDir, "apm-server")
+	ApmServerBin = filepath.Join(config.ApmBaseDir, "apm-server")
 
 	initContainerParameters = keystore.InitContainerParameters{
 		KeystoreCreateCommand:         ApmServerBin + " keystore create --force",
@@ -185,7 +180,9 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 	defer tracing.EndTransaction(tx)
 
 	var as apmv1.ApmServer
-	if err := association.FetchWithAssociation(ctx, r.Client, request, commonv1.ApmServerEs, &as); err != nil {
+	// configurationHelpers helps to build the configuration for each associated backend
+	configurationHelpers := config.ConfigurationHelpers(r.Client, &as)
+	if err := association.FetchWithAssociation(ctx, r.Client, request, &as, configurationHelpers); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.onDelete(types.NamespacedName{
 				Namespace: request.Namespace,
@@ -220,7 +217,7 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	isConfiguredIfSet, err := association.IsConfiguredIfSet(&as, commonv1.ApmServerEs, r.recorder)
+	isConfiguredIfSet, err := association.IsConfiguredIfSet(&as, configurationHelpers, r.recorder)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -228,7 +225,7 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, nil
 	}
 
-	return r.doReconcile(ctx, request, &as)
+	return r.doReconcile(ctx, request, &as, configurationHelpers)
 }
 
 func (r *ReconcileApmServer) isCompatible(ctx context.Context, as *apmv1.ApmServer) (bool, error) {
@@ -240,7 +237,7 @@ func (r *ReconcileApmServer) isCompatible(ctx context.Context, as *apmv1.ApmServ
 	return compat, err
 }
 
-func (r *ReconcileApmServer) doReconcile(ctx context.Context, request reconcile.Request, as *apmv1.ApmServer) (reconcile.Result, error) {
+func (r *ReconcileApmServer) doReconcile(ctx context.Context, request reconcile.Request, as *apmv1.ApmServer, cfgHelpers []association.ConfigurationHelper) (reconcile.Result, error) {
 	state := NewState(request, as)
 	svc, err := common.ReconcileService(ctx, r.Client, r.scheme, NewService(*as), as)
 	if err != nil {
@@ -253,7 +250,7 @@ func (r *ReconcileApmServer) doReconcile(ctx context.Context, request reconcile.
 		return res, err
 	}
 
-	state, err = r.reconcileApmServerDeployment(ctx, state, as)
+	state, err = r.reconcileApmServerDeployment(ctx, state, as, cfgHelpers)
 	if err != nil {
 		if errors.IsConflict(err) {
 			log.V(1).Info("Conflict while updating status")
@@ -339,6 +336,7 @@ func (r *ReconcileApmServer) reconcileApmServerSecret(as *apmv1.ApmServer) (*cor
 
 func (r *ReconcileApmServer) deploymentParams(
 	as *apmv1.ApmServer,
+	cfgHelpers []association.ConfigurationHelper,
 	params PodSpecParams,
 ) (deployment.Params, error) {
 
@@ -352,20 +350,12 @@ func (r *ReconcileApmServer) deploymentParams(
 		_, _ = configChecksum.Write([]byte(params.keystoreResources.Version))
 	}
 
-	associationConf, err := as.AssociationConf(commonv1.ApmServerEs)
-	if err != nil {
-		return deployment.Params{}, err
-	}
-	if associationConf.CAIsConfigured() {
-		esCASecretName := associationConf.GetCASecretName()
-		// TODO: use apmServerCa to generate cert for deployment
-
-		// TODO: this is a little ugly as it reaches into the ES controller bits
-		esCAVolume := volume.NewSecretVolumeWithMountPath(
-			esCASecretName,
-			"elasticsearch-certs",
-			filepath.Join(ApmBaseDir, config.EsCertificatesDir),
-		)
+	for _, associationHelper := range cfgHelpers {
+		if !associationHelper.AssociationConf().CAIsConfigured() {
+			continue
+		}
+		esCASecretName := associationHelper.AssociationConf().GetCASecretName()
+		esCAVolume := associationHelper.SslVolume()
 
 		// build a checksum of the cert file used by ES, which we can use to cause the Deployment to roll the Apm Server
 		// instances in the deployment when the ca file contents change. this is done because Apm Server do not support
@@ -433,6 +423,7 @@ func (r *ReconcileApmServer) reconcileApmServerDeployment(
 	ctx context.Context,
 	state State,
 	as *apmv1.ApmServer,
+	cfgHelpers []association.ConfigurationHelper,
 ) (State, error) {
 	span, _ := apm.StartSpan(ctx, "reconcile_deployment", tracing.SpanTypeApp)
 	defer span.End()
@@ -441,7 +432,7 @@ func (r *ReconcileApmServer) reconcileApmServerDeployment(
 	if err != nil {
 		return state, err
 	}
-	reconciledConfigSecret, err := config.Reconcile(r.Client, r.scheme, as)
+	reconciledConfigSecret, err := config.Reconcile(r.Client, r.scheme, as, cfgHelpers)
 	if err != nil {
 		return state, err
 	}
@@ -468,7 +459,7 @@ func (r *ReconcileApmServer) reconcileApmServerDeployment(
 
 		keystoreResources: keystoreResources,
 	}
-	params, err := r.deploymentParams(as, apmServerPodSpecParams)
+	params, err := r.deploymentParams(as, cfgHelpers, apmServerPodSpecParams)
 	if err != nil {
 		return state, err
 	}

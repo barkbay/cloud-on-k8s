@@ -40,18 +40,16 @@ func userSecretObjectName(associated commonv1.Associated, userSuffix string) str
 // UserKey is the namespaced name to identify the user resource created by the controller.
 func UserKey(
 	associated commonv1.Associated,
-	associationKind commonv1.AssociationResolver,
+	backendNamespace string,
 	userSuffix string,
 ) (types.NamespacedName, error) {
-	associationRef := associationKind.AssociationRef()
-	esNamespace := associationRef.Namespace
-	if esNamespace == "" {
+	if backendNamespace == "" {
 		// no namespace given, default to the associated object's one
-		esNamespace = associated.GetNamespace()
+		backendNamespace = associated.GetNamespace()
 	}
 	return types.NamespacedName{
 		// user lives in the ES namespace
-		Namespace: esNamespace,
+		Namespace: backendNamespace,
 		Name:      elasticsearchUserName(associated, userSuffix),
 	}, nil
 }
@@ -81,7 +79,7 @@ func ReconcileEsUser(
 	c k8s.Client,
 	s *runtime.Scheme,
 	associated commonv1.Associated,
-	associationKind commonv1.AssociationResolver,
+	cfgHelper ConfigurationHelper,
 	labels map[string]string,
 	userRoles string,
 	userObjectSuffix string,
@@ -93,7 +91,7 @@ func ReconcileEsUser(
 	pw := commonuser.RandomPasswordBytes()
 
 	secKey := secretKey(associated, userObjectSuffix)
-	usrKey, err := UserKey(associated, associationKind, userObjectSuffix)
+	usrKey, err := UserKey(associated, cfgHelper.AssociationRef().Namespace, userObjectSuffix)
 	if err != nil {
 		return err
 	}

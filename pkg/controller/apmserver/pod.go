@@ -25,8 +25,8 @@ const (
 
 	SecretTokenKey string = "secret-token"
 
-	DataVolumePath   = ApmBaseDir + "/data"
-	ConfigVolumePath = ApmBaseDir + "/config"
+	DataVolumePath   = config.ApmBaseDir + "/data"
+	ConfigVolumePath = config.ApmBaseDir + "/config"
 )
 
 var (

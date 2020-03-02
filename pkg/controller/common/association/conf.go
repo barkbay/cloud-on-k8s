@@ -30,6 +30,7 @@ func FetchWithAssociation(
 	client k8s.Client,
 	request reconcile.Request,
 	associated commonv1.Associated,
+	associations []ConfigurationHelper,
 ) error {
 	span, _ := apm.StartSpan(ctx, "fetch_association", tracing.SpanTypeApp)
 	defer span.End()
@@ -37,8 +38,8 @@ func FetchWithAssociation(
 	if err := client.Get(request.NamespacedName, associated); err != nil {
 		return err
 	}
-	for _, association := range associated.AssociationResolvers() {
-		assocConf, err := GetAssociationConf(association, associated)
+	for _, association := range associations {
+		assocConf, err := GetAssociationConf(association, association.ConfigurationAnnotation())
 		if err != nil {
 			return err
 		}
@@ -48,24 +49,23 @@ func FetchWithAssociation(
 }
 
 // GetAssociationConf extracts the association configuration from the given object by reading the annotations.
-func GetAssociationConf(associationKind commonv1.AssociationResolver, associatied commonv1.Associated) (*commonv1.AssociationConf, error) {
+func GetAssociationConf(associated commonv1.Associated, annotation string) (*commonv1.AssociationConf, error) {
 	accessor := meta.NewAccessor()
-	annotations, err := accessor.Annotations(associatied)
+	annotations, err := accessor.Annotations(associated)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgAnnotation := associationKind.ConfigurationAnnotation()
-	return extractAssociationConf(cfgAnnotation, annotations)
+	return extractAssociationConf(annotation, annotations)
 }
 
-func extractAssociationConf(annotation string, annotations map[string]string) (*commonv1.AssociationConf, error) {
+func extractAssociationConf(cfgAnnotation string, annotations map[string]string) (*commonv1.AssociationConf, error) {
 	if len(annotations) == 0 {
 		return nil, nil
 	}
 
 	var assocConf commonv1.AssociationConf
-	serializedConf, exists := annotations[annotation]
+	serializedConf, exists := annotations[cfgAnnotation]
 	if !exists || serializedConf == "" {
 		return nil, nil
 	}
@@ -78,24 +78,22 @@ func extractAssociationConf(annotation string, annotations map[string]string) (*
 }
 
 // RemoveAssociationConf removes the association configuration annotation.
-func RemoveAssociationConf(client k8s.Client, associationKind commonv1.AssociationResolver, obj runtime.Object) error {
+func RemoveAssociationConf(client k8s.Client, annotation string, obj runtime.Object) error {
 	accessor := meta.NewAccessor()
 	annotations, err := accessor.Annotations(obj)
 	if err != nil {
 		return err
 	}
 
-	cfgAnnotation := associationKind.ConfigurationAnnotation()
-
 	if len(annotations) == 0 {
 		return nil
 	}
 
-	if _, exists := annotations[cfgAnnotation]; !exists {
+	if _, exists := annotations[annotation]; !exists {
 		return nil
 	}
 
-	delete(annotations, cfgAnnotation)
+	delete(annotations, annotation)
 	if err := accessor.SetAnnotations(obj, annotations); err != nil {
 		return err
 	}
@@ -109,7 +107,7 @@ func GetOrUnbindBackendObject(
 	client k8s.Client,
 	r record.EventRecorder,
 	key types.NamespacedName,
-	associationKind commonv1.AssociationResolver,
+	cfgAnnotation string,
 	obj runtime.Object,
 ) (commonv1.AssociationStatus, error) {
 	span, _ := apm.StartSpan(ctx, "get_association_backend", tracing.SpanTypeApp)
@@ -121,7 +119,7 @@ func GetOrUnbindBackendObject(
 			"Failed to find referenced backend %s: %v", key, err)
 		if apierrors.IsNotFound(err) {
 			// ES is not found, remove any existing backend configuration and retry in a bit.
-			if err := RemoveAssociationConf(client, associationKind, obj); err != nil && !apierrors.IsConflict(err) {
+			if err := RemoveAssociationConf(client, cfgAnnotation, obj); err != nil && !apierrors.IsConflict(err) {
 				log.Error(err, "Failed to remove Elasticsearch output from APMServer object", "namespace", key.Namespace, "name", key.Name)
 				return commonv1.AssociationPending, err
 			}
@@ -133,7 +131,7 @@ func GetOrUnbindBackendObject(
 }
 
 // UpdateAssociationConf updates the association configuration annotation.
-func UpdateAssociationConf(client k8s.Client, associationKind commonv1.AssociationResolver, obj runtime.Object, wantConf *commonv1.AssociationConf) error {
+func UpdateAssociationConf(client k8s.Client, cfgAnnotation string, obj runtime.Object, wantConf *commonv1.AssociationConf) error {
 	accessor := meta.NewAccessor()
 	annotations, err := accessor.Annotations(obj)
 	if err != nil {
@@ -149,8 +147,6 @@ func UpdateAssociationConf(client k8s.Client, associationKind commonv1.Associati
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-
-	cfgAnnotation := associationKind.ConfigurationAnnotation()
 
 	annotations[cfgAnnotation] = unsafeBytesToString(serializedConf)
 	if err := accessor.SetAnnotations(obj, annotations); err != nil {

@@ -73,28 +73,25 @@ func (k Kibana) IsMarkedForDeletion() bool {
 	return !k.DeletionTimestamp.IsZero()
 }
 
-func (as *Kibana) AssociationResolvers() []commonv1.AssociationResolver {
-	return []commonv1.AssociationResolver{as}
+// Kibana / Elasticsearch association manager
+type KibanaEsAssociationResolver struct {
+	*Kibana
 }
 
-func (k *Kibana) AssociationRef() commonv1.ObjectSelector {
-	return k.Spec.ElasticsearchRef
+func (ke *KibanaEsAssociationResolver) AssociationRef() commonv1.ObjectSelector {
+	return ke.Spec.ElasticsearchRef
 }
 
-func (k *Kibana) AssociationConf() *commonv1.AssociationConf {
-	return k.assocConf
+func (ke *KibanaEsAssociationResolver) RequiresAssociation() bool {
+	return ke.Spec.ElasticsearchRef.Name != ""
 }
 
-func (k *Kibana) SetAssociationConf(assocConf *commonv1.AssociationConf) {
-	k.assocConf = assocConf
+func (ke *KibanaEsAssociationResolver) AssociationConf() *commonv1.AssociationConf {
+	return ke.assocConf
 }
 
-func (*Kibana) ConfigurationPrefix() string {
-	return "output.elasticsearch"
-}
-
-func (*Kibana) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/es-conf"
+func (ke *KibanaEsAssociationResolver) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	ke.assocConf = assocConf
 }
 
 func (k *Kibana) SecureSettings() []commonv1.SecretSource {
@@ -103,11 +100,6 @@ func (k *Kibana) SecureSettings() []commonv1.SecretSource {
 
 func (k *Kibana) ServiceAccountName() string {
 	return k.Spec.ServiceAccountName
-}
-
-// RequiresAssociation returns true if the spec specifies an Elasticsearch reference.
-func (k *Kibana) RequiresAssociation() bool {
-	return k.Spec.ElasticsearchRef.Name != ""
 }
 
 // +kubebuilder:object:root=true

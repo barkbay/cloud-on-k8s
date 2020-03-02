@@ -7,6 +7,8 @@ package association
 import (
 	"reflect"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/name"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
@@ -39,11 +40,12 @@ func ReconcileCASecret(
 	client k8s.Client,
 	scheme *runtime.Scheme,
 	associated commonv1.Associated,
-	es types.NamespacedName,
+	backend types.NamespacedName,
+	namer name.Namer,
 	labels map[string]string,
 	suffix string,
 ) (CASecret, error) {
-	publicESHTTPCertificatesNSN := http.PublicCertsSecretRef(esv1.ESNamer, es)
+	publicESHTTPCertificatesNSN := http.PublicCertsSecretRef(namer, backend)
 
 	// retrieve the HTTP certificates from ES namespace
 	var publicESHTTPCertificatesSecret corev1.Secret

@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/rbac"
@@ -138,7 +140,8 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 	defer tracing.EndTransaction(tx)
 
 	var kibana kbv1.Kibana
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &kibana); err != nil {
+	cfgHelper := config.ConfigurationHelper(r.Client, &kibana)
+	if err := association.FetchWithAssociation(ctx, r.Client, request, &kibana, []association.ConfigurationHelper{cfgHelper}); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Kibana has been deleted, remove artifacts related to the association.
 			return reconcile.Result{}, r.onDelete(types.NamespacedName{
@@ -167,19 +170,17 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 
 	results := reconciler.NewResult(ctx)
 
-	for _, associationResolver := range kibana.AssociationResolvers() {
-		newStatus, err := r.reconcileInternal(ctx, &kibana, associationResolver)
-		if err != nil {
-			results.WithError(err)
-			k8s.EmitErrorEvent(r.recorder, err, &kibana, events.EventReconciliationError, "Reconciliation error: %v", err)
-		}
-
-		// maybe update status
-		if result, err := r.updateStatus(ctx, kibana, newStatus); err != nil || !reflect.DeepEqual(result, reconcile.Result{}) {
-			return result, tracing.CaptureError(ctx, err)
-		}
-		results.WithResult(resultFromStatus(newStatus))
+	newStatus, err := r.reconcileInternal(ctx, &kibana, cfgHelper)
+	if err != nil {
+		results.WithError(err)
+		k8s.EmitErrorEvent(r.recorder, err, &kibana, events.EventReconciliationError, "Reconciliation error: %v", err)
 	}
+
+	// maybe update status
+	if result, err := r.updateStatus(ctx, kibana, newStatus); err != nil || !reflect.DeepEqual(result, reconcile.Result{}) {
+		return result, tracing.CaptureError(ctx, err)
+	}
+	results.WithResult(resultFromStatus(newStatus))
 
 	return results.
 		WithResult(association.RequeueRbacCheck(r.accessReviewer)).
@@ -233,7 +234,7 @@ func (r *ReconcileAssociation) isCompatible(ctx context.Context, kibana *kbv1.Ki
 func (r *ReconcileAssociation) reconcileInternal(
 	ctx context.Context,
 	kibana *kbv1.Kibana,
-	associationResolver commonv1.AssociationResolver,
+	cfgHelper association.ConfigurationHelper,
 ) (commonv1.AssociationStatus, error) {
 	kibanaKey := k8s.ExtractNamespacedName(kibana)
 	// garbage collect leftover resources that are not required anymore
@@ -265,7 +266,7 @@ func (r *ReconcileAssociation) reconcileInternal(
 		return commonv1.AssociationFailed, err
 	}
 
-	userSecretKey, err := association.UserKey(kibana, associationResolver, kibanaUserSuffix)
+	userSecretKey, err := association.UserKey(kibana, cfgHelper.AssociationRef().Namespace, kibanaUserSuffix)
 	if err != nil {
 		return commonv1.AssociationFailed, err
 	}
@@ -278,7 +279,7 @@ func (r *ReconcileAssociation) reconcileInternal(
 		return commonv1.AssociationFailed, err
 	}
 
-	es, status, err := r.getElasticsearch(ctx, kibana, associationResolver, esRefKey)
+	es, status, err := r.getElasticsearch(ctx, kibana, cfgHelper, esRefKey)
 	if status != "" || err != nil {
 		return status, err
 	}
@@ -288,6 +289,7 @@ func (r *ReconcileAssociation) reconcileInternal(
 		r.accessReviewer,
 		kibana,
 		&es,
+		cfgHelper.ConfigurationAnnotation(),
 		r,
 		r.recorder,
 	); err != nil || !allowed {
@@ -299,7 +301,7 @@ func (r *ReconcileAssociation) reconcileInternal(
 		r.Client,
 		r.scheme,
 		kibana,
-		associationResolver,
+		cfgHelper,
 		map[string]string{
 			AssociationLabelName:      kibana.Name,
 			AssociationLabelNamespace: kibana.Namespace,
@@ -326,48 +328,48 @@ func (r *ReconcileAssociation) reconcileInternal(
 	}
 
 	// update the association configuration if necessary
-	return r.updateAssociationConf(ctx, expectedESAssoc, kibana, associationResolver)
+	return r.updateAssociationConf(ctx, expectedESAssoc, kibana, cfgHelper)
 }
 
 func (r *ReconcileAssociation) updateAssociationConf(
 	ctx context.Context,
 	expectedESAssoc *commonv1.AssociationConf,
 	kibana *kbv1.Kibana,
-	associationResolver commonv1.AssociationResolver,
+	cfgHelper association.ConfigurationHelper,
 ) (commonv1.AssociationStatus, error) {
 	span, _ := apm.StartSpan(ctx, "update_assoc_conf", tracing.SpanTypeApp)
 	defer span.End()
 
-	associationConf := associationResolver.AssociationConf()
+	associationConf := cfgHelper.AssociationConf()
 	if !reflect.DeepEqual(expectedESAssoc, associationConf) {
 		log.Info("Updating Kibana spec with Elasticsearch backend configuration", "namespace", kibana.Namespace, "kibana_name", kibana.Name)
-		if err := association.UpdateAssociationConf(r.Client, associationResolver, kibana, expectedESAssoc); err != nil {
+		if err := association.UpdateAssociationConf(r.Client, cfgHelper.ConfigurationAnnotation(), kibana, expectedESAssoc); err != nil {
 			if errors.IsConflict(err) {
 				return commonv1.AssociationPending, nil
 			}
 			log.Error(err, "Failed to update association configuration", "namespace", kibana.Namespace, "kibana_name", kibana.Name)
 			return commonv1.AssociationPending, err
 		}
-		associationResolver.SetAssociationConf(expectedESAssoc)
+		cfgHelper.SetAssociationConf(expectedESAssoc)
 	}
 	return commonv1.AssociationEstablished, nil
 }
 
 // Unbind removes the association resources
-func (r *ReconcileAssociation) Unbind(kibana commonv1.Associated, associationResolver commonv1.AssociationResolver) error {
+func (r *ReconcileAssociation) Unbind(kibana commonv1.Associated, annotation string) error {
 	kibanaKey := k8s.ExtractNamespacedName(kibana)
 	// Ensure that user in Elasticsearch is deleted to prevent illegitimate access
 	if err := user.DeleteUser(r.Client, NewUserLabelSelector(kibanaKey)); err != nil {
 		return err
 	}
 	// Also remove the association configuration
-	return association.RemoveAssociationConf(r.Client, associationResolver, kibana)
+	return association.RemoveAssociationConf(r.Client, annotation, kibana)
 }
 
 func (r *ReconcileAssociation) getElasticsearch(
 	ctx context.Context,
 	kibana *kbv1.Kibana,
-	associationResolver commonv1.AssociationResolver,
+	cfgHelper association.ConfigurationHelper,
 	esRefKey types.NamespacedName,
 ) (esv1.Elasticsearch, commonv1.AssociationStatus, error) {
 	span, ctx := apm.StartSpan(ctx, "get_elasticsearch", tracing.SpanTypeApp)
@@ -384,7 +386,7 @@ func (r *ReconcileAssociation) getElasticsearch(
 			// remove connection details if they are set
 			span, _ = apm.StartSpan(ctx, "remove_assoc_conf", tracing.SpanTypeApp)
 			defer span.End()
-			if err := association.RemoveAssociationConf(r.Client, associationResolver, kibana); err != nil && !errors.IsConflict(err) {
+			if err := association.RemoveAssociationConf(r.Client, cfgHelper.ConfigurationAnnotation(), kibana); err != nil && !errors.IsConflict(err) {
 				log.Error(err, "Failed to remove Elasticsearch configuration from Kibana object",
 					"namespace", kibana.Namespace, "kibana_name", kibana.Name)
 				return es, commonv1.AssociationPending, err
@@ -418,6 +420,7 @@ func (r *ReconcileAssociation) reconcileElasticsearchCA(ctx context.Context, kib
 		r.scheme,
 		kibana,
 		es,
+		esv1.ESNamer,
 		labels,
 		ElasticsearchCASecretSuffix,
 	)

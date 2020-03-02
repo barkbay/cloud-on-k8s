@@ -7,24 +7,22 @@ package config
 import (
 	"fmt"
 	"path"
-	"path/filepath"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
 
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/settings"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
 
 const (
 	// DefaultHTTPPort is the (default) port used by ApmServer
 	DefaultHTTPPort = 8200
 
-	// Certificates
-	EsCertificatesDir     = "config/elasticsearch-certs"
-	KibanaCertificatesDir = "config/kibana-certs"
+	// ApmBaseDir is the base directory of the APM server
+	ApmBaseDir = "/usr/share/apm-server"
 
 	APMServerHost        = "apm-server.host"
 	APMServerSecretToken = "apm-server.secret_token"
@@ -34,7 +32,7 @@ const (
 	APMServerSSLCertificate = "apm-server.ssl.certificate"
 )
 
-func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalConfig, error) {
+func NewConfigFromSpec(as *apmv1.ApmServer, configurationHelpers []association.ConfigurationHelper) (*settings.CanonicalConfig, error) {
 	specConfig := as.Spec.Config
 	if specConfig == nil {
 		specConfig = &commonv1.Config{}
@@ -46,17 +44,14 @@ func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalCo
 	}
 
 	outputCfg := settings.NewCanonicalConfig()
-	for _, associationResolver := range as.AssociationResolvers() {
-		associationConf := associationResolver.AssociationConf()
-		if associationConf.IsConfigured() {
-			tmpOutputCfg, err := conf(c, as, associationResolver)
-			if err != nil {
-				return nil, err
-			}
-			err = outputCfg.MergeWith(settings.MustCanonicalConfig(tmpOutputCfg))
-			if err != nil {
-				return nil, err
-			}
+	for _, configurationHelper := range configurationHelpers {
+		tmpOutputCfg, err := configurationHelper.Configuration()
+		if err != nil {
+			return nil, err
+		}
+		err = outputCfg.MergeWith(settings.MustCanonicalConfig(tmpOutputCfg))
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -77,26 +72,6 @@ func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalCo
 	}
 
 	return cfg, nil
-}
-
-func conf(c k8s.Client, as *apmv1.ApmServer, resolver commonv1.AssociationResolver) (map[string]interface{}, error) {
-	cfg := make(map[string]interface{})
-	switch _ := resolver.(type) {
-	case *apmv1.ApmEsAssociationResolver:
-		username, password, err := association.ElasticsearchAuthSettings(c, as, resolver.AssociationConf())
-		if err != nil {
-			return cfg, err
-		}
-		cfg["output.elasticsearch.hosts"] = []string{resolver.AssociationConf().GetURL()}
-		cfg["output.elasticsearch.username"] = username
-		cfg["output.elasticsearch.password"] = password
-		if resolver.AssociationConf().GetCACertProvided() {
-			cfg["output.elasticsearch.ssl.certificate_authorities"] = []string{filepath.Join(EsCertificatesDir, certificates.CAFileName)}
-		}
-	case *apmv1.ApmKibanaAssociationResolver:
-
-	}
-	return cfg, fmt.Errorf("association %v is not supported", resolver)
 }
 
 func tlsSettings(as *apmv1.ApmServer) map[string]interface{} {
