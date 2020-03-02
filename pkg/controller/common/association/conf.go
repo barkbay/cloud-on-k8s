@@ -29,38 +29,33 @@ func FetchWithAssociation(
 	ctx context.Context,
 	client k8s.Client,
 	request reconcile.Request,
-	associationKind commonv1.AssociationKind,
-	obj commonv1.Associator,
+	associated commonv1.Associated,
 ) error {
 	span, _ := apm.StartSpan(ctx, "fetch_association", tracing.SpanTypeApp)
 	defer span.End()
 
-	if err := client.Get(request.NamespacedName, obj); err != nil {
+	if err := client.Get(request.NamespacedName, associated); err != nil {
 		return err
 	}
-
-	assocConf, err := GetAssociationConf(associationKind, obj)
-	if err != nil {
-		return err
+	for _, association := range associated.AssociationResolvers() {
+		assocConf, err := GetAssociationConf(association, associated)
+		if err != nil {
+			return err
+		}
+		association.SetAssociationConf(assocConf)
 	}
-
-	obj.SetAssociationConf(associationKind, assocConf)
 	return nil
 }
 
 // GetAssociationConf extracts the association configuration from the given object by reading the annotations.
-func GetAssociationConf(associationKind commonv1.AssociationKind, obj runtime.Object) (*commonv1.AssociationConf, error) {
+func GetAssociationConf(associationKind commonv1.AssociationResolver, associatied commonv1.Associated) (*commonv1.AssociationConf, error) {
 	accessor := meta.NewAccessor()
-	annotations, err := accessor.Annotations(obj)
+	annotations, err := accessor.Annotations(associatied)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgAnnotation, err := associationKind.ConfigurationAnnotation()
-	if err != nil {
-		return nil, err
-	}
-
+	cfgAnnotation := associationKind.ConfigurationAnnotation()
 	return extractAssociationConf(cfgAnnotation, annotations)
 }
 
@@ -83,17 +78,14 @@ func extractAssociationConf(annotation string, annotations map[string]string) (*
 }
 
 // RemoveAssociationConf removes the association configuration annotation.
-func RemoveAssociationConf(client k8s.Client, associationKind commonv1.AssociationKind, obj runtime.Object) error {
+func RemoveAssociationConf(client k8s.Client, associationKind commonv1.AssociationResolver, obj runtime.Object) error {
 	accessor := meta.NewAccessor()
 	annotations, err := accessor.Annotations(obj)
 	if err != nil {
 		return err
 	}
 
-	cfgAnnotation, err := associationKind.ConfigurationAnnotation()
-	if err != nil {
-		return err
-	}
+	cfgAnnotation := associationKind.ConfigurationAnnotation()
 
 	if len(annotations) == 0 {
 		return nil
@@ -117,7 +109,7 @@ func GetOrUnbindBackendObject(
 	client k8s.Client,
 	r record.EventRecorder,
 	key types.NamespacedName,
-	associationKind commonv1.AssociationKind,
+	associationKind commonv1.AssociationResolver,
 	obj runtime.Object,
 ) (commonv1.AssociationStatus, error) {
 	span, _ := apm.StartSpan(ctx, "get_association_backend", tracing.SpanTypeApp)
@@ -141,7 +133,7 @@ func GetOrUnbindBackendObject(
 }
 
 // UpdateAssociationConf updates the association configuration annotation.
-func UpdateAssociationConf(client k8s.Client, associationKind commonv1.AssociationKind, obj runtime.Object, wantConf *commonv1.AssociationConf) error {
+func UpdateAssociationConf(client k8s.Client, associationKind commonv1.AssociationResolver, obj runtime.Object, wantConf *commonv1.AssociationConf) error {
 	accessor := meta.NewAccessor()
 	annotations, err := accessor.Annotations(obj)
 	if err != nil {
@@ -158,10 +150,7 @@ func UpdateAssociationConf(client k8s.Client, associationKind commonv1.Associati
 		annotations = make(map[string]string)
 	}
 
-	cfgAnnotation, err := associationKind.ConfigurationAnnotation()
-	if err != nil {
-		return err
-	}
+	cfgAnnotation := associationKind.ConfigurationAnnotation()
 
 	annotations[cfgAnnotation] = unsafeBytesToString(serializedConf)
 	if err := accessor.SetAnnotations(obj, annotations); err != nil {

@@ -18,7 +18,7 @@ import (
 )
 
 type Unbinder interface {
-	Unbind(associated commonv1.Associated) error
+	Unbind(associated commonv1.Associated, associationResolver commonv1.AssociationResolver) error
 }
 
 // CheckAndUnbind checks if a reference is allowed and unbinds the association if it is not the case

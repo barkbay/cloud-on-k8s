@@ -117,42 +117,77 @@ func (as *ApmServer) IsMarkedForDeletion() bool {
 	return !as.DeletionTimestamp.IsZero()
 }
 
-func (as *ApmServer) AssociationRef(associationKind commonv1.AssociationKind) (commonv1.ObjectSelector, error) {
-	switch associationKind {
-	case commonv1.ApmServerEs:
-		return as.Spec.ElasticsearchRef, nil
-	case commonv1.ApmServerKibana:
-		return as.Spec.KibanaRef, nil
+func (as *ApmServer) AssociationResolvers() []commonv1.AssociationResolver {
+	return []commonv1.AssociationResolver{
+		&ApmEsAssociationResolver{as},
+		&ApmKibanaAssociationResolver{as},
 	}
-	return commonv1.ObjectSelector{}, associationKind.UnmanagedError(as)
+}
+
+// ApmServer / Elasticsearch association helper
+type ApmEsAssociationResolver struct {
+	*ApmServer
+}
+
+func (a *ApmEsAssociationResolver) AssociationRef() commonv1.ObjectSelector {
+	return a.Spec.ElasticsearchRef
+}
+
+func (a *ApmEsAssociationResolver) RequiresAssociation() bool {
+	return a.Spec.ElasticsearchRef.Name != ""
+}
+
+func (a *ApmEsAssociationResolver) AssociationConf() *commonv1.AssociationConf {
+	return a.esAssocConf
+}
+
+func (a *ApmEsAssociationResolver) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	a.esAssocConf = assocConf
+}
+
+func (*ApmEsAssociationResolver) ConfigurationPrefix() string {
+	return "output.elasticsearch"
+}
+
+func (a *ApmEsAssociationResolver) ConfigurationAnnotation() string {
+	return "association.k8s.elastic.co/es-conf"
+}
+
+// ApmServer / Kibana association helper
+type ApmKibanaAssociationResolver struct {
+	*ApmServer
+}
+
+func (a *ApmKibanaAssociationResolver) AssociationRef() commonv1.ObjectSelector {
+	return a.Spec.KibanaRef
+}
+
+func (a *ApmKibanaAssociationResolver) RequiresAssociation() bool {
+	return a.Spec.KibanaRef.Name != ""
+}
+
+func (a *ApmKibanaAssociationResolver) AssociationConf() *commonv1.AssociationConf {
+	return a.kibanaAssocConf
+}
+
+func (a *ApmKibanaAssociationResolver) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	a.kibanaAssocConf = assocConf
+}
+
+func (*ApmKibanaAssociationResolver) ConfigurationPrefix() string {
+	return "apm-server.kibana"
+}
+
+func (a *ApmKibanaAssociationResolver) ConfigurationAnnotation() string {
+	return "association.k8s.elastic.co/kibana-conf"
 }
 
 func (as *ApmServer) SecureSettings() []commonv1.SecretSource {
 	return as.Spec.SecureSettings
 }
 
-func (as *ApmServer) AssociationConf(associationKind commonv1.AssociationKind) (*commonv1.AssociationConf, error) {
-	switch associationKind {
-	case commonv1.ApmServerEs:
-		return as.esAssocConf, nil
-	case commonv1.ApmServerKibana:
-		return as.kibanaAssocConf, nil
-	}
-	return nil, associationKind.UnmanagedError(as)
-}
-
 func (as *ApmServer) ServiceAccountName() string {
 	return as.Spec.ServiceAccountName
-}
-
-func (as *ApmServer) SetAssociationConf(associationKind commonv1.AssociationKind, assocConf *commonv1.AssociationConf) error {
-	switch associationKind {
-	case commonv1.ApmServerEs:
-		as.esAssocConf = assocConf
-	case commonv1.ApmServerKibana:
-		as.kibanaAssocConf = assocConf
-	}
-	return associationKind.UnmanagedError(as)
 }
 
 // EffectiveVersion returns the version reported by APM server. For development builds APM server does not use the SNAPSHOT suffix.

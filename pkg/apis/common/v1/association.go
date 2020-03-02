@@ -5,8 +5,6 @@
 package v1
 
 import (
-	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -29,40 +27,17 @@ const (
 type Associated interface {
 	metav1.Object
 	runtime.Object
-	AssociationRef(AssociationKind) (ObjectSelector, error)
-	AssociationConf(AssociationKind) (*AssociationConf, error)
+	AssociationResolvers() []AssociationResolver
 	ServiceAccountName() string
 }
 
-type AssociationKind string
-
-const (
-	ApmServerEs     AssociationKind = "apmserver-es"
-	ApmServerKibana AssociationKind = "apmserver-kibana"
-	KibanaEs        AssociationKind = "kibana-es"
-)
-
-// AssociationAnnotation returns the annotation used to store the config to access the remote resource.
-func (a AssociationKind) ConfigurationAnnotation() (string, error) {
-	switch a {
-	case ApmServerEs, KibanaEs:
-		return "association.k8s.elastic.co/es-conf", nil
-	case ApmServerKibana:
-		return "association.k8s.elastic.co/kibana-conf", nil
-	}
-	return "", fmt.Errorf("unknown association kind: %s", a)
-}
-
-func (a AssociationKind) UnmanagedError(object runtime.Object) error {
-	return fmt.Errorf("%s does not manage an association kind %s", object.GetObjectKind().GroupVersionKind().Kind, a)
-}
-
-// Associator describes an object that allows its association to be set.
-// +kubebuilder:object:generate=false
-type Associator interface {
-	metav1.Object
-	runtime.Object
-	SetAssociationConf(AssociationKind, *AssociationConf) error
+type AssociationResolver interface {
+	RequiresAssociation() bool
+	AssociationRef() ObjectSelector
+	AssociationConf() *AssociationConf
+	SetAssociationConf(*AssociationConf)
+	ConfigurationPrefix() string
+	ConfigurationAnnotation() string
 }
 
 // AssociationConf holds the association configuration of an Elasticsearch cluster.

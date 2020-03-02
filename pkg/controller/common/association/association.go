@@ -18,7 +18,7 @@ import (
 func ElasticsearchAuthSettings(
 	c k8s.Client,
 	associated commonv1.Associated,
-	associationConf commonv1.AssociationConf,
+	associationConf *commonv1.AssociationConf,
 ) (username, password string, err error) {
 	if !associationConf.AuthIsConfigured() {
 		return "", "", nil
@@ -35,17 +35,11 @@ func ElasticsearchAuthSettings(
 // This is used to prevent the deployment of an associated resource while the association is not yet fully configured.
 func IsConfiguredIfSet(
 	associated commonv1.Associated,
-	associationKind commonv1.AssociationKind,
+	associationKind commonv1.AssociationResolver,
 	r record.EventRecorder,
 ) (bool, error) {
-	esRef, err := associated.AssociationRef(associationKind)
-	if err != nil {
-		return false, err
-	}
-	assocConf, err := associated.AssociationConf(associationKind)
-	if err != nil {
-		return false, err
-	}
+	esRef := associationKind.AssociationRef()
+	assocConf := associationKind.AssociationConf()
 	if (&esRef).IsDefined() && !assocConf.IsConfigured() {
 		r.Event(associated, v1.EventTypeWarning, events.EventAssociationError, "Elasticsearch backend is not configured")
 		log.Info("Elasticsearch association not established: skipping associated resource deployment reconciliation",

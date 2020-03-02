@@ -5,10 +5,9 @@
 package v1
 
 import (
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 )
 
 const KibanaContainerName = "kibana"
@@ -74,8 +73,28 @@ func (k Kibana) IsMarkedForDeletion() bool {
 	return !k.DeletionTimestamp.IsZero()
 }
 
-func (k *Kibana) AssociationRef(associationKind commonv1.AssociationKind) (commonv1.ObjectSelector, error) {
-	return k.Spec.ElasticsearchRef, nil
+func (as *Kibana) AssociationResolvers() []commonv1.AssociationResolver {
+	return []commonv1.AssociationResolver{as}
+}
+
+func (k *Kibana) AssociationRef() commonv1.ObjectSelector {
+	return k.Spec.ElasticsearchRef
+}
+
+func (k *Kibana) AssociationConf() *commonv1.AssociationConf {
+	return k.assocConf
+}
+
+func (k *Kibana) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	k.assocConf = assocConf
+}
+
+func (*Kibana) ConfigurationPrefix() string {
+	return "output.elasticsearch"
+}
+
+func (*Kibana) ConfigurationAnnotation() string {
+	return "association.k8s.elastic.co/es-conf"
 }
 
 func (k *Kibana) SecureSettings() []commonv1.SecretSource {
@@ -84,15 +103,6 @@ func (k *Kibana) SecureSettings() []commonv1.SecretSource {
 
 func (k *Kibana) ServiceAccountName() string {
 	return k.Spec.ServiceAccountName
-}
-
-func (k *Kibana) AssociationConf(associationKind commonv1.AssociationKind) (*commonv1.AssociationConf, error) {
-	return k.assocConf, nil
-}
-
-func (k *Kibana) SetAssociationConf(associationKind commonv1.AssociationKind, associationConf *commonv1.AssociationConf) error {
-	k.assocConf = associationConf
-	return nil
 }
 
 // RequiresAssociation returns true if the spec specifies an Elasticsearch reference.

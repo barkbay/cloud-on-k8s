@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
@@ -130,10 +129,8 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		_, _ = configChecksum.Write([]byte(keystoreResources.Version))
 	}
 	kbNamespacedName := k8s.ExtractNamespacedName(kb)
-	associationConf, err := kb.AssociationConf(commonv1.KibanaEs)
-	if err != nil {
-		return deployment.Params{}, err
-	}
+	associationConf := kb.AssociationConf()
+
 	// we need to deref the secret here (if any) to include it in the checksum otherwise Kibana will not be rolled on contents changes
 	if associationConf.AuthIsConfigured() {
 		esAuthSecret := types.NamespacedName{Name: associationConf.GetAuthSecretName(), Namespace: kb.Namespace}
@@ -174,7 +171,6 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 			_, _ = configChecksum.Write(certPem)
 		}
 
-		// TODO: this is a little ugly as it reaches into the ES controller bits
 		esCertsVolume := es.CaCertSecretVolume(associationConf)
 		volumes = append(volumes, esCertsVolume)
 		for i := range kibanaPodSpec.Spec.InitContainers {
@@ -244,7 +240,7 @@ func (d *driver) Reconcile(
 	params operator.Parameters,
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
-	isSet, err := association.IsConfiguredIfSet(kb, commonv1.KibanaEs, d.recorder)
+	isSet, err := association.IsConfiguredIfSet(kb, kb, d.recorder)
 	if err != nil {
 		return results.WithError(err)
 	}

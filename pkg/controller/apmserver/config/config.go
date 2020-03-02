@@ -23,7 +23,8 @@ const (
 	DefaultHTTPPort = 8200
 
 	// Certificates
-	CertificatesDir = "config/elasticsearch-certs"
+	EsCertificatesDir     = "config/elasticsearch-certs"
+	KibanaCertificatesDir = "config/kibana-certs"
 
 	APMServerHost        = "apm-server.host"
 	APMServerSecretToken = "apm-server.secret_token"
@@ -44,32 +45,22 @@ func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalCo
 		return nil, err
 	}
 
-	associationConf, err := as.AssociationConf(commonv1.ApmServerEs)
-	if err != nil {
-		return nil, err
-	}
 	outputCfg := settings.NewCanonicalConfig()
-	if associationConf.IsConfigured() {
-		// Get username and password
-		username, password, err := association.ElasticsearchAuthSettings(c, as, *associationConf)
-		if err != nil {
-			return nil, err
+	for _, associationResolver := range as.AssociationResolvers() {
+		associationConf := associationResolver.AssociationConf()
+		if associationConf.IsConfigured() {
+			tmpOutputCfg, err := conf(c, as, associationResolver)
+			if err != nil {
+				return nil, err
+			}
+			err = outputCfg.MergeWith(settings.MustCanonicalConfig(tmpOutputCfg))
+			if err != nil {
+				return nil, err
+			}
 		}
-
-		tmpOutputCfg := map[string]interface{}{
-			"output.elasticsearch.hosts":    []string{associationConf.GetURL()},
-			"output.elasticsearch.username": username,
-			"output.elasticsearch.password": password,
-		}
-		if associationConf.GetCACertProvided() {
-			tmpOutputCfg["output.elasticsearch.ssl.certificate_authorities"] = []string{filepath.Join(CertificatesDir, certificates.CAFileName)}
-		}
-
-		outputCfg = settings.MustCanonicalConfig(tmpOutputCfg)
 	}
 
 	// Create a base configuration.
-
 	cfg := settings.MustCanonicalConfig(map[string]interface{}{
 		APMServerHost:        fmt.Sprintf(":%d", DefaultHTTPPort),
 		APMServerSecretToken: "${SECRET_TOKEN}",
@@ -86,6 +77,26 @@ func NewConfigFromSpec(c k8s.Client, as *apmv1.ApmServer) (*settings.CanonicalCo
 	}
 
 	return cfg, nil
+}
+
+func conf(c k8s.Client, as *apmv1.ApmServer, resolver commonv1.AssociationResolver) (map[string]interface{}, error) {
+	cfg := make(map[string]interface{})
+	switch _ := resolver.(type) {
+	case *apmv1.ApmEsAssociationResolver:
+		username, password, err := association.ElasticsearchAuthSettings(c, as, resolver.AssociationConf())
+		if err != nil {
+			return cfg, err
+		}
+		cfg["output.elasticsearch.hosts"] = []string{resolver.AssociationConf().GetURL()}
+		cfg["output.elasticsearch.username"] = username
+		cfg["output.elasticsearch.password"] = password
+		if resolver.AssociationConf().GetCACertProvided() {
+			cfg["output.elasticsearch.ssl.certificate_authorities"] = []string{filepath.Join(EsCertificatesDir, certificates.CAFileName)}
+		}
+	case *apmv1.ApmKibanaAssociationResolver:
+
+	}
+	return cfg, fmt.Errorf("association %v is not supported", resolver)
 }
 
 func tlsSettings(as *apmv1.ApmServer) map[string]interface{} {

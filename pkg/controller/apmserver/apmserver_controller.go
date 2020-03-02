@@ -364,7 +364,7 @@ func (r *ReconcileApmServer) deploymentParams(
 		esCAVolume := volume.NewSecretVolumeWithMountPath(
 			esCASecretName,
 			"elasticsearch-certs",
-			filepath.Join(ApmBaseDir, config.CertificatesDir),
+			filepath.Join(ApmBaseDir, config.EsCertificatesDir),
 		)
 
 		// build a checksum of the cert file used by ES, which we can use to cause the Deployment to roll the Apm Server

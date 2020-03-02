@@ -146,7 +146,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) Reconcile(request reconcile
 	defer tracing.EndTransaction(tx)
 
 	var apmServer apmv1.ApmServer
-	if err := association.FetchWithAssociation(ctx, r.Client, request, commonv1.ApmServerEs, &apmServer); err != nil {
+	if err := association.FetchWithAssociation(ctx, r.Client, request, &apmServer); err != nil {
 		if apierrors.IsNotFound(err) {
 			// APM Server has been deleted, remove artifacts related to the association.
 			return reconcile.Result{}, r.onDelete(types.NamespacedName{
@@ -241,15 +241,19 @@ func (r *ReconcileApmServerElasticsearchAssociation) isCompatible(ctx context.Co
 	return compat, err
 }
 
-func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(ctx context.Context, apmServer *apmv1.ApmServer) (commonv1.AssociationStatus, error) {
+func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(
+	ctx context.Context,
+	apmServer commonv1.Associated,
+	associationResolver commonv1.AssociationResolver,
+) (commonv1.AssociationStatus, error) {
 	// no auto-association nothing to do
-	elasticsearchRef := apmServer.Spec.ElasticsearchRef
+	elasticsearchRef := associationResolver.AssociationRef()
 	if !elasticsearchRef.IsDefined() {
 		return commonv1.AssociationUnknown, nil
 	}
 	if elasticsearchRef.Namespace == "" {
 		// no namespace provided: default to the APM server namespace
-		elasticsearchRef.Namespace = apmServer.Namespace
+		elasticsearchRef.Namespace = apmServer.GetNamespace()
 	}
 	assocKey := k8s.ExtractNamespacedName(apmServer)
 	// Make sure we see events from Elasticsearch using a dynamic watch
@@ -265,7 +269,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(ctx conte
 	}
 
 	var es esv1.Elasticsearch
-	associationStatus, err := r.getElasticsearch(ctx, apmServer, elasticsearchRef, &es)
+	associationStatus, err := r.getElasticsearch(ctx, apmServer, associationResolver, elasticsearchRef, &es)
 	if associationStatus != "" || err != nil {
 		return associationStatus, err
 	}
@@ -288,8 +292,8 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(ctx conte
 		apmServer,
 		commonv1.ApmServerEs,
 		map[string]string{
-			AssociationLabelName:      apmServer.Name,
-			AssociationLabelNamespace: apmServer.Namespace,
+			AssociationLabelName:      apmServer.GetName(),
+			AssociationLabelNamespace: apmServer.GetNamespace(),
 		},
 		"superuser",
 		apmUserSuffix,
@@ -314,7 +318,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(ctx conte
 	}
 
 	var status commonv1.AssociationStatus
-	status, err = r.updateAssocConf(ctx, expectedAssocConf, apmServer)
+	status, err = r.updateEsAssocConf(ctx, expectedAssocConf, apmServer)
 	if err != nil || status != "" {
 		return status, err
 	}
@@ -325,7 +329,13 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileInternal(ctx conte
 	return commonv1.AssociationEstablished, nil
 }
 
-func (r *ReconcileApmServerElasticsearchAssociation) getElasticsearch(ctx context.Context, apmServer *apmv1.ApmServer, elasticsearchRef commonv1.ObjectSelector, es *esv1.Elasticsearch) (commonv1.AssociationStatus, error) {
+func (r *ReconcileApmServerElasticsearchAssociation) getElasticsearch(
+	ctx context.Context,
+	apmServer commonv1.Associated,
+	associationResolver commonv1.AssociationResolver,
+	elasticsearchRef commonv1.ObjectSelector,
+	es *esv1.Elasticsearch,
+) (commonv1.AssociationStatus, error) {
 	span, _ := apm.StartSpan(ctx, "get_elasticsearch", tracing.SpanTypeApp)
 	defer span.End()
 
@@ -335,11 +345,10 @@ func (r *ReconcileApmServerElasticsearchAssociation) getElasticsearch(ctx contex
 			"Failed to find referenced backend %s: %v", elasticsearchRef.NamespacedName(), err)
 		if apierrors.IsNotFound(err) {
 			// ES is not found, remove any existing backend configuration and retry in a bit.
-			if err := association.RemoveAssociationConf(r.Client, commonv1.ApmServerEs, apmServer); err != nil && !errors.IsConflict(err) {
-				log.Error(err, "Failed to remove Elasticsearch output from APMServer object", "namespace", apmServer.Namespace, "name", apmServer.Name)
+			if err := association.RemoveAssociationConf(r.Client, associationResolver, apmServer); err != nil && !errors.IsConflict(err) {
+				log.Error(err, "Failed to remove Elasticsearch output from APMServer object", "namespace", apmServer.GetNamespace(), "name", apmServer.GetName())
 				return commonv1.AssociationPending, err
 			}
-
 			return commonv1.AssociationPending, nil
 		}
 		return commonv1.AssociationFailed, err
@@ -347,8 +356,8 @@ func (r *ReconcileApmServerElasticsearchAssociation) getElasticsearch(ctx contex
 	return "", nil
 }
 
-func (r *ReconcileApmServerElasticsearchAssociation) updateAssocConf(ctx context.Context, expectedAssocConf *commonv1.AssociationConf, apmServer *apmv1.ApmServer) (commonv1.AssociationStatus, error) {
-	span, _ := apm.StartSpan(ctx, "update_apm_assoc", tracing.SpanTypeApp)
+func (r *ReconcileApmServerElasticsearchAssociation) updateEsAssocConf(ctx context.Context, expectedAssocConf *commonv1.AssociationConf, apmServer *apmv1.ApmServer) (commonv1.AssociationStatus, error) {
+	span, _ := apm.StartSpan(ctx, "update_apm_es_assoc", tracing.SpanTypeApp)
 	defer span.End()
 
 	associationConf, err := apmServer.AssociationConf(commonv1.ApmServerEs)
@@ -358,6 +367,28 @@ func (r *ReconcileApmServerElasticsearchAssociation) updateAssocConf(ctx context
 	if !reflect.DeepEqual(expectedAssocConf, associationConf) {
 		log.Info("Updating APMServer spec with Elasticsearch association configuration", "namespace", apmServer.Namespace, "name", apmServer.Name)
 		if err := association.UpdateAssociationConf(r.Client, commonv1.ApmServerEs, apmServer, expectedAssocConf); err != nil {
+			if errors.IsConflict(err) {
+				return commonv1.AssociationPending, nil
+			}
+			log.Error(err, "Failed to update APMServer association configuration", "namespace", apmServer.Namespace, "name", apmServer.Name)
+			return commonv1.AssociationPending, err
+		}
+		apmServer.SetAssociationConf(commonv1.ApmServerEs, expectedAssocConf)
+	}
+	return "", nil
+}
+
+func (r *ReconcileApmServerElasticsearchAssociation) updateKibanaAssocConf(ctx context.Context, expectedAssocConf *commonv1.AssociationConf, apmServer *apmv1.ApmServer) (commonv1.AssociationStatus, error) {
+	span, _ := apm.StartSpan(ctx, "update_apm_kibana_assoc", tracing.SpanTypeApp)
+	defer span.End()
+
+	associationConf, err := apmServer.AssociationConf(commonv1.ApmServerKibana)
+	if err != nil {
+		return commonv1.AssociationPending, err
+	}
+	if !reflect.DeepEqual(expectedAssocConf, associationConf) {
+		log.Info("Updating APMServer spec with Elasticsearch association configuration", "namespace", apmServer.Namespace, "name", apmServer.Name)
+		if err := association.UpdateAssociationConf(r.Client, commonv1.ApmServerKibana, apmServer, expectedAssocConf); err != nil {
 			if errors.IsConflict(err) {
 				return commonv1.AssociationPending, nil
 			}
