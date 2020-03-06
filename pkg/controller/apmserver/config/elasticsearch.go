@@ -3,10 +3,11 @@ package config
 import (
 	"path/filepath"
 
+	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
-
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
@@ -22,7 +23,11 @@ type EsAssociationConfigurationHelper struct {
 }
 
 func (*EsAssociationConfigurationHelper) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/es-conf"
+	return annotation.ElasticsearchAssociationConf
+}
+
+func (*EsAssociationConfigurationHelper) AssociationTypeValue() string {
+	return labels.ElasticsearchAssociationLabelValue
 }
 
 func (e *EsAssociationConfigurationHelper) Configuration() (map[string]interface{}, error) {
@@ -30,7 +35,7 @@ func (e *EsAssociationConfigurationHelper) Configuration() (map[string]interface
 	if !e.AssociationConf().IsConfigured() {
 		return cfg, nil
 	}
-	username, password, err := association.ElasticsearchAuthSettings(e)
+	username, password, err := association.ElasticsearchAuthSettings(e.Client, e.AssociationConf(), e.Namespace)
 	if err != nil {
 		return cfg, err
 	}

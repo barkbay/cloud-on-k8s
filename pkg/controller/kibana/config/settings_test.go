@@ -119,7 +119,8 @@ func TestNewConfigSettings(t *testing.T) {
 					kb.Spec = kbv1.KibanaSpec{
 						ElasticsearchRef: commonv1.ObjectSelector{Name: "test-es"},
 					}
-					kb.SetAssociationConf(&commonv1.AssociationConf{
+					kbAssocResolver := kbv1.KibanaEsAssociationResolver{&kb}
+					kbAssocResolver.SetAssociationConf(&commonv1.AssociationConf{
 						AuthSecretName: "auth-secret",
 						AuthSecretKey:  "elastic",
 						CASecretName:   "ca-secret",
@@ -128,7 +129,7 @@ func TestNewConfigSettings(t *testing.T) {
 					})
 					return kb
 				},
-				client: k8s.WrapClient(fake.NewFakeClient(
+				client: k8s.WrappedFakeClient(
 					existingSecret,
 					&corev1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
@@ -147,7 +148,7 @@ func TestNewConfigSettings(t *testing.T) {
 							"ca.crt": []byte("certificate"),
 						},
 					},
-				)),
+				),
 			},
 			want: func() []byte {
 				cfg, err := settings.ParseConfig(defaultConfig)
@@ -229,7 +230,7 @@ func TestNewConfigSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			kb := tt.args.kb()
 			v := version.From(7, 5, 0)
-			got, err := NewConfigSettings(context.Background(), tt.args.client, kb, v)
+			got, err := NewConfigSettings(context.Background(), tt.args.client, kb, ConfigurationHelper(tt.args.client, &kb), v)
 			if tt.wantErr {
 				require.Error(t, err)
 			}
@@ -252,10 +253,10 @@ func TestNewConfigSettings(t *testing.T) {
 
 // TestNewConfigSettingsCreateEncryptionKey checks that we generate a new key if none is specified
 func TestNewConfigSettingsCreateEncryptionKey(t *testing.T) {
-	client := k8s.WrapClient(fake.NewFakeClient())
+	client := k8s.WrappedFakeClient()
 	kb := mkKibana()
 	v := version.MustParse(kb.Spec.Version)
-	got, err := NewConfigSettings(context.Background(), client, kb, v)
+	got, err := NewConfigSettings(context.Background(), client, kb, ConfigurationHelper(client, &kb), v)
 	require.NoError(t, err)
 	val, err := (*ucfg.Config)(got.CanonicalConfig).String(XpackSecurityEncryptionKey, -1, settings.Options...)
 	require.NoError(t, err)
@@ -274,9 +275,9 @@ func TestNewConfigSettingsExistingEncryptionKey(t *testing.T) {
 			SettingsFilename: []byte("xpack.security.encryptionKey: thisismyencryptionkey"),
 		},
 	}
-	client := k8s.WrapClient(fake.NewFakeClient(existingSecret))
+	client := k8s.WrappedFakeClient(existingSecret)
 	v := version.MustParse(kb.Spec.Version)
-	got, err := NewConfigSettings(context.Background(), client, kb, v)
+	got, err := NewConfigSettings(context.Background(), client, kb, ConfigurationHelper(client, &kb), v)
 	require.NoError(t, err)
 	var gotCfg map[string]interface{}
 	require.NoError(t, got.Unpack(&gotCfg))
@@ -294,9 +295,9 @@ func TestNewConfigSettingsExplicitEncryptionKey(t *testing.T) {
 		XpackSecurityEncryptionKey: key,
 	})
 	kb.Spec.Config = &cfg
-	client := k8s.WrapClient(fake.NewFakeClient())
+	client := k8s.WrappedFakeClient()
 	v := version.MustParse(kb.Spec.Version)
-	got, err := NewConfigSettings(context.Background(), client, kb, v)
+	got, err := NewConfigSettings(context.Background(), client, kb, ConfigurationHelper(client, &kb), v)
 	require.NoError(t, err)
 	var gotCfg map[string]interface{}
 	require.NoError(t, got.Unpack(&gotCfg))

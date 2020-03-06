@@ -155,7 +155,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) Reconcile(request reconcile
 
 	var apmServer apmv1.ApmServer
 	configurationHelpers := config.ConfigurationHelpers(r.Client, &apmServer)
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &apmServer, configurationHelpers); err != nil {
+	if err := association.FetchWithAssociations(ctx, r.Client, request, &apmServer, configurationHelpers...); err != nil {
 		if apierrors.IsNotFound(err) {
 			// APM Server has been deleted, remove artifacts related to the association.
 			return reconcile.Result{}, r.onDelete(types.NamespacedName{
@@ -198,6 +198,10 @@ func (r *ReconcileApmServerElasticsearchAssociation) Reconcile(request reconcile
 		if err != nil {
 			results.WithError(err)
 		}
+	}
+
+	if err := deleteOrphanedResources(ctx, r, &apmServer, configurationHelpers); err != nil {
+		log.Error(err, "Error while trying to delete orphaned resources. Continuing.", "namespace", apmServer.GetNamespace(), "as_name", apmServer.GetName())
 	}
 
 	// we want to attempt a status update even in the presence of errors
@@ -308,7 +312,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) Unbind(apm commonv1.Associa
 // attempts. If a user changes namespace on a vertex of an association the standard reconcile mechanism will not delete the
 // now redundant old user object/secret. This function lists all resources that don't match the current name/namespace
 // combinations and deletes them.
-func deleteOrphanedResources(ctx context.Context, c k8s.Client, as commonv1.Associated, cfgHelper association.ConfigurationHelper) error {
+func deleteOrphanedResources(ctx context.Context, c k8s.Client, as commonv1.Associated, cfgHelpers []association.ConfigurationHelper) error {
 	span, _ := apm.StartSpan(ctx, "delete_orphaned_resources", tracing.SpanTypeApp)
 	defer span.End()
 
@@ -321,8 +325,8 @@ func deleteOrphanedResources(ctx context.Context, c k8s.Client, as commonv1.Asso
 
 	for _, s := range secrets.Items {
 		controlledBy := metav1.IsControlledBy(&s, as)
-		backendRef := cfgHelper.AssociationRef()
-		if controlledBy && !backendRef.IsDefined() {
+		isBackendInUse := isBackendInUse(&s, cfgHelpers)
+		if controlledBy && !isBackendInUse {
 			log.Info("Deleting secret", "namespace", s.Namespace, "secret_name", s.Name, "as_name", as.GetName())
 			if err := c.Delete(&s); err != nil {
 				return err
@@ -330,4 +334,22 @@ func deleteOrphanedResources(ctx context.Context, c k8s.Client, as commonv1.Asso
 		}
 	}
 	return nil
+}
+
+func isBackendInUse(object metav1.Object, cfgHelpers []association.ConfigurationHelper) bool {
+	annotations := object.GetLabels()
+	if annotations == nil {
+		return true // Safe side
+	}
+	value, ok := annotations[AssociationLabelType]
+	if !ok {
+		return true // Safe side
+	}
+	for _, cfgHelper := range cfgHelpers {
+		if value == cfgHelper.AssociationTypeValue() {
+			backendRef := cfgHelper.AssociationRef()
+			return backendRef.IsDefined()
+		}
+	}
+	return true // Safe side
 }

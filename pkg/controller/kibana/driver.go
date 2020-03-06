@@ -240,7 +240,7 @@ func (d *driver) Reconcile(
 	params operator.Parameters,
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
-	isSet, err := association.IsConfiguredIfSet(kb, []association.ConfigurationHelper{cfgHelper}, d.recorder)
+	isSet, err := association.AreConfiguredIfSet(kb, []association.ConfigurationHelper{cfgHelper}, d.recorder)
 	if err != nil {
 		return results.WithError(err)
 	}

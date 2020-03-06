@@ -24,13 +24,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// FetchWithAssociation retrieves an object and extracts its association configuration.
-func FetchWithAssociation(
+// FetchWithAssociations retrieves an object and extracts its association configuration.
+func FetchWithAssociations(
 	ctx context.Context,
 	client k8s.Client,
 	request reconcile.Request,
 	associated commonv1.Associated,
-	associations []ConfigurationHelper,
+	associations ...ConfigurationHelper,
 ) error {
 	span, _ := apm.StartSpan(ctx, "fetch_association", tracing.SpanTypeApp)
 	defer span.End()

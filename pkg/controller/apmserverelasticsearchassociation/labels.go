@@ -14,6 +14,8 @@ import (
 const (
 	// AssociationLabelName marks resources created by this controller for easier retrieval.
 	AssociationLabelName = "apmassociation.k8s.elastic.co/name"
+	// AssociationLabelType helps to make the difference between resources created for different kinds of associations.
+	AssociationLabelType = "apmassociation.k8s.elastic.co/type"
 	// AssociationLabelNamespace marks resources created by this controller for easier retrieval.
 	AssociationLabelNamespace = "apmassociation.k8s.elastic.co/namespace"
 )

@@ -141,7 +141,7 @@ func (r *ReconcileAssociation) Reconcile(request reconcile.Request) (reconcile.R
 
 	var kibana kbv1.Kibana
 	cfgHelper := config.ConfigurationHelper(r.Client, &kibana)
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &kibana, []association.ConfigurationHelper{cfgHelper}); err != nil {
+	if err := association.FetchWithAssociations(ctx, r.Client, request, &kibana, cfgHelper); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Kibana has been deleted, remove artifacts related to the association.
 			return reconcile.Result{}, r.onDelete(types.NamespacedName{
@@ -301,7 +301,7 @@ func (r *ReconcileAssociation) reconcileInternal(
 		r.Client,
 		r.scheme,
 		kibana,
-		cfgHelper,
+		cfgHelper.AssociationRef().Namespace,
 		map[string]string{
 			AssociationLabelName:      kibana.Name,
 			AssociationLabelNamespace: kibana.Namespace,

@@ -3,6 +3,8 @@ package config
 import (
 	"path"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
+
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
@@ -30,21 +32,24 @@ type EsAssociationConfigurationHelper struct {
 }
 
 func (*EsAssociationConfigurationHelper) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/es-conf"
+	return annotation.ElasticsearchAssociationConf
+}
+
+func (*EsAssociationConfigurationHelper) AssociationTypeValue() string {
+	return "" // not used for Kibana since there is only 1 association
 }
 
 func (e *EsAssociationConfigurationHelper) Configuration() (map[string]interface{}, error) {
-	cfg := map[string]interface{}{
-		ElasticsearchSslVerificationMode: "certificate",
-	}
+	cfg := make(map[string]interface{})
 
 	if e.AssociationConf().GetCACertProvided() {
 		esCertsVolumeMountPath := e.SslVolume().VolumeMount().MountPath
 		cfg[ElasticsearchSslCertificateAuthorities] = path.Join(esCertsVolumeMountPath, certificates.CAFileName)
+		cfg[ElasticsearchSslVerificationMode] = "certificate"
 	}
 
 	if e.RequiresAssociation() {
-		username, password, err := association.ElasticsearchAuthSettings(e)
+		username, password, err := association.ElasticsearchAuthSettings(e.Client, e.AssociationConf(), e.Namespace)
 		if err != nil {
 			return cfg, err
 		}

@@ -84,8 +84,8 @@ func TestNewConfigFromSpec(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			client := k8s.WrappedFakeClient(mkAuthSecret())
-			apmServer := mkAPMServer(tc.configOverrides, tc.assocConf)
-			gotConf, err := NewConfigFromSpec(client, apmServer)
+			apmServer := mkAPMServer(tc.configOverrides, tc.assocConf, nil)
+			gotConf, err := NewConfigFromSpec(apmServer, ConfigurationHelpers(client, apmServer))
 			if tc.wantErr {
 				require.Error(t, err)
 				return
@@ -100,7 +100,11 @@ func TestNewConfigFromSpec(t *testing.T) {
 	}
 }
 
-func mkAPMServer(config map[string]interface{}, assocConf *commonv1.AssociationConf) *apmv1.ApmServer {
+func mkAPMServer(
+	config map[string]interface{},
+	esAssocConf *commonv1.AssociationConf,
+	kibanaAssocConf *commonv1.AssociationConf,
+) *apmv1.ApmServer {
 	apmServer := &apmv1.ApmServer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "apm-server",
@@ -109,8 +113,10 @@ func mkAPMServer(config map[string]interface{}, assocConf *commonv1.AssociationC
 			Config: &commonv1.Config{Data: config},
 		},
 	}
-
-	apmServer.SetAssociationConf(assocConf)
+	esAssociationResolver := apmv1.ApmEsAssociationResolver{ApmServer: apmServer}
+	esAssociationResolver.SetAssociationConf(esAssocConf)
+	kibanaAssociationResolver := apmv1.ApmKibanaAssociationResolver{ApmServer: apmServer}
+	kibanaAssociationResolver.SetAssociationConf(kibanaAssocConf)
 	return apmServer
 }
 

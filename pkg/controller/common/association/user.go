@@ -79,7 +79,7 @@ func ReconcileEsUser(
 	c k8s.Client,
 	s *runtime.Scheme,
 	associated commonv1.Associated,
-	cfgHelper ConfigurationHelper,
+	backendNamespace string,
 	labels map[string]string,
 	userRoles string,
 	userObjectSuffix string,
@@ -91,7 +91,7 @@ func ReconcileEsUser(
 	pw := commonuser.RandomPasswordBytes()
 
 	secKey := secretKey(associated, userObjectSuffix)
-	usrKey, err := UserKey(associated, cfgHelper.AssociationRef().Namespace, userObjectSuffix)
+	usrKey, err := UserKey(associated, backendNamespace, userObjectSuffix)
 	if err != nil {
 		return err
 	}

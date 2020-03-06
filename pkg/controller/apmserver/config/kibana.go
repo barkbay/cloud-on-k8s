@@ -3,6 +3,10 @@ package config
 import (
 	"path/filepath"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 
@@ -23,7 +27,11 @@ type KibanaAssociationConfigurationHelper struct {
 }
 
 func (*KibanaAssociationConfigurationHelper) ConfigurationAnnotation() string {
-	return "association.k8s.elastic.co/kibana-conf"
+	return annotation.KibanaAssociationConf
+}
+
+func (*KibanaAssociationConfigurationHelper) AssociationTypeValue() string {
+	return labels.KibanaAssociationLabelValue
 }
 
 func (k *KibanaAssociationConfigurationHelper) Configuration() (map[string]interface{}, error) {
@@ -31,7 +39,7 @@ func (k *KibanaAssociationConfigurationHelper) Configuration() (map[string]inter
 	if !k.AssociationConf().IsConfigured() {
 		return cfg, nil
 	}
-	username, password, err := association.ElasticsearchAuthSettings(k)
+	username, password, err := association.ElasticsearchAuthSettings(k.Client, k.AssociationConf(), k.Namespace)
 	if err != nil {
 		return cfg, err
 	}

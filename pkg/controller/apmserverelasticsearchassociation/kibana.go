@@ -4,18 +4,18 @@ import "C"
 import (
 	"context"
 
-	kbname "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/name"
-
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
+	apmlabels "github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana"
 	kbconfig "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
+	kbname "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/name"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	"go.elastic.co/apm"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,9 +30,9 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileKibanaAssociation(
 	apmServer commonv1.Associated,
 	kbCfgHelper association.ConfigurationHelper,
 ) (commonv1.AssociationStatus, error) {
-	// no auto-association nothing to do
 	kibanaRef := kbCfgHelper.AssociationRef()
 	if !kibanaRef.IsDefined() {
+		// no auto-association nothing to do
 		return commonv1.AssociationUnknown, nil
 	}
 	if kibanaRef.Namespace == "" {
@@ -40,9 +40,6 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileKibanaAssociation(
 		kibanaRef.Namespace = apmServer.GetNamespace()
 	}
 	assocKey := k8s.ExtractNamespacedName(apmServer)
-	// Make sure we see events from Elasticsearch using a dynamic watch
-	// will become more relevant once we refactor user handling to CRDs and implement
-	// syncing of user credentials across namespaces
 	err := r.watches.Kibanas.AddHandler(watches.NamedWatch{
 		Name:    kibanaWatchName(assocKey),
 		Watched: []types.NamespacedName{kibanaRef.NamespacedName()},
@@ -85,9 +82,10 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileKibanaAssociation(
 			r.Client,
 			r.scheme,
 			apmServer,
-			kbEsCfgHelper,
+			kbEsCfgHelper.AssociationRef().Namespace,
 			map[string]string{
 				AssociationLabelName:      apmServer.GetName(),
+				AssociationLabelType:      apmlabels.KibanaAssociationLabelValue,
 				AssociationLabelNamespace: apmServer.GetNamespace(),
 			},
 			"superuser",
@@ -119,9 +117,6 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileKibanaAssociation(
 		return status, err
 	}
 
-	if err := deleteOrphanedResources(ctx, r, apmServer, kbCfgHelper); err != nil {
-		log.Error(err, "Error while trying to delete orphaned resources. Continuing.", "namespace", apmServer.GetNamespace(), "as_name", apmServer.GetName())
-	}
 	return commonv1.AssociationEstablished, nil
 }
 
@@ -145,6 +140,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileKibanaCA(ctx conte
 	// Build the labels applied on the secret
 	labels := labels.NewLabels(as.GetName())
 	labels[AssociationLabelName] = as.GetName()
+	labels[AssociationLabelType] = apmlabels.KibanaAssociationLabelValue
 	return association.ReconcileCASecret(
 		r.Client,
 		r.scheme,

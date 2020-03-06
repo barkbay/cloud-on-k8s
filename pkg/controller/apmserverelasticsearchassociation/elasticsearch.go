@@ -3,17 +3,17 @@ package apmserverelasticsearchassociation
 import (
 	"context"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
-	"go.elastic.co/apm"
-
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
+	apmlabels "github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/labels"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/association"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"go.elastic.co/apm"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -71,10 +71,11 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileEsAssociation(
 		r.Client,
 		r.scheme,
 		apmServer,
-		cfgHelper,
+		cfgHelper.AssociationRef().Namespace,
 		map[string]string{
 			AssociationLabelName:      apmServer.GetName(),
 			AssociationLabelNamespace: apmServer.GetNamespace(),
+			AssociationLabelType:      apmlabels.ElasticsearchAssociationLabelValue,
 		},
 		"superuser",
 		apmUserSuffix,
@@ -104,9 +105,6 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileEsAssociation(
 		return status, err
 	}
 
-	if err := deleteOrphanedResources(ctx, r, apmServer, cfgHelper); err != nil {
-		log.Error(err, "Error while trying to delete orphaned resources. Continuing.", "namespace", apmServer.GetNamespace(), "as_name", apmServer.GetName())
-	}
 	return commonv1.AssociationEstablished, nil
 }
 
@@ -130,6 +128,7 @@ func (r *ReconcileApmServerElasticsearchAssociation) reconcileElasticsearchCA(ct
 	// Build the labels applied on the secret
 	labels := labels.NewLabels(as.GetName())
 	labels[AssociationLabelName] = as.GetName()
+	labels[AssociationLabelType] = apmlabels.ElasticsearchAssociationLabelValue
 	return association.ReconcileCASecret(
 		r.Client,
 		r.scheme,

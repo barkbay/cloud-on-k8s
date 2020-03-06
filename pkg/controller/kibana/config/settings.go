@@ -68,11 +68,6 @@ func NewConfigSettings(
 		specConfig = &commonv1.Config{}
 	}
 
-	userSettings, err := settings.NewCanonicalConfigFrom(specConfig.Data)
-	if err != nil {
-		return CanonicalConfig{}, err
-	}
-
 	cfg := settings.MustCanonicalConfig(baseSettings(&kb))
 	kibanaTLSCfg := settings.MustCanonicalConfig(kibanaTLSSettings(kb))
 	versionSpecificCfg := VersionDefaults(&kb, v)
@@ -83,6 +78,10 @@ func NewConfigSettings(
 	}
 
 	// merge the configuration with userSettings last so they take precedence
+	userSettings, err := settings.NewCanonicalConfigFrom(specConfig.Data)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
 	err = cfg.MergeWith(
 		filteredCurrCfg,
 		versionSpecificCfg,

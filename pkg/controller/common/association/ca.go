@@ -7,6 +7,8 @@ package association
 import (
 	"reflect"
 
+	"github.com/elastic/cloud-on-k8s/pkg/utils/maps"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/name"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +36,7 @@ func ElasticsearchCACertSecretName(associated commonv1.Associated, suffix string
 	return associated.GetName() + "-" + suffix
 }
 
-// ReconcileCASecret keeps in sync a copy of the Elasticsearch CA.
+// ReconcileCASecret keeps in sync a copy of a backend's CA.
 // It is the responsibility of the controller to set a watch on the ES CA.
 func ReconcileCASecret(
 	client k8s.Client,
@@ -73,10 +75,12 @@ func ReconcileCASecret(
 		Expected:   &expectedSecret,
 		Reconciled: &reconciledSecret,
 		NeedsUpdate: func() bool {
-			return !reflect.DeepEqual(expectedSecret.Data, reconciledSecret.Data)
+			return !reflect.DeepEqual(expectedSecret.Data, reconciledSecret.Data) ||
+				!maps.IsSubset(expectedSecret.Labels, reconciledSecret.Labels)
 		},
 		UpdateReconciled: func() {
 			reconciledSecret.Data = expectedSecret.Data
+			maps.MergePreservingExistingKeys(reconciledSecret.Labels, expectedSecret.Labels)
 		},
 	}); err != nil {
 		return CASecret{}, err

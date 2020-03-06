@@ -182,7 +182,7 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 	var as apmv1.ApmServer
 	// configurationHelpers helps to build the configuration for each associated backend
 	configurationHelpers := config.ConfigurationHelpers(r.Client, &as)
-	if err := association.FetchWithAssociation(ctx, r.Client, request, &as, configurationHelpers); err != nil {
+	if err := association.FetchWithAssociations(ctx, r.Client, request, &as, configurationHelpers...); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.onDelete(types.NamespacedName{
 				Namespace: request.Namespace,
@@ -217,7 +217,7 @@ func (r *ReconcileApmServer) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	isConfiguredIfSet, err := association.IsConfiguredIfSet(&as, configurationHelpers, r.recorder)
+	isConfiguredIfSet, err := association.AreConfiguredIfSet(&as, configurationHelpers, r.recorder)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
