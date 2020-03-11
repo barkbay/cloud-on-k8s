@@ -16,7 +16,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/settings"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/es"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	"github.com/elastic/go-ucfg"
 	"github.com/pkg/errors"
@@ -44,7 +43,13 @@ type CanonicalConfig struct {
 }
 
 // NewConfigSettings returns the Kibana configuration settings for the given Kibana resource.
-func NewConfigSettings(ctx context.Context, client k8s.Client, kb kbv1.Kibana, v version.Version) (CanonicalConfig, error) {
+func NewConfigSettings(
+	ctx context.Context,
+	client k8s.Client,
+	kb kbv1.Kibana,
+	assocCfgHelper association.ConfigurationHelper,
+	v version.Version,
+) (CanonicalConfig, error) {
 	span, _ := apm.StartSpan(ctx, "new_config_settings", tracing.SpanTypeApp)
 	defer span.End()
 
@@ -63,44 +68,25 @@ func NewConfigSettings(ctx context.Context, client k8s.Client, kb kbv1.Kibana, v
 		specConfig = &commonv1.Config{}
 	}
 
-	userSettings, err := settings.NewCanonicalConfigFrom(specConfig.Data)
-	if err != nil {
-		return CanonicalConfig{}, err
-	}
-
 	cfg := settings.MustCanonicalConfig(baseSettings(&kb))
 	kibanaTLSCfg := settings.MustCanonicalConfig(kibanaTLSSettings(kb))
 	versionSpecificCfg := VersionDefaults(&kb, v)
 
-	if !kb.RequiresAssociation() {
-		// merge the configuration with userSettings last so they take precedence
-		if err := cfg.MergeWith(
-			filteredCurrCfg,
-			versionSpecificCfg,
-			kibanaTLSCfg,
-			userSettings); err != nil {
-			return CanonicalConfig{}, err
-		}
-		return CanonicalConfig{cfg}, nil
-	}
-
-	username, password, err := association.ElasticsearchAuthSettings(client, &kb)
+	assocCfg, err := assocCfgHelper.Configuration()
 	if err != nil {
 		return CanonicalConfig{}, err
 	}
 
 	// merge the configuration with userSettings last so they take precedence
+	userSettings, err := settings.NewCanonicalConfigFrom(specConfig.Data)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
 	err = cfg.MergeWith(
 		filteredCurrCfg,
 		versionSpecificCfg,
 		kibanaTLSCfg,
-		settings.MustCanonicalConfig(elasticsearchTLSSettings(kb)),
-		settings.MustCanonicalConfig(
-			map[string]interface{}{
-				ElasticsearchUsername: username,
-				ElasticsearchPassword: password,
-			},
-		),
+		settings.MustCanonicalConfig(assocCfg),
 		userSettings,
 	)
 	if err != nil {
@@ -162,11 +148,6 @@ func baseSettings(kb *kbv1.Kibana) map[string]interface{} {
 		// this will get overriden if one already exists or is specified by the user
 		XpackSecurityEncryptionKey: rand.String(64),
 	}
-
-	if kb.RequiresAssociation() {
-		conf[ElasticsearchHosts] = []string{kb.AssociationConf().GetURL()}
-	}
-
 	return conf
 }
 
@@ -179,17 +160,4 @@ func kibanaTLSSettings(kb kbv1.Kibana) map[string]interface{} {
 		ServerSSLCertificate: path.Join(http.HTTPCertificatesSecretVolumeMountPath, certificates.CertFileName),
 		ServerSSLKey:         path.Join(http.HTTPCertificatesSecretVolumeMountPath, certificates.KeyFileName),
 	}
-}
-
-func elasticsearchTLSSettings(kb kbv1.Kibana) map[string]interface{} {
-	cfg := map[string]interface{}{
-		ElasticsearchSslVerificationMode: "certificate",
-	}
-
-	if kb.AssociationConf().GetCACertProvided() {
-		esCertsVolumeMountPath := es.CaCertSecretVolume(kb).VolumeMount().MountPath
-		cfg[ElasticsearchSslCertificateAuthorities] = path.Join(esCertsVolumeMountPath, certificates.CAFileName)
-	}
-
-	return cfg
 }

@@ -8,6 +8,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver/config"
+
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
@@ -340,7 +342,7 @@ func TestReconcileApmServer_deploymentParams(t *testing.T) {
 				recorder:       record.NewFakeRecorder(100),
 				dynamicWatches: w,
 			}
-			got, err := r.deploymentParams(tt.args.as, tt.args.podSpecParams)
+			got, err := r.deploymentParams(tt.args.as, config.ConfigurationHelpers(client, tt.args.as), tt.args.podSpecParams)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReconcileApmServer.deploymentParams() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -405,7 +407,7 @@ func TestReconcileApmServer_doReconcile(t *testing.T) {
 				dynamicWatches: tt.fields.dynamicWatches,
 				Parameters:     tt.fields.Parameters,
 			}
-			got, err := r.doReconcile(context.Background(), tt.args.request, tt.as.DeepCopy())
+			got, err := r.doReconcile(context.Background(), tt.args.request, tt.as.DeepCopy(), config.ConfigurationHelpers(r.Client, &tt.as))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReconcileApmServer.doReconcile() error = %v, wantErr %v", err, tt.wantErr)
 				return

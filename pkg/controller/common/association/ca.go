@@ -7,18 +7,18 @@ package association
 import (
 	"reflect"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/name"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/maps"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates/http"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
 
 // CASecret is a container to hold information about the Elasticsearch CA secret.
@@ -33,17 +33,18 @@ func ElasticsearchCACertSecretName(associated commonv1.Associated, suffix string
 	return associated.GetName() + "-" + suffix
 }
 
-// ReconcileCASecret keeps in sync a copy of the Elasticsearch CA.
+// ReconcileCASecret keeps in sync a copy of a backend's CA that can be used by an associated resource.
 // It is the responsibility of the controller to set a watch on the ES CA.
 func ReconcileCASecret(
 	client k8s.Client,
 	scheme *runtime.Scheme,
 	associated commonv1.Associated,
-	es types.NamespacedName,
+	backend types.NamespacedName,
+	namer name.Namer,
 	labels map[string]string,
 	suffix string,
 ) (CASecret, error) {
-	publicESHTTPCertificatesNSN := http.PublicCertsSecretRef(esv1.ESNamer, es)
+	publicESHTTPCertificatesNSN := http.PublicCertsSecretRef(namer, backend)
 
 	// retrieve the HTTP certificates from ES namespace
 	var publicESHTTPCertificatesSecret corev1.Secret
@@ -71,10 +72,12 @@ func ReconcileCASecret(
 		Expected:   &expectedSecret,
 		Reconciled: &reconciledSecret,
 		NeedsUpdate: func() bool {
-			return !reflect.DeepEqual(expectedSecret.Data, reconciledSecret.Data)
+			return !reflect.DeepEqual(expectedSecret.Data, reconciledSecret.Data) ||
+				!maps.IsSubset(expectedSecret.Labels, reconciledSecret.Labels)
 		},
 		UpdateReconciled: func() {
 			reconciledSecret.Data = expectedSecret.Data
+			maps.MergePreservingExistingKeys(reconciledSecret.Labels, expectedSecret.Labels)
 		},
 	}); err != nil {
 		return CASecret{}, err

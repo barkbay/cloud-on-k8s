@@ -38,17 +38,20 @@ func userSecretObjectName(associated commonv1.Associated, userSuffix string) str
 }
 
 // UserKey is the namespaced name to identify the user resource created by the controller.
-func UserKey(associated commonv1.Associated, userSuffix string) types.NamespacedName {
-	esNamespace := associated.ElasticsearchRef().Namespace
-	if esNamespace == "" {
+func UserKey(
+	associated commonv1.Associated,
+	backendNamespace string,
+	userSuffix string,
+) (types.NamespacedName, error) {
+	if backendNamespace == "" {
 		// no namespace given, default to the associated object's one
-		esNamespace = associated.GetNamespace()
+		backendNamespace = associated.GetNamespace()
 	}
 	return types.NamespacedName{
 		// user lives in the ES namespace
-		Namespace: esNamespace,
+		Namespace: backendNamespace,
 		Name:      elasticsearchUserName(associated, userSuffix),
-	}
+	}, nil
 }
 
 // secretKey is the namespaced name to identify the secret containing the password for the user.
@@ -76,6 +79,7 @@ func ReconcileEsUser(
 	c k8s.Client,
 	s *runtime.Scheme,
 	associated commonv1.Associated,
+	backendNamespace string,
 	labels map[string]string,
 	userRoles string,
 	userObjectSuffix string,
@@ -87,7 +91,10 @@ func ReconcileEsUser(
 	pw := commonuser.RandomPasswordBytes()
 
 	secKey := secretKey(associated, userObjectSuffix)
-	usrKey := UserKey(associated, userObjectSuffix)
+	usrKey, err := UserKey(associated, backendNamespace, userObjectSuffix)
+	if err != nil {
+		return err
+	}
 	expectedSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secKey.Name,
@@ -100,7 +107,7 @@ func ReconcileEsUser(
 	}
 
 	reconciledSecret := corev1.Secret{}
-	err := reconciler.ReconcileResource(reconciler.Params{
+	if err := reconciler.ReconcileResource(reconciler.Params{
 		Client:     c,
 		Scheme:     s,
 		Owner:      associated,
@@ -114,8 +121,7 @@ func ReconcileEsUser(
 			setExpectedLabels(&expectedSecret, &reconciledSecret)
 			reconciledSecret.Data = expectedSecret.Data
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 

@@ -258,6 +258,7 @@ func Test_reconcileEsUser(t *testing.T) {
 				c,
 				scheme.Scheme,
 				&tt.args.kibana,
+				tt.args.kibana.Spec.ElasticsearchRef.Namespace,
 				map[string]string{
 					associationLabelName:      tt.args.kibana.Name,
 					associationLabelNamespace: tt.args.kibana.Namespace,

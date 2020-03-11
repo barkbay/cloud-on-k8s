@@ -35,6 +35,9 @@ type ApmServerSpec struct {
 	// ElasticsearchRef is a reference to the output Elasticsearch cluster running in the same Kubernetes cluster.
 	ElasticsearchRef commonv1.ObjectSelector `json:"elasticsearchRef,omitempty"`
 
+	// KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.
+	KibanaRef commonv1.ObjectSelector `json:"kibanaRef,omitempty"`
+
 	// PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the APM Server pods.
 	// +kubebuilder:validation:Optional
 	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -90,9 +93,10 @@ type ApmServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec      ApmServerSpec             `json:"spec,omitempty"`
-	Status    ApmServerStatus           `json:"status,omitempty"`
-	assocConf *commonv1.AssociationConf `json:"-"` //nolint:govet
+	Spec            ApmServerSpec             `json:"spec,omitempty"`
+	Status          ApmServerStatus           `json:"status,omitempty"`
+	esAssocConf     *commonv1.AssociationConf `json:"-"` //nolint:govet
+	kibanaAssocConf *commonv1.AssociationConf `json:"-"` //nolint:govet
 }
 
 // +kubebuilder:object:root=true
@@ -113,27 +117,61 @@ func (as *ApmServer) IsMarkedForDeletion() bool {
 	return !as.DeletionTimestamp.IsZero()
 }
 
-func (as *ApmServer) ElasticsearchRef() commonv1.ObjectSelector {
-	return as.Spec.ElasticsearchRef
-}
-
 func (as *ApmServer) SecureSettings() []commonv1.SecretSource {
 	return as.Spec.SecureSettings
-}
-
-func (as *ApmServer) AssociationConf() *commonv1.AssociationConf {
-	return as.assocConf
 }
 
 func (as *ApmServer) ServiceAccountName() string {
 	return as.Spec.ServiceAccountName
 }
 
-func (as *ApmServer) SetAssociationConf(assocConf *commonv1.AssociationConf) {
-	as.assocConf = assocConf
-}
-
 // EffectiveVersion returns the version reported by APM server. For development builds APM server does not use the SNAPSHOT suffix.
 func (as *ApmServer) EffectiveVersion() string {
 	return strings.TrimSuffix(as.Spec.Version, "-SNAPSHOT")
+}
+
+// ApmEsAssociation helps to manage the APMServer / Elasticsearch association
+type ApmEsAssociation struct {
+	*ApmServer
+}
+
+var _ commonv1.Association = &ApmEsAssociation{}
+
+func (a *ApmEsAssociation) AssociationRef() commonv1.ObjectSelector {
+	return a.Spec.ElasticsearchRef
+}
+
+func (a *ApmEsAssociation) RequiresAssociation() bool {
+	return a.Spec.ElasticsearchRef.Name != ""
+}
+
+func (a *ApmEsAssociation) AssociationConf() *commonv1.AssociationConf {
+	return a.esAssocConf
+}
+
+func (a *ApmEsAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	a.esAssocConf = assocConf
+}
+
+var _ commonv1.Association = &ApmKibanaAssociation{}
+
+// ApmServer / Kibana association helper
+type ApmKibanaAssociation struct {
+	*ApmServer
+}
+
+func (a *ApmKibanaAssociation) AssociationRef() commonv1.ObjectSelector {
+	return a.Spec.KibanaRef
+}
+
+func (a *ApmKibanaAssociation) RequiresAssociation() bool {
+	return a.Spec.KibanaRef.Name != ""
+}
+
+func (a *ApmKibanaAssociation) AssociationConf() *commonv1.AssociationConf {
+	return a.kibanaAssocConf
+}
+
+func (a *ApmKibanaAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	a.kibanaAssocConf = assocConf
 }

@@ -19,24 +19,24 @@ const (
 	AssociationFailed      AssociationStatus = "Failed"
 )
 
-// Associated interface represents a Elastic stack application that is associated with an Elasticsearch cluster.
-// An associated object needs some credentials to establish a connection to the Elasticsearch cluster and usually it
+// Associated interface represents a Elastic stack application that is associated with some other resources.
+// An associated object needs some credentials to establish a connection to these resources and usually it
 // offers a keystore which in ECK is represented with an underlying Secret.
 // Kibana and the APM server are two examples of associated objects.
 // +kubebuilder:object:generate=false
 type Associated interface {
 	metav1.Object
 	runtime.Object
-	ElasticsearchRef() ObjectSelector
-	AssociationConf() *AssociationConf
 	ServiceAccountName() string
 }
 
-// Associator describes an object that allows its association to be set.
+// Association interface helps to manage the Spec fields involved in a association.
 // +kubebuilder:object:generate=false
-type Associator interface {
-	metav1.Object
-	runtime.Object
+type Association interface {
+	Associated
+	RequiresAssociation() bool
+	AssociationRef() ObjectSelector
+	AssociationConf() *AssociationConf
 	SetAssociationConf(*AssociationConf)
 }
 

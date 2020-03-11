@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
+
 	"github.com/go-test/deep"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -375,7 +377,7 @@ func TestDriverDeploymentParams(t *testing.T) {
 			d, err := newDriver(client, scheme.Scheme, w, record.NewFakeRecorder(100), kb)
 			require.NoError(t, err)
 
-			got, err := d.deploymentParams(kb)
+			got, err := d.deploymentParams(kb, config.ConfigurationHelper(client, kb))
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -550,7 +552,8 @@ func kibanaFixture() *kbv1.Kibana {
 		},
 	}
 
-	kbFixture.SetAssociationConf(&commonv1.AssociationConf{
+	kibanaEsAssociationManager := kbv1.KibanaEsAssociation{Kibana: kbFixture}
+	kibanaEsAssociationManager.SetAssociationConf(&commonv1.AssociationConf{
 		AuthSecretName: "test-auth",
 		AuthSecretKey:  "kibana-user",
 		CASecretName:   "es-ca-secret",

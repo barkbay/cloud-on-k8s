@@ -31,7 +31,7 @@ type fakeUnbinder struct {
 	called bool
 }
 
-func (f *fakeUnbinder) Unbind(associated commonv1.Associated) error {
+func (f *fakeUnbinder) Unbind(associated commonv1.Associated, cfgAnnotation string) error {
 	f.called = true
 	return nil
 }
@@ -107,7 +107,14 @@ func TestCheckAndUnbind(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CheckAndUnbind(tt.args.accessReviewer, tt.args.associated, tt.args.object, &tt.args.unbinder, tt.args.recorder)
+			got, err := CheckAndUnbind(
+				tt.args.accessReviewer,
+				tt.args.associated,
+				tt.args.object,
+				"",
+				&tt.args.unbinder,
+				tt.args.recorder,
+			)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CheckAndUnbind() error = %v, wantErr %v", err, tt.wantErr)
 				return

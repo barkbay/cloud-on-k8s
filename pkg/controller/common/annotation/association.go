@@ -15,8 +15,11 @@ const (
 	CurrAssocStatusAnnotation = "association.k8s.elastic.co/current-status"
 	// PrevAssocStatusAnnotation describes the previously observed association status of an object.
 	PrevAssocStatusAnnotation = "association.k8s.elastic.co/previous-status"
-	// AssociationConfAnnotation is the annotation used to define the config for associated Elasticsearch cluster.
-	AssociationConfAnnotation = "association.k8s.elastic.co/es-conf"
+
+	// ElasticsearchAssociationConf describes the annotation used to store the Elasticsearch association configuration
+	ElasticsearchAssociationConf = "association.k8s.elastic.co/es-conf"
+	// KibanaAssociationConf describes the annotation used to store the Kibana association configuration
+	KibanaAssociationConf = "association.k8s.elastic.co/kibana-conf"
 )
 
 // ForAssociationStatusChange constructs the annotation map for an association status change event.

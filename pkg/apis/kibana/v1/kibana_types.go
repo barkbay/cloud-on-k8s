@@ -5,10 +5,9 @@
 package v1
 
 import (
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 )
 
 const KibanaContainerName = "kibana"
@@ -69,36 +68,6 @@ func (ks KibanaStatus) IsDegraded(prev KibanaStatus) bool {
 	return prev.Health == KibanaGreen && ks.Health != KibanaGreen
 }
 
-// IsMarkedForDeletion returns true if the Kibana is going to be deleted
-func (k Kibana) IsMarkedForDeletion() bool {
-	return !k.DeletionTimestamp.IsZero()
-}
-
-func (k *Kibana) ElasticsearchRef() commonv1.ObjectSelector {
-	return k.Spec.ElasticsearchRef
-}
-
-func (k *Kibana) SecureSettings() []commonv1.SecretSource {
-	return k.Spec.SecureSettings
-}
-
-func (k *Kibana) ServiceAccountName() string {
-	return k.Spec.ServiceAccountName
-}
-
-func (k *Kibana) AssociationConf() *commonv1.AssociationConf {
-	return k.assocConf
-}
-
-func (k *Kibana) SetAssociationConf(assocConf *commonv1.AssociationConf) {
-	k.assocConf = assocConf
-}
-
-// RequiresAssociation returns true if the spec specifies an Elasticsearch reference.
-func (k *Kibana) RequiresAssociation() bool {
-	return k.Spec.ElasticsearchRef.Name != ""
-}
-
 // +kubebuilder:object:root=true
 
 // Kibana represents a Kibana resource in a Kubernetes cluster.
@@ -129,4 +98,40 @@ type KibanaList struct {
 
 func init() {
 	SchemeBuilder.Register(&Kibana{}, &KibanaList{})
+}
+
+// IsMarkedForDeletion returns true if the Kibana is going to be deleted
+func (k Kibana) IsMarkedForDeletion() bool {
+	return !k.DeletionTimestamp.IsZero()
+}
+
+func (k *Kibana) SecureSettings() []commonv1.SecretSource {
+	return k.Spec.SecureSettings
+}
+
+func (k *Kibana) ServiceAccountName() string {
+	return k.Spec.ServiceAccountName
+}
+
+// Kibana / Elasticsearch association manager
+type KibanaEsAssociation struct {
+	*Kibana
+}
+
+var _ commonv1.Association = &KibanaEsAssociation{}
+
+func (ke *KibanaEsAssociation) AssociationRef() commonv1.ObjectSelector {
+	return ke.Spec.ElasticsearchRef
+}
+
+func (ke *KibanaEsAssociation) RequiresAssociation() bool {
+	return ke.Spec.ElasticsearchRef.Name != ""
+}
+
+func (ke *KibanaEsAssociation) AssociationConf() *commonv1.AssociationConf {
+	return ke.assocConf
+}
+
+func (ke *KibanaEsAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	ke.assocConf = assocConf
 }

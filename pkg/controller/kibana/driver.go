@@ -26,7 +26,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	kbcerts "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/config"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/es"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/label"
 	kbname "github.com/elastic/cloud-on-k8s/pkg/controller/kibana/name"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana/pod"
@@ -106,7 +105,7 @@ func (d *driver) getStrategyType(kb *kbv1.Kibana) (appsv1.DeploymentStrategyType
 	return appsv1.RollingUpdateDeploymentStrategyType, nil
 }
 
-func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
+func (d *driver) deploymentParams(kb *kbv1.Kibana, cfgHelper association.ConfigurationHelper) (deployment.Params, error) {
 	// setup a keystore with secure settings in an init container, if specified by the user
 	keystoreResources, err := keystore.NewResources(
 		d,
@@ -129,9 +128,11 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		_, _ = configChecksum.Write([]byte(keystoreResources.Version))
 	}
 	kbNamespacedName := k8s.ExtractNamespacedName(kb)
+	associationConf := cfgHelper.AssociationConf()
+
 	// we need to deref the secret here (if any) to include it in the checksum otherwise Kibana will not be rolled on contents changes
-	if kb.AssociationConf().AuthIsConfigured() {
-		esAuthSecret := types.NamespacedName{Name: kb.AssociationConf().GetAuthSecretName(), Namespace: kb.Namespace}
+	if associationConf.AuthIsConfigured() {
+		esAuthSecret := types.NamespacedName{Name: associationConf.GetAuthSecretName(), Namespace: kb.Namespace}
 		if err := d.dynamicWatches.Secrets.AddHandler(watches.NamedWatch{
 			Name:    secretWatchKey(kbNamespacedName),
 			Watched: []types.NamespacedName{esAuthSecret},
@@ -143,16 +144,16 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 		if err := d.client.Get(esAuthSecret, &sec); err != nil {
 			return deployment.Params{}, err
 		}
-		_, _ = configChecksum.Write(sec.Data[kb.AssociationConf().GetAuthSecretKey()])
+		_, _ = configChecksum.Write(sec.Data[associationConf.GetAuthSecretKey()])
 	} else {
 		d.dynamicWatches.Secrets.RemoveHandlerForKey(secretWatchKey(kbNamespacedName))
 	}
 
 	volumes := []commonvolume.SecretVolume{config.SecretVolume(*kb)}
 
-	if kb.AssociationConf().CAIsConfigured() {
+	if associationConf.CAIsConfigured() {
 		var esPublicCASecret corev1.Secret
-		key := types.NamespacedName{Namespace: kb.Namespace, Name: kb.AssociationConf().GetCASecretName()}
+		key := types.NamespacedName{Namespace: kb.Namespace, Name: associationConf.GetCASecretName()}
 		// watch for changes in the CA secret
 		if err := d.dynamicWatches.Secrets.AddHandler(watches.NamedWatch{
 			Name:    secretWatchKey(kbNamespacedName),
@@ -169,9 +170,8 @@ func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
 			_, _ = configChecksum.Write(certPem)
 		}
 
-		// TODO: this is a little ugly as it reaches into the ES controller bits
-		esCertsVolume := es.CaCertSecretVolume(*kb)
-		volumes = append(volumes, esCertsVolume)
+		esCertsVolume := cfgHelper.SslVolume()
+		volumes = append(volumes, cfgHelper.SslVolume())
 		for i := range kibanaPodSpec.Spec.InitContainers {
 			kibanaPodSpec.Spec.InitContainers[i].VolumeMounts = append(kibanaPodSpec.Spec.InitContainers[i].VolumeMounts,
 				esCertsVolume.VolumeMount())
@@ -236,10 +236,15 @@ func (d *driver) Reconcile(
 	ctx context.Context,
 	state *State,
 	kb *kbv1.Kibana,
+	cfgHelper association.ConfigurationHelper,
 	params operator.Parameters,
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
-	if !association.IsConfiguredIfSet(kb, d.recorder) {
+	isSet, err := association.AreConfiguredIfSet(kb, []association.ConfigurationHelper{cfgHelper}, d.recorder)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if !isSet {
 		return results
 	}
 
@@ -254,7 +259,7 @@ func (d *driver) Reconcile(
 		return results
 	}
 
-	kbSettings, err := config.NewConfigSettings(ctx, d.client, *kb, d.version)
+	kbSettings, err := config.NewConfigSettings(ctx, d.client, *kb, cfgHelper, d.version)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -267,7 +272,7 @@ func (d *driver) Reconcile(
 	span, _ := apm.StartSpan(ctx, "reconcile_deployment", tracing.SpanTypeApp)
 	defer span.End()
 
-	deploymentParams, err := d.deploymentParams(kb)
+	deploymentParams, err := d.deploymentParams(kb, cfgHelper)
 	if err != nil {
 		return results.WithError(err)
 	}

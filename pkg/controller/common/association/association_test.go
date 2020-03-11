@@ -23,14 +23,15 @@ func TestGetCredentials(t *testing.T) {
 		Spec: apmv1.ApmServerSpec{},
 	}
 
-	apmServer.SetAssociationConf(&commonv1.AssociationConf{
+	apmEsAssociationManager := apmv1.ApmEsAssociation{ApmServer: apmServer}
+	apmEsAssociationManager.SetAssociationConf(&commonv1.AssociationConf{
 		URL: "https://elasticsearch-sample-es-http.default.svc:9200",
 	})
 
 	tests := []struct {
 		name         string
 		client       k8s.Client
-		assocConf    commonv1.AssociationConf
+		esAssocConf  commonv1.AssociationConf
 		wantUsername string
 		wantPassword string
 		wantErr      bool
@@ -44,7 +45,7 @@ func TestGetCredentials(t *testing.T) {
 				},
 				Data: map[string][]byte{"elastic-internal-apm": []byte("a2s1Nmt0N3Nwdmg4cmpqdDlucWhsN3cy")},
 			}),
-			assocConf: commonv1.AssociationConf{
+			esAssocConf: commonv1.AssociationConf{
 				AuthSecretName: "apmelasticsearchassociation-sample-elastic-internal-apm",
 				AuthSecretKey:  "elastic-internal-apm",
 				CASecretName:   "ca-secret",
@@ -62,7 +63,7 @@ func TestGetCredentials(t *testing.T) {
 				},
 				Data: map[string][]byte{"elastic-internal-apm": []byte("a2s1Nmt0N3Nwdmg4cmpqdDlucWhsN3cy")},
 			}),
-			assocConf: commonv1.AssociationConf{
+			esAssocConf: commonv1.AssociationConf{
 				CASecretName: "ca-secret",
 				URL:          "https://elasticsearch-sample-es-http.default.svc:9200",
 			},
@@ -76,7 +77,7 @@ func TestGetCredentials(t *testing.T) {
 				},
 				Data: map[string][]byte{"elastic-internal-apm": []byte("a2s1Nmt0N3Nwdmg4cmpqdDlucWhsN3cy")},
 			}),
-			assocConf: commonv1.AssociationConf{
+			esAssocConf: commonv1.AssociationConf{
 				AuthSecretName: "apmelasticsearchassociation-sample-elastic-internal-apm",
 				AuthSecretKey:  "elastic-internal-apm",
 				CASecretName:   "ca-secret",
@@ -88,8 +89,8 @@ func TestGetCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apmServer.SetAssociationConf(&tt.assocConf)
-			gotUsername, gotPassword, err := ElasticsearchAuthSettings(tt.client, apmServer)
+			apmEsAssociationManager.SetAssociationConf(&tt.esAssocConf)
+			gotUsername, gotPassword, err := ElasticsearchAuthSettings(tt.client, apmEsAssociationManager.AssociationConf(), apmServer.Namespace)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getCredentials() error = %v, wantErr %v", err, tt.wantErr)
 				return

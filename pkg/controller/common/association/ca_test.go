@@ -149,6 +149,7 @@ func TestReconcileAssociation_reconcileCASecret(t *testing.T) {
 				scheme.Scheme,
 				&tt.kibana,
 				k8s.ExtractNamespacedName(&tt.es),
+				esv1.ESNamer,
 				map[string]string{},
 				ElasticsearchCASecretSuffix,
 			)

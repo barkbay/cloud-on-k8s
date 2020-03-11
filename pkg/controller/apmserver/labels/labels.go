@@ -11,6 +11,11 @@ const (
 	ApmServerNameLabelName = "apm.k8s.elastic.co/name"
 	// Type represents the apm server type
 	Type = "apm-server"
+
+	//
+	ElasticsearchAssociationLabelValue = "elasticsearch"
+	//
+	KibanaAssociationLabelValue = "kibana"
 )
 
 // NewLabels constructs a new set of labels for an ApmServer pod
