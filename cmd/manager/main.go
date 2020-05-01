@@ -34,6 +34,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/kibana"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/license"
 	licensetrial "github.com/elastic/cloud-on-k8s/pkg/controller/license/trial"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/link"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/remoteca"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/webhook"
 	"github.com/elastic/cloud-on-k8s/pkg/dev"
@@ -330,6 +331,10 @@ func execute() {
 		accessReviewer = rbac.NewPermissiveAccessReviewer()
 	}
 
+	if err = link.Add(mgr); err != nil {
+		log.Error(err, "unable to create controller", "controller", "Link")
+		os.Exit(1)
+	}
 	if err = apmserver.Add(mgr, params); err != nil {
 		log.Error(err, "unable to create controller", "controller", "ApmServer")
 		os.Exit(1)

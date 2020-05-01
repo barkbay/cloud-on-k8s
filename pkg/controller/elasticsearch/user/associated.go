@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -44,6 +46,36 @@ func AssociatedUserLabels(es esv1.Elasticsearch) map[string]string {
 		label.ClusterNameLabelName: es.Name,
 		common.TypeLabelName:       AssociatedUserType,
 	}
+}
+
+// retrieveApplicationsUsers fetches users resulting from an application association.
+// Those users are created by the application association controller.
+func retrieveApplicationsUsers(c k8s.Client, es esv1.Elasticsearch) (users, error) {
+	var applicationUserSecret corev1.Secret
+	if err := c.Get(
+		client.ObjectKey{
+			Namespace: es.Namespace,
+			Name:      esv1.ApplicationsUsersSecret(es.Name),
+		},
+		&applicationUserSecret,
+	); err != nil && !errors.IsNotFound(err) {
+		return nil, err
+	}
+
+	if len(applicationUserSecret.Data) == 0 {
+		return nil, nil
+	}
+
+	applicationUsers := make(users, len(applicationUserSecret.Data))
+	i := 0
+	for username, password := range applicationUserSecret.Data {
+		applicationUsers[i] = user{
+			Name:         username,
+			PasswordHash: password,
+		}
+	}
+
+	return applicationUsers, nil
 }
 
 // retrieveAssociatedUsers fetches users resulting from an association (eg. Kibana or APMServer users).

@@ -1,0 +1,14 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: Link
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: link-sample
+  namespace: beats
+spec:
+  elasticsearchRef:
+    name: "elasticsearch-sample"
+  targetNamespace: "ns1"
+  selector:
+    matchLabels:
+      k8s-app: filebeat

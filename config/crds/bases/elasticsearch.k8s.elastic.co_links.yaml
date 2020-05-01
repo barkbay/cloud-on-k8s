@@ -1,0 +1,102 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: links.elasticsearch.k8s.elastic.co
+spec:
+  group: elasticsearch.k8s.elastic.co
+  names:
+    kind: Link
+    listKind: LinkList
+    plural: links
+    singular: link
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: Link is the Schema for the links API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: LinkSpec defines the desired state of Link
+          properties:
+            apmServerName:
+              description: KibanaName is the name of the Kibana resource in this namespace
+                for which the user data and certs should be copied
+              type: string
+            daemonSetRefs:
+              items:
+                description: ObjectSelector defines a reference to a Kubernetes object.
+                properties:
+                  name:
+                    description: Name of the Kubernetes object.
+                    type: string
+                  namespace:
+                    description: Namespace of the Kubernetes object. If empty, defaults
+                      to the current namespace.
+                    type: string
+                required:
+                - name
+                type: object
+              type: array
+            deploymentRefs:
+              items:
+                description: ObjectSelector defines a reference to a Kubernetes object.
+                properties:
+                  name:
+                    description: Name of the Kubernetes object.
+                    type: string
+                  namespace:
+                    description: Namespace of the Kubernetes object. If empty, defaults
+                      to the current namespace.
+                    type: string
+                required:
+                - name
+                type: object
+              type: array
+            elasticsearchName:
+              description: ElasticsearchName is the name of the Elasticsearch resource
+                in this namespace for which the user data and certs should be copied
+              type: string
+            kibanaName:
+              description: KibanaName is the name of the Kibana resource in this namespace
+                for which the user data and certs should be copied
+              type: string
+            user:
+              description: User to inject. Optional, if not set the superuser "elastic"
+                is used.
+              properties:
+                secretName:
+                  description: SecretName is the name of the secret.
+                  type: string
+              type: object
+          type: object
+        status:
+          description: LinkStatus defines the observed state of Link
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -12,6 +12,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	commonv1beta1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1beta1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	esv1alpha1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1alpha1"
 	esv1beta1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1beta1"
 	entv1beta1 "github.com/elastic/cloud-on-k8s/pkg/apis/enterprisesearch/v1beta1"
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
@@ -49,6 +50,10 @@ func SetupScheme() {
 			panic(err)
 		}
 		err = entv1beta1.AddToScheme(clientgoscheme.Scheme)
+		if err != nil {
+			panic(err)
+		}
+		err = esv1alpha1.AddToScheme(clientgoscheme.Scheme)
 		if err != nil {
 			panic(err)
 		}

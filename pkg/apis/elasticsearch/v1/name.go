@@ -21,6 +21,7 @@ const (
 	transportServiceSuffix            = "transport"
 	elasticUserSecretSuffix           = "elastic-user"
 	internalUsersSecretSuffix         = "internal-users"
+	applicationsUsersSecretSuffix     = "applications-users"
 	unicastHostsConfigMapSuffix       = "unicast-hosts"
 	licenseSecretSuffix               = "license"
 	defaultPodDisruptionBudget        = "default"
@@ -48,6 +49,7 @@ var (
 		elasticUserSecretSuffix,
 		rolesAndFileRealmSecretSuffix,
 		internalUsersSecretSuffix,
+		applicationsUsersSecretSuffix,
 		unicastHostsConfigMapSuffix,
 		licenseSecretSuffix,
 		defaultPodDisruptionBudget,
@@ -126,6 +128,10 @@ func HTTPService(esName string) string {
 
 func ElasticUserSecret(esName string) string {
 	return ESNamer.Suffix(esName, elasticUserSecretSuffix)
+}
+
+func ApplicationsUsersSecret(esName string) string {
+	return ESNamer.Suffix(esName, applicationsUsersSecretSuffix)
 }
 
 func RolesAndFileRealmSecret(esName string) string {

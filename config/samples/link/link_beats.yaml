@@ -1,0 +1,37 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: Link
+metadata:
+  name: beats
+  namespace: beats
+spec:
+  # These are the Elastic applications
+  elasticsearchName: monitor
+  kibanaName: monitor
+  # apmServerName: foo
+
+  ## Target deployments where the secret is injected
+  deploymentRefs:
+    - namespace: beats
+      name: metricbeat
+  daemonSetRefs:
+    - namespace: beats
+      name: filebeat
+    - namespace: beats
+      name: metricbeat
+  ## User field lets the user specify a user or a Secret which contains a user and a password.
+  ## 2 Secrets are maintained:
+  ## 1. One in the target namespace, it contains the username and the clear-text password
+  ## 2. An other one in the Elasticsearch namespace, it contains the hashed password, ready to be used by Elasticsearch
+  ## If not set the "elastic" superuser is injected.
+  user:
+    role: superuser
+    # Optional: set a user name, if not set a random username is generated
+    # name: myuser
+    # Optional: a spec for the password, default is: 64 chars, mixed cases, no special characters, no ttl
+    # passwordSpec:
+    #   length: 64
+    #   mixedCases: true
+    #   symbols: false
+    #   ttl: "24h"
+    # Or just reference a password
+    # secretName: secret-with-user-and-password

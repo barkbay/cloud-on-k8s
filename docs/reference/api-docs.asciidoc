@@ -17,6 +17,7 @@ endif::[]
 - xref:{anchor_prefix}-common-k8s-elastic-co-v1[$$common.k8s.elastic.co/v1$$]
 - xref:{anchor_prefix}-common-k8s-elastic-co-v1beta1[$$common.k8s.elastic.co/v1beta1$$]
 - xref:{anchor_prefix}-elasticsearch-k8s-elastic-co-v1[$$elasticsearch.k8s.elastic.co/v1$$]
+- xref:{anchor_prefix}-elasticsearch-k8s-elastic-co-v1alpha1[$$elasticsearch.k8s.elastic.co/v1alpha1$$]
 - xref:{anchor_prefix}-elasticsearch-k8s-elastic-co-v1beta1[$$elasticsearch.k8s.elastic.co/v1beta1$$]
 - xref:{anchor_prefix}-enterprisesearch-k8s-elastic-co-v1beta1[$$enterprisesearch.k8s.elastic.co/v1beta1$$]
 - xref:{anchor_prefix}-kibana-k8s-elastic-co-v1[$$kibana.k8s.elastic.co/v1$$]
@@ -201,6 +202,7 @@ ObjectSelector defines a reference to a Kubernetes object.
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-apm-v1-apmserverspec[$$ApmServerSpec$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-enterprisesearch-v1beta1-enterprisesearchspec[$$EnterpriseSearchSpec$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-kibana-v1-kibanaspec[$$KibanaSpec$$]
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-linkspec[$$LinkSpec$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-remotecluster[$$RemoteCluster$$]
 ****
 
@@ -240,6 +242,7 @@ SecretRef is a reference to a secret that exists in the same namespace.
 ****
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-enterprisesearch-v1beta1-configsource[$$ConfigSource$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-filerealmsource[$$FileRealmSource$$]
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-linkspec[$$LinkSpec$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-rolesource[$$RoleSource$$]
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-tlsoptions[$$TLSOptions$$]
 ****
@@ -758,6 +761,65 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 | Field | Description
 | *`changeBudget`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-changebudget[$$ChangeBudget$$]__ | ChangeBudget defines the constraints to consider when applying changes to the Elasticsearch cluster.
 |===
+
+
+
+
+
+[id="{anchor_prefix}-elasticsearch-k8s-elastic-co-v1alpha1"]
+== elasticsearch.k8s.elastic.co/v1alpha1
+
+Package v1alpha1 contains API Schema definitions for the elasticsearch v1alpha1 API group
+
+Package v1alpha1 contains API Schema definitions for the elasticsearch v1alpha1 API group
+
+
+
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-link"]
+=== Link 
+
+Link is the Schema for the links API
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-linklist[$$LinkList$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`metadata`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta[$$ObjectMeta$$]__ | Refer to Kubernetes API documentation for fields of `metadata`.
+
+| *`spec`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-linkspec[$$LinkSpec$$]__ | 
+|===
+
+
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-linkspec"]
+=== LinkSpec 
+
+LinkSpec defines the desired state of Link
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1alpha1-link[$$Link$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`deploymentRefs`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-objectselector[$$ObjectSelector$$]__ | 
+| *`daemonSetRefs`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-objectselector[$$ObjectSelector$$]__ | 
+| *`elasticsearchName`* __string__ | ElasticsearchName is the name of the Elasticsearch resource in this namespace for which the user data and certs should be copied
+| *`kibanaName`* __string__ | KibanaName is the name of the Kibana resource in this namespace for which the user data and certs should be copied
+| *`apmServerName`* __string__ | KibanaName is the name of the Kibana resource in this namespace for which the user data and certs should be copied
+| *`user`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-secretref[$$SecretRef$$]__ | User to inject. Optional, if not set the superuser "elastic" is used.
+|===
+
+
 
 
 
