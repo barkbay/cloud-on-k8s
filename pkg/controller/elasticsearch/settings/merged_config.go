@@ -48,6 +48,7 @@ func baseConfig(clusterName string, ver version.Version) *CanonicalConfig {
 
 		// derive IP dynamically from the pod IP, injected as env var
 		esv1.NetworkPublishHost: "${" + EnvPodIP + "}",
+		esv1.HTTPPublishHost:    "${" + EnvPodName + "}.${" + HeadlessServiceName + "}.${" + EnvNamespace + "}.svc",
 		esv1.NetworkHost:        "0.0.0.0",
 
 		esv1.PathData: volume.ElasticsearchDataMountPath,

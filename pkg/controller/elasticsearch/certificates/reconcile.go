@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/driver"
@@ -21,6 +22,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/certificates/remoteca"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/certificates/transport"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
 
@@ -54,13 +56,26 @@ func Reconcile(
 	// label certificates secrets with the cluster name
 	certsLabels := label.NewLabels(k8s.ExtractNamespacedName(&es))
 
+	// Create additional DNS wildcard for sniffing
+	tlsOption := es.Spec.HTTP.TLS.DeepCopy()
+	if tlsOption.SelfSignedCertificate == nil {
+		tlsOption.SelfSignedCertificate = &v1.SelfSignedCertificate{}
+	}
+
+	for _, nodeSet := range es.Spec.NodeSets {
+		tlsOption.SelfSignedCertificate.SubjectAlternativeNames = append(
+			tlsOption.SelfSignedCertificate.SubjectAlternativeNames,
+			v1.SubjectAlternativeName{DNS: "*." + nodespec.HeadlessServiceName(esv1.StatefulSet(es.Name, nodeSet.Name)) + "." + es.Namespace + ".svc"},
+		)
+	}
+
 	// reconcile HTTP CA and cert
 	var httpCerts *certificates.CertificatesSecret
 	httpCerts, results = certificates.Reconciler{
 		K8sClient:      driver.K8sClient(),
 		DynamicWatches: driver.DynamicWatches(),
 		Object:         &es,
-		TLSOptions:     es.Spec.HTTP.TLS,
+		TLSOptions:     *tlsOption,
 		Namer:          esv1.ESNamer,
 		Labels:         certsLabels,
 		Services:       services,

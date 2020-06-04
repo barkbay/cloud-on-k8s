@@ -47,6 +47,9 @@ func HeadlessService(es *esv1.Elasticsearch, ssetName string) corev1.Service {
 			Type:      corev1.ServiceTypeClusterIP,
 			ClusterIP: corev1.ClusterIPNone,
 			Selector:  label.NewStatefulSetLabels(nsn, ssetName),
+			// Elasticsearch attempts to resolve its publish addresses in `http.publish_host` and `http.publish_host` on startup.
+			// For that reason we want to publish Pod fqdn before it is actually ready.
+			PublishNotReadyAddresses: true,
 			Ports: []corev1.ServicePort{
 				{
 					Name:     es.Spec.HTTP.Protocol(),
