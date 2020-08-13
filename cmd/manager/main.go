@@ -70,6 +70,8 @@ const (
 	DefaultWebhookConfigurationName = "elastic-webhook.k8s.elastic.co"
 	WebhookPort                     = 9443
 
+	LeaderElectionConfigMapName = "elastic-operator-leader"
+
 	debugHTTPShutdownTimeout = 5 * time.Second // time to allow for the debug HTTP server to shutdown
 )
 
@@ -111,6 +113,11 @@ func Command() *cobra.Command {
 		RunE: doRun,
 	}
 
+	cmd.Flags().Bool(
+		operator.EnableLeaderElection,
+		true,
+		"Enable leader election. Enabling this will ensure there is only one active operator.",
+	)
 	cmd.Flags().Bool(
 		operator.AutoPortForwardFlag,
 		false,
@@ -359,8 +366,11 @@ func startOperator(stopChan <-chan struct{}) error {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	opts := ctrl.Options{
-		Scheme:  clientgoscheme.Scheme,
-		CertDir: viper.GetString(operator.WebhookCertDirFlag),
+		Scheme:                  clientgoscheme.Scheme,
+		CertDir:                 viper.GetString(operator.WebhookCertDirFlag),
+		LeaderElection:          viper.GetBool(operator.EnableLeaderElection),
+		LeaderElectionID:        LeaderElectionConfigMapName,
+		LeaderElectionNamespace: operatorNamespace,
 	}
 
 	// configure the manager cache based on the number of managed namespaces
@@ -463,6 +473,7 @@ func startOperator(stopChan <-chan struct{}) error {
 	garbageCollectUsers(cfg, managedNamespaces)
 
 	go func() {
+		<-mgr.Elected()                      // wait for the instance to be elected
 		time.Sleep(10 * time.Second)         // wait some arbitrary time for the manager to start
 		mgr.GetCache().WaitForCacheSync(nil) // wait until k8s client cache is initialized
 		r := licensing.NewResourceReporter(mgr.GetClient(), operatorNamespace)
