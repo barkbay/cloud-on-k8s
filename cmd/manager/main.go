@@ -114,6 +114,11 @@ func Command() *cobra.Command {
 	}
 
 	cmd.Flags().Bool(
+		operator.EnableLeaderElection,
+		true,
+		"Enable leader election. Enabling this will ensure there is only one active operator.",
+	)
+	cmd.Flags().Bool(
 		operator.AutoPortForwardFlag,
 		false,
 		"Enables automatic port-forwarding "+
