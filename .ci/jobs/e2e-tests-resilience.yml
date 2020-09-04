@@ -6,10 +6,11 @@
     parameters:
       - string:
           name: branch_specifier
-          default: master
+          default: operator-failover-e2e-tests-master-pipeline
           description: "the Git branch specifier to build (&lt;branchName&gt;,&lt;tagName&gt;, &lt;commitId&gt;, etc.)"
       - string:
           name: JKS_PARAM_OPERATOR_IMAGE
+          default: docker.elastic.co/eck-snapshots/eck-operator-ci:1.3.0-SNAPSHOT-d675a8b1
           description: "ECK Docker image"
       - bool:
           name: SEND_NOTIFICATIONS
@@ -18,7 +19,7 @@
     pipeline-scm:
       scm:
         - git:
-            url: https://github.com/elastic/cloud-on-k8s
+            url: https://github.com/barkbay/cloud-on-k8s
             branches:
               - ${branch_specifier}
             credentials-id: 'f6c7695a-671e-4f4f-a331-acdce44ff9ba'
