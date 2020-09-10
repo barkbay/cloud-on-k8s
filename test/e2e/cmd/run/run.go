@@ -78,6 +78,7 @@ func doRun(flags runFlags) error {
 			helper.waitForOperatorToBeReady,
 			helper.deployFilebeat,
 			helper.deployMetricbeat,
+			helper.deployPacketbeat,
 			helper.deployTestJob,
 			helper.runTestJob,
 		}
@@ -317,6 +318,16 @@ func (h *helper) deployMetricbeat() error {
 
 	log.Info("Deploying metricbeat")
 	return h.kubectlApplyTemplateWithCleanup("config/e2e/metricbeat.yaml", h.testContext)
+}
+
+func (h *helper) deployPacketbeat() error {
+	if h.monitoringSecrets == "" {
+		log.Info("No monitoring secrets provided, metricbeat is not deployed")
+		return nil
+	}
+
+	log.Info("Deploying packetbeat")
+	return h.kubectlApplyTemplateWithCleanup("config/e2e/packetbeat_dns_http.yaml", h.testContext)
 }
 
 func (h *helper) deployTestSecrets() error {
