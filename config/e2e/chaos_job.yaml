@@ -31,8 +31,8 @@ spec:
           - "{{ .Context.Operator.Namespace }}"
           - "--operator-name"
           - "{{ .Context.Operator.Name }}"
-          #- "--delete-operator-delay=2m"
-          #- "--update-operator-replicas-delay=5m"
+          - "--delete-operator-delay=2m"
+          - "--update-operator-replicas-delay=5m"
           env:
           - name: CHAOS
             value: "true"
