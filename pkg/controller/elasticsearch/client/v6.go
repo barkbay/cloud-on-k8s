@@ -148,6 +148,14 @@ func (c *clientV6) DeleteVotingConfigExclusions(ctx context.Context, waitForRemo
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
+func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ AutoscalingPolicy) error {
+	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
+func (c *clientV6) GetAutoscalingDecisions(_ context.Context) (Decisions, error) {
+	return Decisions{}, errors.New("Not supported in Elasticsearch 6.x")
+}
+
 func (c *clientV6) ClusterBootstrappedForZen2(ctx context.Context) (bool, error) {
 	// Look at the current master node of the cluster: if it's running version 7.x.x or above,
 	// the cluster has been bootstrapped.
