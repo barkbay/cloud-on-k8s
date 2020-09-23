@@ -1128,6 +1128,66 @@ spec:
                       annotations, affinity rules, resource requests, and so on) for
                       the Pods belonging to this NodeSet.
                     type: object
+                  scalePolicy:
+                    description: ScalePolicy holds the autoscaling policy.
+                    properties:
+                      maxAllowed:
+                        description: MaxAllowed represents the upper limit for the
+                          resources managed by the autoscaler.
+                        properties:
+                          count:
+                            description: Count is a number of replicas which should
+                              be used as a limit (either lower or upper) in an autoscaling
+                              policy.
+                            format: int32
+                            type: integer
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Cpu represents a CPU limits
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: memory represents a CPU limits
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                      minAllowed:
+                        description: MinAllowed represents the lower limit for the
+                          resources managed by the autoscaler.
+                        properties:
+                          count:
+                            description: Count is a number of replicas which should
+                              be used as a limit (either lower or upper) in an autoscaling
+                              policy.
+                            format: int32
+                            type: integer
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Cpu represents a CPU limits
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: memory represents a CPU limits
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                    type: object
                   volumeClaimTemplates:
                     description: VolumeClaimTemplates is a list of persistent volume
                       claims to be used by each Pod in this NodeSet. Every claim in

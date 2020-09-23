@@ -295,6 +295,7 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 		in, out := &in.Config, &out.Config
 		*out = (*in).DeepCopy()
 	}
+	in.ScalePolicy.DeepCopyInto(&out.ScalePolicy)
 	in.PodTemplate.DeepCopyInto(&out.PodTemplate)
 	if in.VolumeClaimTemplates != nil {
 		in, out := &in.VolumeClaimTemplates, &out.VolumeClaimTemplates

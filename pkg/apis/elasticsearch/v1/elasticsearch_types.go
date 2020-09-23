@@ -175,6 +175,9 @@ type NodeSet struct {
 	// Config holds the Elasticsearch configuration.
 	Config *commonv1.Config `json:"config,omitempty"`
 
+	// ScalePolicy holds the autoscaling policy.
+	ScalePolicy commonv1.ScalePolicy `json:"scalePolicy,omitempty"`
+
 	// Count of Elasticsearch nodes to deploy.
 	// +kubebuilder:validation:Minimum=1
 	Count int32 `json:"count"`
