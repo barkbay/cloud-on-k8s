@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling"
+
 	"github.com/elastic/cloud-on-k8s/pkg/about"
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
 	apmv1beta1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1beta1"
@@ -628,7 +630,8 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 		registerFunc func(manager.Manager, operator.Parameters) error
 	}{
 		{name: "APMServer", registerFunc: apmserver.Add},
-		{name: "Elasticsearch", registerFunc: elasticsearch.Add},
+		{name: "Elasticsearch", registerFunc: autoscaling.Add},
+		{name: "ElasticsearchAutoscaling", registerFunc: elasticsearch.Add},
 		{name: "Kibana", registerFunc: kibana.Add},
 		{name: "EnterpriseSearch", registerFunc: enterprisesearch.Add},
 		{name: "Beats", registerFunc: beat.Add},
