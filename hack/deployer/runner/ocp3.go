@@ -173,7 +173,7 @@ func (d Ocp3Driver) runAnsibleDockerContainer(action string) error {
 	return NewCommand(`docker run --rm \
 		-e FORCED_GROUP_ID=1000 \
 		-e FORCED_USER_ID=1000 \
-		-e USER="ansible" \
+		-e USER={{.ClusterName}} \
 		-e USER_HOME={{.HomeVolumeMountPath}} \
 		-v {{.HomeVolumeName}}:{{.HomeVolumeMountPath}} \
 		-e CLOUDSDK_CONFIG={{.GCloudSDKPath}} \
