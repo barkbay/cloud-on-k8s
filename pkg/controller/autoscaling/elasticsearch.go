@@ -5,6 +5,20 @@
 package autoscaling
 
 import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
+
+	"go.elastic.co/apm"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -13,8 +27,18 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/events"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 )
 
@@ -27,16 +51,121 @@ var log = logf.Log.WithName(name)
 // ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch specifications based on autoscaling decisions.
 type ReconcileElasticsearch struct {
 	k8s.Client
+	operator.Parameters
+	recorder       record.EventRecorder
+	licenseChecker license.Checker
+	dynamicWatches watches.DynamicWatches
+
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration uint64
 }
 
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	defer common.LogReconciliationRun(log, request, "es_name", &r.iteration)()
+	tx, ctx := tracing.NewTransaction(r.Tracer, request.NamespacedName, "elasticsearch")
+	defer tracing.EndTransaction(tx)
 	results := r.reconcileInternal(request)
 	current, err := results.Aggregate()
 	log.V(1).Info("Reconcile result", "requeue", current.Requeue, "requeueAfter", current.RequeueAfter)
+
+	// Fetch the Elasticsearch instance
+	var es esv1.Elasticsearch
+	requeue, err := r.fetchElasticsearch(ctx, request, &es)
+	if err != nil || requeue {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	if common.IsUnmanaged(&es) {
+		log.Info("Object is currently not managed by this controller. Skipping reconciliation", "namespace", es.Namespace, "es_name", es.Name)
+		return reconcile.Result{}, nil
+	}
+
+	selector := map[string]string{label.ClusterNameLabelName: es.Name}
+	compat, err := annotation.ReconcileCompatibility(ctx, r.Client, &es, selector, r.OperatorInfo.BuildInfo.Version)
+	if err != nil {
+		k8s.EmitErrorEvent(r.recorder, err, &es, events.EventCompatCheckError, "Error during compatibility check: %v", err)
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	if !compat {
+		// this resource is not able to be reconciled by this version of the controller, so we will skip it and not requeue
+		return reconcile.Result{}, nil
+	}
+
+	esClient, err := r.newElasticsearchClient(r.Client, es)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	// 1. Update policies
+	namedTiers, err := updatePolicies(ctx, es, r.Client, esClient)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
+
+	// 2. Get deciders
+	decisions, err := esClient.GetAutoscalingDecisions(ctx)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	for _, decision := range decisions.Decisions {
+		log.V(1).Info("Get decision", "decision", decision)
+	}
+
 	return current, err
+}
+
+func (r *ReconcileElasticsearch) internalReconcile(
+	ctx context.Context,
+	es esv1.Elasticsearch,
+) *reconciler.Results {
+	results := reconciler.NewResult(ctx)
+
+	if es.IsMarkedForDeletion() {
+		r.dynamicWatches.Secrets.RemoveHandlerForKey(nodesConfigurationWatchName(k8s.ExtractNamespacedName(&es)))
+		return results
+	}
+
+	// Set watches on config Secrets
+	configSecrets := make([]string, len(es.Spec.NodeSets))
+	for i, nodeSet := range es.Spec.NodeSets {
+		sset := esv1.StatefulSet(es.Name, nodeSet.Name)
+		configSecrets[i] = esv1.ConfigSecret(sset)
+	}
+	namespacedName := k8s.ExtractNamespacedName(&es)
+	if err := watches.WatchSecrets(namespacedName, r.dynamicWatches, nodesConfigurationWatchName(namespacedName), configSecrets); err != nil {
+		return results.WithError(err)
+	}
+
+	return results
+}
+
+// nodesConfigurationWatchName returns the watch name according to the deployment name.
+// It is unique per APM or Kibana deployment.
+func nodesConfigurationWatchName(namespacedName types.NamespacedName) string {
+	return fmt.Sprintf("%s-%s-config", namespacedName.Namespace, namespacedName.Name)
+}
+
+func (r *ReconcileElasticsearch) fetchElasticsearch(
+	ctx context.Context,
+	request reconcile.Request,
+	es *esv1.Elasticsearch,
+) (bool, error) {
+	span, _ := apm.StartSpan(ctx, "fetch_elasticsearch", tracing.SpanTypeApp)
+	defer span.End()
+
+	err := r.Get(request.NamespacedName, es)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			r.dynamicWatches.Secrets.RemoveHandlerForKey(nodesConfigurationWatchName(request.NamespacedName))
+			return true, nil
+		}
+		// Error reading the object - requeue the request.
+		return true, err
+	}
+	return false, nil
 }
 
 // Add creates a new EnterpriseLicense Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
@@ -53,6 +182,18 @@ func Add(mgr manager.Manager, p operator.Parameters) error {
 	); err != nil {
 		return err
 	}
+	// Dynamically Watch for changes in the configuration Secret
+	if err := c.Watch(&source.Kind{Type: &corev1.Secret{}}, r.dynamicWatches.Secrets); err != nil {
+		return err
+	}
+	if err := r.dynamicWatches.Secrets.AddHandler(&watches.OwnerWatch{
+		EnqueueRequestForOwner: handler.EnqueueRequestForOwner{
+			IsController: true,
+			OwnerType:    &esv1.Elasticsearch{},
+		},
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -60,8 +201,61 @@ func Add(mgr manager.Manager, p operator.Parameters) error {
 func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileElasticsearch {
 	c := k8s.WrapClient(mgr.GetClient())
 	return &ReconcileElasticsearch{
-		Client: c,
+		Client:         c,
+		Parameters:     params,
+		recorder:       mgr.GetEventRecorderFor(name),
+		licenseChecker: license.NewLicenseChecker(c, params.OperatorNamespace),
+		dynamicWatches: watches.NewDynamicWatches(),
 	}
+}
+
+func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.Elasticsearch) (client.Client, error) {
+	//url := services.ExternalServiceURL(es)
+	// use a fake service for now
+	url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
+	v, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return nil, err
+	}
+	// Get user Secret
+	var controllerUserSecret corev1.Secret
+	key := types.NamespacedName{
+		Namespace: es.Namespace,
+		Name:      esv1.InternalUsersSecret(es.Name),
+	}
+	if err := c.Get(key, &controllerUserSecret); err != nil {
+		return nil, err
+	}
+	password, ok := controllerUserSecret.Data[user.ControllerUserName]
+	if !ok {
+		return nil, fmt.Errorf("controller user %s not found in Secret %s/%s", user.ControllerUserName, key.Namespace, key.Name)
+	}
+
+	// Get public certs
+	var caSecret corev1.Secret
+	key = types.NamespacedName{
+		Namespace: es.Namespace,
+		Name:      certificates.PublicCertsSecretName(esv1.ESNamer, es.Name),
+	}
+	if err := c.Get(key, &caSecret); err != nil {
+		return nil, err
+	}
+	trustedCerts, ok := caSecret.Data[certificates.CertFileName]
+	if !ok {
+		return nil, fmt.Errorf("%s not found in Secret %s/%s", certificates.CertFileName, key.Namespace, key.Name)
+	}
+	caCerts, err := certificates.ParsePEMCerts(trustedCerts)
+
+	return esclient.NewElasticsearchClient(
+		r.Parameters.Dialer,
+		url,
+		client.BasicAuth{
+			Name:     user.ControllerUserName,
+			Password: string(password),
+		},
+		*v,
+		caCerts,
+	), nil
 }
 
 func (r *ReconcileElasticsearch) reconcileInternal(request reconcile.Request) *reconciler.Results {

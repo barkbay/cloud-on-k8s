@@ -46,7 +46,7 @@ func reconcileUserProvidedFileRealm(
 		}
 		secretNames = append(secretNames, secretRef.SecretName)
 	}
-	if err := watches.WatchUserProvidedSecrets(
+	if err := watches.WatchSecrets(
 		esKey,
 		watched,
 		UserProvidedFileRealmWatchName(esKey),
@@ -73,7 +73,7 @@ func reconcileUserProvidedRoles(
 		}
 		secretNames = append(secretNames, secretRef.SecretName)
 	}
-	if err := watches.WatchUserProvidedSecrets(
+	if err := watches.WatchSecrets(
 		esKey,
 		watched,
 		UserProvidedRolesWatchName(esKey),

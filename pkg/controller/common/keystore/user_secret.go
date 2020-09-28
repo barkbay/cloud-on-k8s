@@ -42,7 +42,7 @@ func secureSettingsVolume(
 ) (*volume.SecretVolume, string, error) {
 	// setup (or remove) watches for the user-provided secret to reconcile on any change
 	watcher := k8s.ExtractNamespacedName(hasKeystore)
-	if err := watches.WatchUserProvidedSecrets(
+	if err := watches.WatchSecrets(
 		watcher,
 		r.DynamicWatches(),
 		SecureSettingsWatchName(watcher),

@@ -45,7 +45,7 @@ func ParseConfigRef(
 	if configRef != nil && configRef.SecretName != "" {
 		secretNames = append(secretNames, configRef.SecretName)
 	}
-	if err := watches.WatchUserProvidedSecrets(resourceNsn, driver.DynamicWatches(), ConfigRefWatchName(resourceNsn), secretNames); err != nil {
+	if err := watches.WatchSecrets(resourceNsn, driver.DynamicWatches(), ConfigRefWatchName(resourceNsn), secretNames); err != nil {
 		return nil, err
 	}
 

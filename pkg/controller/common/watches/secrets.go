@@ -8,11 +8,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// WatchUserProvidedSecrets registers a watch for user-provided secrets.
+// WatchSecrets registers a watch for several secrets.
 // Only one watch per watcher is registered:
 // - if it already exists with different secrets, it is replaced to watch the new secrets.
-// - if there is no secret provided by the user, remove the watch.
-func WatchUserProvidedSecrets(
+// - if there is no secret provided, remove the watch.
+func WatchSecrets(
 	watcher types.NamespacedName, // resource to which the watches are attached (eg. an Elasticsearch object)
 	watched DynamicWatches, // existing dynamic watches
 	watchName string, // dynamic watch to register
