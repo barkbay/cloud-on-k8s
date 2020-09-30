@@ -10,18 +10,24 @@ import (
 
 // ScalePolicy represents how resources can be scaled by the autoscaler controller.
 type ScalePolicy struct {
+	// +kubebuilder:validation:Required
 	Roles []string `json:"roles"`
 	// MinAllowed represents the lower limit for the resources managed by the autoscaler.
+	// +kubebuilder:validation:Required
 	MinAllowed ResourcePolicy `json:"minAllowed,omitempty"`
 	// MaxAllowed represents the upper limit for the resources managed by the autoscaler.
+	// +kubebuilder:validation:Required
 	MaxAllowed ResourcePolicy `json:"maxAllowed,omitempty"`
 }
 
 type ResourcePolicy struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
+	// +kubebuilder:validation:Required
 	Count *int32 `json:"count,omitempty"`
 	// Cpu represents a CPU limits
+	// +kubebuilder:validation:Required
 	Cpu *resource.Quantity `json:"cpu"`
 	// memory represents a CPU limits
+	// +kubebuilder:validation:Required
 	Memory *resource.Quantity `json:"memory"`
 }

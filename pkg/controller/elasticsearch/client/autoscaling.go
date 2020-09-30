@@ -6,7 +6,12 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+
+	"github.com/docker/go-units"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type AutoScalingClient interface {
@@ -46,8 +51,34 @@ type RequiredCapacity struct {
 }
 
 type Capacity struct {
-	Storage string `yaml:"storage" json:"storage,omitempty"`
-	Memory  string `yaml:"memory" json:"memory,omitempty"`
+	Storage *resource.Quantity `yaml:"storage" json:"storage,omitempty"`
+	Memory  *resource.Quantity `yaml:"memory" json:"memory,omitempty"`
+}
+
+type ElasticsearchCapacity struct {
+	Storage string `json:"storage,omitempty"`
+	Memory  string `json:"memory,omitempty"`
+}
+
+func (c *Capacity) UnmarshalJSON(data []byte) error {
+	var ec ElasticsearchCapacity
+	if err := json.Unmarshal(data, &ec); err != nil {
+		return err
+	}
+
+	memory, err := units.FromHumanSize(ec.Memory)
+	if err != nil {
+		return fmt.Errorf("unable to parse memory quantity %s", ec.Memory)
+	}
+	c.Memory = resource.NewQuantity(memory, resource.DecimalSI)
+
+	storage, err := units.FromHumanSize(ec.Storage)
+	if err != nil {
+		return fmt.Errorf("unable to parse storage quantity %s", ec.Storage)
+	}
+	c.Storage = resource.NewQuantity(storage, resource.DecimalSI)
+
+	return nil
 }
 
 func (c *clientV7) GetAutoscalingDecisions(ctx context.Context) (Decisions, error) {
