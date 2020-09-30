@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
@@ -93,6 +94,13 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	esClient, err := r.newElasticsearchClient(r.Client, es)
+	if apierrors.IsNotFound(err) {
+		// Some required Secrets might not exist yet
+		return reconcile.Result{
+			Requeue:      true,
+			RequeueAfter: 10 * time.Second,
+		}, nil
+	}
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

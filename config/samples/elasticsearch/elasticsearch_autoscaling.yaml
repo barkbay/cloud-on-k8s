@@ -7,15 +7,6 @@ spec:
   nodeSets:
     - name: data-zone-b
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-b
         cluster.routing.allocation.awareness.attributes: zone
@@ -34,15 +25,6 @@ spec:
                           - europe-west1-b
     - name: data-zone-c
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-c
         cluster.routing.allocation.awareness.attributes: zone
@@ -61,15 +43,6 @@ spec:
                           - europe-west1-c
     - name: data-zone-d
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-d
         cluster.routing.allocation.awareness.attributes: zone
@@ -88,15 +61,6 @@ spec:
                           - europe-west1-d
     - name: ml-zone-b
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-b
         cluster.routing.allocation.awareness.attributes: zone
@@ -115,15 +79,6 @@ spec:
                           - europe-west1-b
     - name: ml-zone-c
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-c
         cluster.routing.allocation.awareness.attributes: zone
@@ -142,15 +97,6 @@ spec:
                           - europe-west1-c
     - name: ml-zone-d
       count: 1
-      scalePolicy:
-        minAllowed:
-          count: 1
-          cpu: 1
-          memory: 2Gi
-        maxAllowed:
-          count: 3
-          cpu: 3
-          memory: 4Gi
       config:
         node.attr.zone: europe-west1-d
         cluster.routing.allocation.awareness.attributes: zone
@@ -167,3 +113,22 @@ spec:
                         operator: In
                         values:
                           - europe-west1-d
+  scalePolicies:
+  - roles:  [ "master", "data", "ingest" ]
+    minAllowed:
+      count: 1
+      cpu: 1
+      memory: 2Gi
+    maxAllowed:
+      count: 3
+      cpu: 3
+      memory: 4Gi
+  - roles: [ "ml" ]
+    minAllowed:
+      count: 1
+      cpu: 1
+      memory: 2Gi
+    maxAllowed:
+      count: 3
+      cpu: 3
+      memory: 4Gi

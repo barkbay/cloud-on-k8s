@@ -61,6 +61,10 @@ type ElasticsearchSpec struct {
 	// RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster.
 	// +optional
 	RemoteClusters []RemoteCluster `json:"remoteClusters,omitempty"`
+
+	// ScalePolicy holds the autoscaling policy.
+	// +optional
+	ScalePolicies []commonv1.ScalePolicy `json:"scalePolicies,omitempty"`
 }
 
 // TransportConfig holds the transport layer settings for Elasticsearch.
@@ -174,9 +178,6 @@ type NodeSet struct {
 
 	// Config holds the Elasticsearch configuration.
 	Config *commonv1.Config `json:"config,omitempty"`
-
-	// ScalePolicy holds the autoscaling policy.
-	ScalePolicy commonv1.ScalePolicy `json:"scalePolicy,omitempty"`
 
 	// Count of Elasticsearch nodes to deploy.
 	// +kubebuilder:validation:Minimum=1

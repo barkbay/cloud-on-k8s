@@ -10,6 +10,7 @@ import (
 
 // ScalePolicy represents how resources can be scaled by the autoscaler controller.
 type ScalePolicy struct {
+	Roles []string `json:"roles"`
 	// MinAllowed represents the lower limit for the resources managed by the autoscaler.
 	MinAllowed ResourcePolicy `json:"minAllowed,omitempty"`
 	// MaxAllowed represents the upper limit for the resources managed by the autoscaler.
