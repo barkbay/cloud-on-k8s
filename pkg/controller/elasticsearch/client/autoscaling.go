@@ -66,17 +66,21 @@ func (c *Capacity) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	memory, err := units.FromHumanSize(ec.Memory)
-	if err != nil {
-		return fmt.Errorf("unable to parse memory quantity %s", ec.Memory)
+	if len(ec.Memory) > 0 {
+		memory, err := units.FromHumanSize(ec.Memory)
+		if err != nil {
+			return fmt.Errorf("unable to parse memory quantity %s", ec.Memory)
+		}
+		c.Memory = resource.NewQuantity(memory, resource.DecimalSI)
 	}
-	c.Memory = resource.NewQuantity(memory, resource.DecimalSI)
 
-	storage, err := units.FromHumanSize(ec.Storage)
-	if err != nil {
-		return fmt.Errorf("unable to parse storage quantity %s", ec.Storage)
+	if len(ec.Storage) > 0 {
+		storage, err := units.FromHumanSize(ec.Storage)
+		if err != nil {
+			return fmt.Errorf("unable to parse storage quantity %s", ec.Storage)
+		}
+		c.Storage = resource.NewQuantity(storage, resource.DecimalSI)
 	}
-	c.Storage = resource.NewQuantity(storage, resource.DecimalSI)
 
 	return nil
 }

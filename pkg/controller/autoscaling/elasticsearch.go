@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 
@@ -113,16 +115,78 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
-	// 2. Get deciders
+	// 2. Get scale policies
+	scalePolicies := make(map[string]v1.ScalePolicy)
+	for _, scalePolicy := range es.Spec.ScalePolicies {
+		namedTier := namedTierName(scalePolicy.Roles)
+		if _, exists := scalePolicies[namedTier]; exists {
+			results.WithError(fmt.Errorf("duplicated tier %s", namedTier))
+		}
+		scalePolicies[namedTier] = *scalePolicy.DeepCopy()
+	}
+	if results.HasError() {
+		return results.Aggregate()
+	}
+
+	// 3. Get deciders
 	decisions, err := esClient.GetAutoscalingDecisions(ctx)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 	for _, decision := range decisions.Decisions {
 		log.V(1).Info("Get decision", "decision", decision)
+		// Get the resource policy
+		scalePolicy, exists := scalePolicies[decision.Tier]
+		if !exists {
+			return results.WithError(fmt.Errorf("no resource policy for tier %s", decision.Tier)).Aggregate()
+		}
+		// Get the nodeSets
+		nodeSets, exists := namedTiers[decision.Tier]
+		if !exists {
+			return results.WithError(fmt.Errorf("no nodeSet for tier %s", decision.Tier)).Aggregate()
+		}
+		updatedNodeSets, err := applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision, scalePolicy)
+		if err != nil {
+			results.WithError(err)
+		}
+		log.V(1).Info("updated nodeSets", "nodeSets", updatedNodeSets)
+
+		// Replace nodeSets in the Elasticsearch manifest
+		if err := updateNodeSets(es, updatedNodeSets); err != nil {
+			results.WithError(err)
+		}
+	}
+
+	if results.HasError() {
+		return results.Aggregate()
+	}
+
+	// Apply the update Elasticsearch manifest
+	if err := r.Client.Update(&es); err != nil {
+		return results.WithError(err).Aggregate()
 	}
 
 	return current, err
+}
+
+func updateNodeSets(es esv1.Elasticsearch, nodeSets []esv1.NodeSet) error {
+	for i := range nodeSets {
+		updatedNodeSet := nodeSets[i]
+		found := false
+		for j := range es.Spec.NodeSets {
+			existingNodeSet := es.Spec.NodeSets[j]
+			if updatedNodeSet.Name == existingNodeSet.Name {
+				es.Spec.NodeSets[j] = updatedNodeSet
+				found = true
+				continue
+			}
+		}
+		if !found {
+			return fmt.Errorf(
+				"nodeSet %s not found in Elasticsearch spec for %s/%s", updatedNodeSet.Name, es.Namespace, es.Name)
+		}
+	}
+	return nil
 }
 
 func (r *ReconcileElasticsearch) internalReconcile(

@@ -28,7 +28,7 @@ func applyScaleDecision(
 }
 
 // scaleVertically vertically scales nodeSet to match the per node requirements
-func scaleVertically(nodeSet []v1.NodeSet, container string, requestedCapacity client.Capacity, policy commonv1.ScalePolicy) {
+func scaleVertically(nodeSets []v1.NodeSet, containerName string, requestedCapacity client.Capacity, policy commonv1.ScalePolicy) {
 	memory := requestedCapacity.Memory
 	if requestedCapacity.Memory.Cmp(*policy.MinAllowed.Memory) == -1 {
 		// The amount of memory requested by Elasticsearch is less than the min. allowed value
@@ -38,16 +38,17 @@ func scaleVertically(nodeSet []v1.NodeSet, container string, requestedCapacity c
 		// The amount of memory requested by Elasticsearch is more than the max. allowed value
 		memory = policy.MaxAllowed.Memory
 	}
-	for _, nodeSet := range nodeSet {
-		container := getContainer(container, nodeSet.PodTemplate.Spec.Containers)
+	for i := range nodeSets {
+		container, containers := getContainer(containerName, nodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
 			container = &corev1.Container{
-				Name: name,
+				Name: containerName,
 			}
 		}
 		container.Resources.Requests = corev1.ResourceList{
 			corev1.ResourceMemory: *memory,
 		}
+		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
 }
 
@@ -55,11 +56,12 @@ func scaleHorizontally(nodeSet []v1.NodeSet, policy commonv1.ScalePolicy) {
 
 }
 
-func getContainer(name string, containers []corev1.Container) *corev1.Container {
-	for _, container := range containers {
+func getContainer(name string, containers []corev1.Container) (*corev1.Container, []corev1.Container) {
+	for i, container := range containers {
 		if container.Name == name {
-			return &container
+			// Remove the container
+			return &container, append(containers[:i], containers[i+1:]...)
 		}
 	}
-	return nil
+	return nil, containers
 }

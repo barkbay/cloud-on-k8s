@@ -61,5 +61,10 @@ func getNamedTier(client k8s.Client, es esv1.Elasticsearch, nodeSet esv1.NodeSet
 		return "", err
 	}
 	sort.Strings(r.Roles)
-	return strings.Join(r.Roles, "_"), nil
+	return namedTierName(r.Roles), nil
+}
+
+func namedTierName(roles []string) string {
+	sort.Strings(roles)
+	return strings.Join(roles, "_")
 }
