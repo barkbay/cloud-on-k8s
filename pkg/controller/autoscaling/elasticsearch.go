@@ -68,8 +68,12 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	tx, ctx := tracing.NewTransaction(r.Tracer, request.NamespacedName, "elasticsearch")
 	defer tracing.EndTransaction(tx)
 	results := r.reconcileInternal(request)
-	current, err := results.Aggregate()
-	log.V(1).Info("Reconcile result", "requeue", current.Requeue, "requeueAfter", current.RequeueAfter)
+
+	// Poll the ELasticsearch API at least every minute
+	results.WithResult(reconcile.Result{
+		Requeue:      true,
+		RequeueAfter: 1 * time.Minute,
+	})
 
 	// Fetch the Elasticsearch instance
 	var es esv1.Elasticsearch
@@ -166,6 +170,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return results.WithError(err).Aggregate()
 	}
 
+	current, err := results.Aggregate()
+	log.V(1).Info("Reconcile result", "requeue", current.Requeue, "requeueAfter", current.RequeueAfter)
 	return current, err
 }
 
