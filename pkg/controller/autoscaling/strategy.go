@@ -5,15 +5,15 @@
 package autoscaling
 
 import (
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 )
 
+// applyScaleDecision implements a "scale vertically" first scaling strategy.
 func applyScaleDecision(
 	nodeSets []v1.NodeSet,
 	container string,
@@ -35,7 +35,7 @@ func applyScaleDecision(
 	return updatedNodeSets, nil
 }
 
-// scaleVertically vertically scales nodeSet to match the per node requirements
+// scaleVertically vertically scales nodeSet to match the per node requirements.
 func scaleVertically(
 	nodeSets []v1.NodeSet,
 	containerName string,
@@ -71,8 +71,7 @@ func scaleVertically(
 
 var zero = *resource.NewQuantity(0, resource.DecimalSI)
 
-// scaleHorizontally
-// nodeCapacity is the node capacity as computed by scaleVertically
+// scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func scaleHorizontally(
 	nodeSets []v1.NodeSet,
 	requestedCapacity client.Capacity,

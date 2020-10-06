@@ -10,13 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
-
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,9 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
@@ -41,8 +36,10 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 const (
@@ -63,6 +60,9 @@ type ReconcileElasticsearch struct {
 	iteration uint64
 }
 
+// Reconcile attempts to update the capacity fields (count and memory request for now) in the nodeSets of the Elasticsearch
+// resource according to the result of the Elasticsearch capacity API and given the constraints provided by the user in
+// the resource policies.
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	defer common.LogReconciliationRun(log, request, "es_name", &r.iteration)()
 	tx, ctx := tracing.NewTransaction(r.Tracer, request.NamespacedName, "elasticsearch")
@@ -111,7 +111,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	// 1. Update policies
+	// 1. Update named policies in Elasticsearch
 	namedTiers, err := updatePolicies(ctx, es, r.Client, esClient)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
@@ -119,7 +119,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
-	// 2. Get resource policies
+	// 2. Get resource policies from the Elasticsearch spec
 	resourcePolicies := make(map[string]v1.ResourcePolicy)
 	for _, scalePolicy := range es.Spec.ResourcePolicies {
 		namedTier := namedTierName(scalePolicy.Roles)
@@ -132,7 +132,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return results.Aggregate()
 	}
 
-	// 3. Get deciders
+	// 3. Get resource requirements from the Elasticsearch capacity API
 	decisions, err := esClient.GetAutoscalingCapacity(ctx)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)

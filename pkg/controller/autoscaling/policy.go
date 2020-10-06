@@ -14,7 +14,7 @@ func updatePolicies(
 	client k8s.Client,
 	esclient client.AutoScalingClient,
 ) (NamedTiers, error) {
-	namedTiers, err := GetNamedTiers(client, es)
+	namedTiers, err := getNamedTiers(client, es)
 	if err != nil {
 		return nil, err
 	}

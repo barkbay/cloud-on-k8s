@@ -8,12 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/settings"
 	essettings "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/settings"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // rolesSetting captures roles in the Elasticsearch configuration
@@ -23,7 +24,8 @@ type rolesSetting struct {
 
 type NamedTiers map[string][]esv1.NodeSet
 
-func GetNamedTiers(client k8s.Client, es esv1.Elasticsearch) (NamedTiers, error) {
+// getNamedTiers retrieves the name of all the named tiers in the Elasticsearch manifest.
+func getNamedTiers(client k8s.Client, es esv1.Elasticsearch) (NamedTiers, error) {
 	namedTiersSet := make(NamedTiers)
 	for _, nodeSet := range es.Spec.NodeSets {
 		namedTier, err := getNamedTier(client, es, nodeSet)
@@ -35,7 +37,7 @@ func GetNamedTiers(client k8s.Client, es esv1.Elasticsearch) (NamedTiers, error)
 	return namedTiersSet, nil
 }
 
-// GetNamedTier computes the name of the named tier from a NodeSet
+// getNamedTier computes the name of the named tier from a NodeSet.
 func getNamedTier(client k8s.Client, es esv1.Elasticsearch, nodeSet esv1.NodeSet) (string, error) {
 	// Get the config Secret
 	sset := esv1.StatefulSet(es.Name, nodeSet.Name)
