@@ -5,9 +5,10 @@
 package v1
 
 import (
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/hash"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/hash"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
@@ -62,9 +63,9 @@ type ElasticsearchSpec struct {
 	// +optional
 	RemoteClusters []RemoteCluster `json:"remoteClusters,omitempty"`
 
-	// ScalePolicy holds the autoscaling policy.
+	// ResourcePolicies hold the resource policies which must be respected when scaling automatically.
 	// +optional
-	ScalePolicies []commonv1.ScalePolicy `json:"scalePolicies,omitempty"`
+	ResourcePolicies []commonv1.ScalePolicy `json:"resourcePolicies,omitempty"`
 }
 
 // TransportConfig holds the transport layer settings for Elasticsearch.

@@ -1483,8 +1483,9 @@ spec:
                 - name
                 type: object
               type: array
-            scalePolicies:
-              description: ScalePolicy holds the autoscaling policy.
+            resourcePolicies:
+              description: ResourcePolicies hold the resource policies which must
+                be respected when scaling automatically.
               items:
                 description: ScalePolicy represents how resources can be scaled by
                   the autoscaler controller.

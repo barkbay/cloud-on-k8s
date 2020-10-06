@@ -113,7 +113,7 @@ spec:
                         operator: In
                         values:
                           - europe-west1-d
-  scalePolicies:
+  resourcePolicies:
   - roles:  [ "master", "data", "ingest" ]
     minAllowed:
       count: 1

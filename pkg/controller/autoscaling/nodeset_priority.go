@@ -40,8 +40,13 @@ func (fnm *FairNodesManager) AddNode() {
 }
 
 func (fnm *FairNodesManager) RemoveNode() {
+	nodeSet := fnm.nodeSets[len(fnm.nodeSets)-1]
+	if nodeSet.Count == 1 {
+		log.V(1).Info("Can't scale down a nodeSet to 0", "nodeSet", nodeSet.Name)
+		return
+	}
 	// Peak the last element, this is the one with the highest priority
-	fnm.nodeSets[len(fnm.nodeSets)-1].Count--
+	nodeSet.Count--
 	// Ensure the set is sorted
 	fnm.sort()
 }

@@ -121,7 +121,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 	// 2. Get scale policies
 	scalePolicies := make(map[string]v1.ScalePolicy)
-	for _, scalePolicy := range es.Spec.ScalePolicies {
+	for _, scalePolicy := range es.Spec.ResourcePolicies {
 		namedTier := namedTierName(scalePolicy.Roles)
 		if _, exists := scalePolicies[namedTier]; exists {
 			results.WithError(fmt.Errorf("duplicated tier %s", namedTier))

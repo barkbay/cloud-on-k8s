@@ -195,8 +195,8 @@ func (in *ElasticsearchSpec) DeepCopyInto(out *ElasticsearchSpec) {
 		*out = make([]RemoteCluster, len(*in))
 		copy(*out, *in)
 	}
-	if in.ScalePolicies != nil {
-		in, out := &in.ScalePolicies, &out.ScalePolicies
+	if in.ResourcePolicies != nil {
+		in, out := &in.ResourcePolicies, &out.ResourcePolicies
 		*out = make([]commonv1.ScalePolicy, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
