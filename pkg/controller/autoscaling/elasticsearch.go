@@ -175,6 +175,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	return current, err
 }
 
+// updateNodeSets replaces the provided nodeSets in the Elasticsearch manifest
 func updateNodeSets(es esv1.Elasticsearch, nodeSets []esv1.NodeSet) error {
 	for i := range nodeSets {
 		updatedNodeSet := nodeSets[i]

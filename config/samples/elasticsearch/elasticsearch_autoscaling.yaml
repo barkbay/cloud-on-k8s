@@ -129,6 +129,6 @@ spec:
       cpu: 1
       memory: 2Gi
     maxAllowed:
-      count: 3
+      count: 5
       cpu: 3
       memory: 4Gi
