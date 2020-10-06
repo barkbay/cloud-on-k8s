@@ -18,7 +18,7 @@ func applyScaleDecision(
 	nodeSets []v1.NodeSet,
 	container string,
 	requiredCapacity client.RequiredCapacity,
-	policy commonv1.ScalePolicy,
+	policy commonv1.ResourcePolicy,
 ) ([]v1.NodeSet, error) {
 	updatedNodeSets := make([]v1.NodeSet, len(nodeSets))
 	for i, nodeSet := range nodeSets {
@@ -40,7 +40,7 @@ func scaleVertically(
 	nodeSets []v1.NodeSet,
 	containerName string,
 	requestedCapacity client.Capacity,
-	policy commonv1.ScalePolicy,
+	policy commonv1.ResourcePolicy,
 ) client.Capacity {
 	nodeCapacity := client.Capacity{
 		Storage: nil,
@@ -77,7 +77,7 @@ func scaleHorizontally(
 	nodeSets []v1.NodeSet,
 	requestedCapacity client.Capacity,
 	nodeCapacity client.Capacity,
-	policy commonv1.ScalePolicy,
+	policy commonv1.ResourcePolicy,
 ) error {
 	// Compute current memory for all the nodeSets and scale horizontally accordingly
 	currentMemory := zero.DeepCopy()

@@ -65,7 +65,7 @@ type ElasticsearchSpec struct {
 
 	// ResourcePolicies hold the resource policies which must be respected when scaling automatically.
 	// +optional
-	ResourcePolicies []commonv1.ScalePolicy `json:"resourcePolicies,omitempty"`
+	ResourcePolicies []commonv1.ResourcePolicy `json:"resourcePolicies,omitempty"`
 }
 
 // TransportConfig holds the transport layer settings for Elasticsearch.

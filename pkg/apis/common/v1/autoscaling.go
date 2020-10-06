@@ -8,19 +8,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// ScalePolicy represents how resources can be scaled by the autoscaler controller.
-type ScalePolicy struct {
+// ResourcePolicy represents how resources can be scaled by the autoscaler controller.
+type ResourcePolicy struct {
 	// +kubebuilder:validation:Required
 	Roles []string `json:"roles"`
 	// MinAllowed represents the lower limit for the resources managed by the autoscaler.
 	// +kubebuilder:validation:Required
-	MinAllowed ResourcePolicy `json:"minAllowed,omitempty"`
+	MinAllowed AllowedResources `json:"minAllowed,omitempty"`
 	// MaxAllowed represents the upper limit for the resources managed by the autoscaler.
 	// +kubebuilder:validation:Required
-	MaxAllowed ResourcePolicy `json:"maxAllowed,omitempty"`
+	MaxAllowed AllowedResources `json:"maxAllowed,omitempty"`
 }
 
-type ResourcePolicy struct {
+type AllowedResources struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
 	// +kubebuilder:validation:Required
 	Count *int32 `json:"count,omitempty"`

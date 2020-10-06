@@ -1469,8 +1469,8 @@ spec:
               description: ResourcePolicies hold the resource policies which must
                 be respected when scaling automatically.
               items:
-                description: ScalePolicy represents how resources can be scaled by
-                  the autoscaler controller.
+                description: ResourcePolicy represents how resources can be scaled
+                  by the autoscaler controller.
                 properties:
                   maxAllowed:
                     description: MaxAllowed represents the upper limit for the resources

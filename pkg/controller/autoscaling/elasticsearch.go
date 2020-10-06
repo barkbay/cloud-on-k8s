@@ -120,7 +120,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
 	// 2. Get resource policies
-	resourcePolicies := make(map[string]v1.ScalePolicy)
+	resourcePolicies := make(map[string]v1.ResourcePolicy)
 	for _, scalePolicy := range es.Spec.ResourcePolicies {
 		namedTier := namedTierName(scalePolicy.Roles)
 		if _, exists := resourcePolicies[namedTier]; exists {

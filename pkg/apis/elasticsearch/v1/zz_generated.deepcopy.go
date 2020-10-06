@@ -197,7 +197,7 @@ func (in *ElasticsearchSpec) DeepCopyInto(out *ElasticsearchSpec) {
 	}
 	if in.ResourcePolicies != nil {
 		in, out := &in.ResourcePolicies, &out.ResourcePolicies
-		*out = make([]commonv1.ScalePolicy, len(*in))
+		*out = make([]commonv1.ResourcePolicy, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
