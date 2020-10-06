@@ -17,7 +17,7 @@ import (
 func applyScaleDecision(
 	nodeSets []v1.NodeSet,
 	container string,
-	decision client.Decision,
+	requiredCapacity client.RequiredCapacity,
 	policy commonv1.ScalePolicy,
 ) ([]v1.NodeSet, error) {
 	updatedNodeSets := make([]v1.NodeSet, len(nodeSets))
@@ -26,9 +26,9 @@ func applyScaleDecision(
 	}
 
 	// 1. Scale vertically
-	nodeCapacity := scaleVertically(updatedNodeSets, container, decision.RequiredCapacity.Node, policy)
+	nodeCapacity := scaleVertically(updatedNodeSets, container, requiredCapacity.Node, policy)
 	// 2. Scale horizontally
-	if err := scaleHorizontally(updatedNodeSets, decision.RequiredCapacity.Tier, nodeCapacity, policy); err != nil {
+	if err := scaleHorizontally(updatedNodeSets, requiredCapacity.Tier, nodeCapacity, policy); err != nil {
 		return updatedNodeSets, err
 	}
 

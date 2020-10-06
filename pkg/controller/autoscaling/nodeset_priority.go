@@ -12,7 +12,7 @@ import (
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 )
 
-// A PriorityQueue implements heap.Interface and holds Items.
+// FairNodesManager helps to distribute nodes among nodeSets which belongs to a same tier.
 type FairNodesManager struct {
 	nodeSets []esv1.NodeSet
 }
@@ -33,7 +33,7 @@ func NewFairNodesManager(nodeSets []v1.NodeSet) FairNodesManager {
 }
 
 func (fnm *FairNodesManager) AddNode() {
-	// Peak the first element, this is the one with the highest priority
+	// Peak the first element, this is the one with the less nodes
 	fnm.nodeSets[0].Count++
 	// Ensure the set is sorted
 	fnm.sort()
@@ -45,7 +45,7 @@ func (fnm *FairNodesManager) RemoveNode() {
 		log.V(1).Info("Can't scale down a nodeSet to 0", "nodeSet", nodeSet.Name)
 		return
 	}
-	// Peak the last element, this is the one with the highest priority
+	// Peak the last element, this is the one with the more nodes
 	nodeSet.Count--
 	// Ensure the set is sorted
 	fnm.sort()

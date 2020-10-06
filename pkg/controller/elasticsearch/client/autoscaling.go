@@ -16,7 +16,7 @@ import (
 
 type AutoScalingClient interface {
 	UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy AutoscalingPolicy) error
-	GetAutoscalingDecisions(ctx context.Context) (Decisions, error)
+	GetAutoscalingCapacity(ctx context.Context) (Policies, error)
 }
 
 // AutoscalingPolicy represents an autoscaling policy.
@@ -35,13 +35,13 @@ func (c *clientV7) UpsertAutoscalingPolicy(ctx context.Context, policyName strin
 
 type DeciderConfiguration map[string]string
 
-// Decisions represents autoscaling decisions
-type Decisions struct {
-	Decisions []Decision `json:"decisions"`
+// Policies represents autoscaling policies and decisions.
+// It maps a policy name to the requirements.
+type Policies struct {
+	Policies map[string]PolicyInfo `json:"policies"`
 }
 
-type Decision struct {
-	Tier             string           `json:"tier"`
+type PolicyInfo struct {
 	RequiredCapacity RequiredCapacity `json:"required_capacity"`
 }
 
@@ -85,8 +85,8 @@ func (c *Capacity) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (c *clientV7) GetAutoscalingDecisions(ctx context.Context) (Decisions, error) {
-	var response Decisions
-	err := c.get(ctx, "/_autoscaling/decision/", &response)
+func (c *clientV7) GetAutoscalingCapacity(ctx context.Context) (Policies, error) {
+	var response Policies
+	err := c.get(ctx, "/_autoscaling/capacity/", &response)
 	return response, err
 }

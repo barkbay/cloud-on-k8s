@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 	"github.com/pkg/errors"
+
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 type clientV6 struct {
@@ -152,8 +153,8 @@ func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ Autosc
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
-func (c *clientV6) GetAutoscalingDecisions(_ context.Context) (Decisions, error) {
-	return Decisions{}, errors.New("Not supported in Elasticsearch 6.x")
+func (c *clientV6) GetAutoscalingCapacity(_ context.Context) (Policies, error) {
+	return Policies{}, errors.New("Not supported in Elasticsearch 6.x")
 }
 
 func (c *clientV6) ClusterBootstrappedForZen2(ctx context.Context) (bool, error) {

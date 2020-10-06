@@ -119,37 +119,37 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
-	// 2. Get scale policies
-	scalePolicies := make(map[string]v1.ScalePolicy)
+	// 2. Get resource policies
+	resourcePolicies := make(map[string]v1.ScalePolicy)
 	for _, scalePolicy := range es.Spec.ResourcePolicies {
 		namedTier := namedTierName(scalePolicy.Roles)
-		if _, exists := scalePolicies[namedTier]; exists {
+		if _, exists := resourcePolicies[namedTier]; exists {
 			results.WithError(fmt.Errorf("duplicated tier %s", namedTier))
 		}
-		scalePolicies[namedTier] = *scalePolicy.DeepCopy()
+		resourcePolicies[namedTier] = *scalePolicy.DeepCopy()
 	}
 	if results.HasError() {
 		return results.Aggregate()
 	}
 
 	// 3. Get deciders
-	decisions, err := esClient.GetAutoscalingDecisions(ctx)
+	decisions, err := esClient.GetAutoscalingCapacity(ctx)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	for _, decision := range decisions.Decisions {
+	for tier, decision := range decisions.Policies {
 		log.V(1).Info("Get decision", "decision", decision)
 		// Get the resource policy
-		scalePolicy, exists := scalePolicies[decision.Tier]
+		scalePolicy, exists := resourcePolicies[tier]
 		if !exists {
-			return results.WithError(fmt.Errorf("no resource policy for tier %s", decision.Tier)).Aggregate()
+			return results.WithError(fmt.Errorf("no resource policy for tier %s", tier)).Aggregate()
 		}
 		// Get the nodeSets
-		nodeSets, exists := namedTiers[decision.Tier]
+		nodeSets, exists := namedTiers[tier]
 		if !exists {
-			return results.WithError(fmt.Errorf("no nodeSet for tier %s", decision.Tier)).Aggregate()
+			return results.WithError(fmt.Errorf("no nodeSet for tier %s", tier)).Aggregate()
 		}
-		updatedNodeSets, err := applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision, scalePolicy)
+		updatedNodeSets, err := applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision.RequiredCapacity, scalePolicy)
 		if err != nil {
 			results.WithError(err)
 		}
