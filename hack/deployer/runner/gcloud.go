@@ -52,6 +52,10 @@ func authToGCP(
 			if err := os.Setenv("CLOUDSDK_CONFIG", gcpDir); err != nil {
 				return err
 			}
+			log.Printf("Setting GOOGLE_APPLICATION_CREDENTIALS=%s", keyFileName)
+			if err := os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", keyFileName); err != nil {
+				return err
+			}
 		}
 		// now that we're set on the cloud sdk directory, we can run any gcloud command that will rely on it
 		if err := NewCommand(fmt.Sprintf("gcloud config set project %s", gCloudProject)).Run(); err != nil {
