@@ -8,6 +8,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -107,8 +108,8 @@ func (arb *allowedResourcesBuilder) withMemory(ms string) *allowedResourcesBuild
 
 func (arb *allowedResourcesBuilder) build() commonv1.AllowedResources {
 	return commonv1.AllowedResources{
-		Count:  nil,
-		Memory: nil,
+		Count:  pointer.Int32(arb.count),
+		Memory: arb.memory,
 	}
 }
 
@@ -122,7 +123,7 @@ func newRequiredCapacityBuilder() *requiredCapacityBuilder {
 	return &requiredCapacityBuilder{}
 }
 
-func ptr(q resource.Quantity) *resource.Quantity {
+func ptr(q int64) *int64 {
 	return &q
 }
 
@@ -130,22 +131,27 @@ func (rcb *requiredCapacityBuilder) build() client.RequiredCapacity {
 	return rcb.RequiredCapacity
 }
 
-func (rcb *requiredCapacityBuilder) nodeMemory(q resource.Quantity) *requiredCapacityBuilder {
-	rcb.Node.Memory = ptr(q)
+func (rcb *requiredCapacityBuilder) nodeMemory(m string) *requiredCapacityBuilder {
+	rcb.Node.Memory = ptr(value(m))
 	return rcb
 }
 
-func (rcb *requiredCapacityBuilder) tierMemory(q resource.Quantity) *requiredCapacityBuilder {
-	rcb.Tier.Memory = ptr(q)
+func (rcb *requiredCapacityBuilder) tierMemory(m string) *requiredCapacityBuilder {
+	rcb.Tier.Memory = ptr(value(m))
 	return rcb
 }
 
-func (rcb *requiredCapacityBuilder) nodeStorage(q resource.Quantity) *requiredCapacityBuilder {
-	rcb.Node.Storage = ptr(q)
+func (rcb *requiredCapacityBuilder) nodeStorage(m string) *requiredCapacityBuilder {
+	rcb.Node.Storage = ptr(value(m))
 	return rcb
 }
 
-func (rcb *requiredCapacityBuilder) tierStorage(q resource.Quantity) *requiredCapacityBuilder {
-	rcb.Tier.Storage = ptr(q)
+func (rcb *requiredCapacityBuilder) tierStorage(m string) *requiredCapacityBuilder {
+	rcb.Tier.Storage = ptr(value(m))
 	return rcb
+}
+
+func value(v string) int64 {
+	q := resource.MustParse(v)
+	return (&q).Value()
 }

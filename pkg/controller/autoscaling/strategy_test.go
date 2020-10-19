@@ -12,7 +12,6 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func Test_applyScaleDecision(t *testing.T) {
@@ -34,13 +33,13 @@ func Test_applyScaleDecision(t *testing.T) {
 					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
-					nodeMemory(resource.MustParse("5G")).
-					tierMemory(resource.MustParse("15G")).
+					nodeMemory("5G").
+					tierMemory("15G").
 					build(),
 				policy: commonv1.ResourcePolicy{
 					Roles:      nil,
 					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-					MaxAllowed: commonv1.AllowedResources{Count: nil, Memory: nil},
+					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
 				},
 			},
 		},

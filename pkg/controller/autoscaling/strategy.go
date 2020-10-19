@@ -46,13 +46,13 @@ func scaleVertically(
 		Storage: nil,
 		Memory:  requestedCapacity.Memory,
 	}
-	if requestedCapacity.Memory.Cmp(*policy.MinAllowed.Memory) == -1 {
+	if *requestedCapacity.Memory > policy.MinAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is less than the min. allowed value
-		nodeCapacity.Memory = policy.MinAllowed.Memory
+		*nodeCapacity.Memory = policy.MinAllowed.Memory.Value()
 	}
-	if requestedCapacity.Memory.Cmp(*policy.MaxAllowed.Memory) == 1 {
+	if *requestedCapacity.Memory > policy.MaxAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is more than the max. allowed value
-		nodeCapacity.Memory = policy.MaxAllowed.Memory
+		*nodeCapacity.Memory = policy.MaxAllowed.Memory.Value()
 	}
 	for i := range nodeSets {
 		container, containers := getContainer(containerName, nodeSets[i].PodTemplate.Spec.Containers)
@@ -61,8 +61,9 @@ func scaleVertically(
 				Name: containerName,
 			}
 		}
+		resourceMemory := resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
 		container.Resources.Requests = corev1.ResourceList{
-			corev1.ResourceMemory: *nodeCapacity.Memory,
+			corev1.ResourceMemory: *resourceMemory,
 		}
 		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
@@ -79,22 +80,18 @@ func scaleHorizontally(
 	policy commonv1.ResourcePolicy,
 ) error {
 	// Compute current memory for all the nodeSets and scale horizontally accordingly
-	currentMemory := zero.DeepCopy()
+
+	var currentMemory int64
 	currentCount := 0
-	nodeMemoryCapacity := nodeCapacity.Memory.DeepCopy()
 	for _, nodeSet := range nodeSets {
-		for i := int32(0); i < nodeSet.Count; i++ {
-			currentMemory.Add(nodeMemoryCapacity)
-			currentCount++
-		}
+		currentMemory += *nodeCapacity.Memory * int64(nodeSet.Count)
+		currentCount += int(nodeSet.Count)
 	}
 
 	// memoryDelta holds the memory variation, it can be:
 	// * a positive value if some memory needs to be added
 	// * a negative value if some memory can be reclaimed
-	memoryDelta := requestedCapacity.Memory.DeepCopy()
-	// Substract existing (or planned) currentMemory
-	memoryDelta.Sub(currentMemory)
+	memoryDelta := *requestedCapacity.Memory - currentMemory
 
 	log.V(1).Info(
 		"Memory status",
@@ -104,7 +101,7 @@ func scaleHorizontally(
 		"missing", memoryDelta,
 	)
 
-	nodeToAdd := getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, *requestedCapacity.Memory)
+	nodeToAdd := getNodeDelta(memoryDelta, *nodeCapacity.Memory, currentMemory, *requestedCapacity.Memory)
 
 	switch {
 	case nodeToAdd > 0:
@@ -128,20 +125,19 @@ func scaleHorizontally(
 	return nil
 }
 
-func getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, target resource.Quantity) int {
+func getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, target int64) int {
 	nodeToAdd := 0
-	switch sign := memoryDelta.Sign(); {
-	case sign > 0:
-		for memoryDelta.Sign() > 0 {
-			memoryDelta.Sub(nodeMemoryCapacity)
+	switch {
+	case memoryDelta > 0:
+		for memoryDelta > 0 {
+			memoryDelta -= nodeMemoryCapacity
 			// Compute how many nodes should be added
 			nodeToAdd++
 		}
-	case sign < 0:
-		currentMemory.Sub(nodeMemoryCapacity)
-		for currentMemory.Cmp(target) > 0 {
+	case memoryDelta < 0:
+		for currentMemory > target {
 			nodeToAdd--
-			currentMemory.Sub(nodeMemoryCapacity)
+			currentMemory -= nodeMemoryCapacity
 		}
 	}
 	return nodeToAdd

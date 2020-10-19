@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/docker/go-units"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 
-	"k8s.io/apimachinery/pkg/api/resource"
+	"github.com/docker/go-units"
 )
 
 type AutoScalingClient interface {
@@ -51,8 +51,8 @@ type RequiredCapacity struct {
 }
 
 type Capacity struct {
-	Storage *resource.Quantity `yaml:"storage" json:"storage,omitempty"`
-	Memory  *resource.Quantity `yaml:"memory" json:"memory,omitempty"`
+	Storage *int64 `yaml:"storage" json:"storage,omitempty"`
+	Memory  *int64 `yaml:"memory" json:"memory,omitempty"`
 }
 
 type ElasticsearchCapacity struct {
@@ -71,7 +71,7 @@ func (c *Capacity) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("unable to parse memory quantity %s", ec.Memory)
 		}
-		c.Memory = resource.NewQuantity(memory, resource.DecimalSI)
+		c.Memory = pointer.Int64(memory)
 	}
 
 	if len(ec.Storage) > 0 {
@@ -79,7 +79,7 @@ func (c *Capacity) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("unable to parse storage quantity %s", ec.Storage)
 		}
-		c.Storage = resource.NewQuantity(storage, resource.DecimalSI)
+		c.Storage = pointer.Int64(storage)
 	}
 
 	return nil
