@@ -12,7 +12,7 @@ import (
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 )
 
-// FairNodesManager helps to distribute nodes among nodeSets which belongs to a same tier.
+// FairNodesManager helps to distribute nodes among currentNodeSets which belongs to a same tier.
 type FairNodesManager struct {
 	nodeSets []esv1.NodeSet
 }

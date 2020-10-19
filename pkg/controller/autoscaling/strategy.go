@@ -46,7 +46,7 @@ func scaleVertically(
 		Storage: nil,
 		Memory:  requestedCapacity.Memory,
 	}
-	if *requestedCapacity.Memory > policy.MinAllowed.Memory.Value() {
+	if *requestedCapacity.Memory < policy.MinAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is less than the min. allowed value
 		*nodeCapacity.Memory = policy.MinAllowed.Memory.Value()
 	}
@@ -79,7 +79,7 @@ func scaleHorizontally(
 	nodeCapacity client.Capacity,
 	policy commonv1.ResourcePolicy,
 ) error {
-	// Compute current memory for all the nodeSets and scale horizontally accordingly
+	// Compute current memory for all the currentNodeSets and scale horizontally accordingly
 
 	var currentMemory int64
 	currentCount := 0

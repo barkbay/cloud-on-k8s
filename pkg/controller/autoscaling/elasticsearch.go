@@ -60,7 +60,7 @@ type ReconcileElasticsearch struct {
 	iteration uint64
 }
 
-// Reconcile attempts to update the capacity fields (count and memory request for now) in the nodeSets of the Elasticsearch
+// Reconcile attempts to update the capacity fields (count and memory request for now) in the currentNodeSets of the Elasticsearch
 // resource according to the result of the Elasticsearch capacity API and given the constraints provided by the user in
 // the resource policies.
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
@@ -144,7 +144,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		if !exists {
 			return results.WithError(fmt.Errorf("no resource policy for tier %s", tier)).Aggregate()
 		}
-		// Get the nodeSets
+		// Get the currentNodeSets
 		nodeSets, exists := namedTiers[tier]
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSet for tier %s", tier)).Aggregate()
@@ -153,9 +153,9 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		if err != nil {
 			results.WithError(err)
 		}
-		log.V(1).Info("updated nodeSets", "nodeSets", updatedNodeSets)
+		log.V(1).Info("updated currentNodeSets", "currentNodeSets", updatedNodeSets)
 
-		// Replace nodeSets in the Elasticsearch manifest
+		// Replace currentNodeSets in the Elasticsearch manifest
 		if err := updateNodeSets(es, updatedNodeSets); err != nil {
 			results.WithError(err)
 		}
@@ -175,7 +175,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	return current, err
 }
 
-// updateNodeSets replaces the provided nodeSets in the Elasticsearch manifest
+// updateNodeSets replaces the provided currentNodeSets in the Elasticsearch manifest
 func updateNodeSets(es esv1.Elasticsearch, nodeSets []esv1.NodeSet) error {
 	for i := range nodeSets {
 		updatedNodeSet := nodeSets[i]

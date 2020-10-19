@@ -5,8 +5,9 @@
 package autoscaling
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -16,24 +17,24 @@ import (
 
 func Test_applyScaleDecision(t *testing.T) {
 	type args struct {
-		nodeSets         []v1.NodeSet
+		currentNodeSets  []v1.NodeSet
 		requiredCapacity client.RequiredCapacity
 		policy           commonv1.ResourcePolicy
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    []v1.NodeSet
+		want    map[string]v1.NodeSet
 		wantErr bool
 	}{
 		{
 			name: "Scale both vertically and horizontally",
 			args: args{
-				nodeSets: []v1.NodeSet{
+				currentNodeSets: []v1.NodeSet{
 					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
-					nodeMemory("5G").
+					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
 				policy: commonv1.ResourcePolicy{
@@ -42,17 +43,29 @@ func Test_applyScaleDecision(t *testing.T) {
 					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
 				},
 			},
+			want: map[string]v1.NodeSet{
+				"default": newNodeSetBuilder("default", 3).withMemoryRequest("6G").withStorageRequest("1G").build(),
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := applyScaleDecision(tt.args.nodeSets, esv1.ElasticsearchContainerName, tt.args.requiredCapacity, tt.args.policy)
+			got, err := applyScaleDecision(tt.args.currentNodeSets, esv1.ElasticsearchContainerName, tt.args.requiredCapacity, tt.args.policy)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("applyScaleDecision() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("applyScaleDecision() = %v, want %v", got, tt.want)
+
+			assert.Equal(t, len(tt.want), len(got))
+			var diff []string
+			for _, nodeSet := range got {
+				expectedNodeSet, exists := tt.want[nodeSet.Name]
+				assert.True(t, exists)
+				diff = append(diff, resourcesDiff(expectedNodeSet, nodeSet)...)
+			}
+
+			if len(diff) > 0 {
+				t.Errorf("applyScaleDecision() diff = %v", diff)
 			}
 		})
 	}
