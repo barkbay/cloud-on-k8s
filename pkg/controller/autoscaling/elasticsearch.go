@@ -153,7 +153,6 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		if err != nil {
 			results.WithError(err)
 		}
-		log.V(1).Info("updated currentNodeSets", "currentNodeSets", updatedNodeSets)
 
 		// Replace currentNodeSets in the Elasticsearch manifest
 		if err := updateNodeSets(es, updatedNodeSets); err != nil {

@@ -26,7 +26,7 @@ func applyScaleDecision(
 	}
 
 	// 1. Scale vertically
-	nodeCapacity := scaleVertically(updatedNodeSets, container, requiredCapacity.Node, policy)
+	nodeCapacity := scaleVertically(updatedNodeSets, container, requiredCapacity, policy)
 	// 2. Scale horizontally
 	if err := scaleHorizontally(updatedNodeSets, requiredCapacity.Tier, nodeCapacity, policy); err != nil {
 		return updatedNodeSets, err
@@ -35,25 +35,40 @@ func applyScaleDecision(
 	return updatedNodeSets, nil
 }
 
+var giga = int64(1024 * 1024 * 1024)
+
 // scaleVertically vertically scales nodeSet to match the per node requirements.
 func scaleVertically(
 	nodeSets []v1.NodeSet,
 	containerName string,
-	requestedCapacity client.Capacity,
+	requiredCapacity client.RequiredCapacity,
 	policy commonv1.ResourcePolicy,
 ) client.Capacity {
+
+	// Check if overall tier requirement is higher than node requirement
+	minNodesCount := int64(*policy.MinAllowed.Count) * int64(len(nodeSets))
+	// Tiers capacity distributed on min. nodes
+	tiers := *requiredCapacity.Tier.Memory / minNodesCount
+	roundedTiers := roundUp(tiers, giga)
+	requiredMemoryCapacity := max64(
+		*requiredCapacity.Node.Memory,
+		roundedTiers,
+	)
+
+	// 1. Set desired capacity within the allowed range
 	nodeCapacity := client.Capacity{
 		Storage: nil,
-		Memory:  requestedCapacity.Memory,
+		Memory:  &requiredMemoryCapacity,
 	}
-	if *requestedCapacity.Memory < policy.MinAllowed.Memory.Value() {
+	if requiredMemoryCapacity < policy.MinAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is less than the min. allowed value
-		*nodeCapacity.Memory = policy.MinAllowed.Memory.Value()
+		requiredMemoryCapacity = policy.MinAllowed.Memory.Value()
 	}
-	if *requestedCapacity.Memory > policy.MaxAllowed.Memory.Value() {
+	if requiredMemoryCapacity > policy.MaxAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is more than the max. allowed value
-		*nodeCapacity.Memory = policy.MaxAllowed.Memory.Value()
+		requiredMemoryCapacity = policy.MaxAllowed.Memory.Value()
 	}
+
 	for i := range nodeSets {
 		container, containers := getContainer(containerName, nodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
@@ -67,10 +82,9 @@ func scaleVertically(
 		}
 		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
+
 	return nodeCapacity
 }
-
-var zero = *resource.NewQuantity(0, resource.DecimalSI)
 
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func scaleHorizontally(
@@ -79,46 +93,34 @@ func scaleHorizontally(
 	nodeCapacity client.Capacity,
 	policy commonv1.ResourcePolicy,
 ) error {
-	// Compute current memory for all the currentNodeSets and scale horizontally accordingly
-
-	var currentMemory int64
-	currentCount := 0
-	for _, nodeSet := range nodeSets {
-		currentMemory += *nodeCapacity.Memory * int64(nodeSet.Count)
-		currentCount += int(nodeSet.Count)
+	// reset all the nodeSets the minimum
+	for i := range nodeSets {
+		nodeSets[i].Count = *policy.MinAllowed.Count
 	}
+	// scaleHorizontally always start from the min number of nodes and add nodes as necessary
+	minNodes := len(nodeSets) * int(*policy.MinAllowed.Count)
+	minMemory := int64(minNodes) * (*nodeCapacity.Memory)
 
 	// memoryDelta holds the memory variation, it can be:
 	// * a positive value if some memory needs to be added
 	// * a negative value if some memory can be reclaimed
-	memoryDelta := *requestedCapacity.Memory - currentMemory
+	memoryDelta := *requestedCapacity.Memory - minMemory
+	nodeToAdd := getNodeDelta(memoryDelta, *nodeCapacity.Memory, minMemory, *requestedCapacity.Memory)
 
 	log.V(1).Info(
 		"Memory status",
 		"tier", policy.Roles,
-		"current", currentMemory,
-		"target", requestedCapacity.Memory,
-		"missing", memoryDelta,
+		"tier_target", requestedCapacity.Memory,
+		"node_target", minNodes+nodeToAdd,
 	)
 
-	nodeToAdd := getNodeDelta(memoryDelta, *nodeCapacity.Memory, currentMemory, *requestedCapacity.Memory)
-
-	switch {
-	case nodeToAdd > 0:
-		nodeToAdd = min(int(*policy.MaxAllowed.Count)-currentCount, nodeToAdd)
+	if nodeToAdd > 0 {
+		nodeToAdd = min(int(*policy.MaxAllowed.Count)-minNodes, nodeToAdd)
 		log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
 		fnm := NewFairNodesManager(nodeSets)
 		for nodeToAdd > 0 {
 			fnm.AddNode()
 			nodeToAdd--
-		}
-	case nodeToAdd < 0:
-		nodeToAdd = max(int(*policy.MinAllowed.Count)-currentCount, nodeToAdd)
-		log.V(1).Info("Need to remove nodes", "to_remove", nodeToAdd)
-		fnm := NewFairNodesManager(nodeSets)
-		for nodeToAdd < 0 {
-			fnm.RemoveNode()
-			nodeToAdd++
 		}
 	}
 
@@ -127,18 +129,14 @@ func scaleHorizontally(
 
 func getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, target int64) int {
 	nodeToAdd := 0
-	switch {
-	case memoryDelta > 0:
-		for memoryDelta > 0 {
-			memoryDelta -= nodeMemoryCapacity
-			// Compute how many nodes should be added
-			nodeToAdd++
-		}
-	case memoryDelta < 0:
-		for currentMemory > target {
-			nodeToAdd--
-			currentMemory -= nodeMemoryCapacity
-		}
+	if memoryDelta < 0 {
+		return 0
+	}
+
+	for memoryDelta > 0 {
+		memoryDelta -= nodeMemoryCapacity
+		// Compute how many nodes should be added
+		nodeToAdd++
 	}
 	return nodeToAdd
 }
@@ -150,11 +148,15 @@ func min(x, y int) int {
 	return y
 }
 
-func max(x, y int) int {
+func max64(x, y int64) int64 {
 	if x > y {
 		return x
 	}
 	return y
+}
+
+func roundUp(v, n int64) int64 {
+	return v + n - v%n
 }
 
 func getContainer(name string, containers []corev1.Container) (*corev1.Container, []corev1.Container) {

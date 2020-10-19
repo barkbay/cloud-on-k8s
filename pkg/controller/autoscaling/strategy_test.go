@@ -28,7 +28,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Scale both vertically and horizontally",
+			name: "Scale existing nodes vertically",
 			args: args{
 				currentNodeSets: []v1.NodeSet{
 					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
@@ -45,6 +45,46 @@ func Test_applyScaleDecision(t *testing.T) {
 			},
 			want: map[string]v1.NodeSet{
 				"default": newNodeSetBuilder("default", 3).withMemoryRequest("6G").withStorageRequest("1G").build(),
+			},
+		},
+		{
+			name: "Scale existing nodes vertically up to the tier limit",
+			args: args{
+				currentNodeSets: []v1.NodeSet{
+					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
+				},
+				requiredCapacity: newRequiredCapacityBuilder().
+					nodeMemory("6G").
+					tierMemory("21G").
+					build(),
+				policy: commonv1.ResourcePolicy{
+					Roles:      nil,
+					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
+					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+				},
+			},
+			want: map[string]v1.NodeSet{
+				"default": newNodeSetBuilder("default", 3).withMemoryRequest("7G").withStorageRequest("1G").build(),
+			},
+		},
+		{
+			name: "Scale both vertically and horizontally",
+			args: args{
+				currentNodeSets: []v1.NodeSet{
+					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
+				},
+				requiredCapacity: newRequiredCapacityBuilder().
+					nodeMemory("6G").
+					tierMemory("48G").
+					build(),
+				policy: commonv1.ResourcePolicy{
+					Roles:      nil,
+					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
+					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+				},
+			},
+			want: map[string]v1.NodeSet{
+				"default": newNodeSetBuilder("default", 6).withMemoryRequest("8G").withStorageRequest("1G").build(),
 			},
 		},
 	}
