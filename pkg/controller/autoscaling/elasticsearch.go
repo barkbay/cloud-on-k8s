@@ -112,7 +112,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// 1. Update named policies in Elasticsearch
-	namedTiers, err := updatePolicies(ctx, es, r.Client, esClient)
+	namedTiers, err := updatePolicies(es, r.Client, esClient)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -334,6 +334,7 @@ func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.El
 		},
 		*v,
 		caCerts,
+		esclient.Timeout(es),
 	), nil
 }
 

@@ -31,15 +31,15 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale both vertically and horizontally",
 			args: args{
 				nodeSets: []v1.NodeSet{
-					newNodeSetBuilder("default", 3).withMemoryRequest("4Gi").withStorageRequest("1Gi").build(),
+					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1G").build(),
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
-					nodeMemory(resource.MustParse("5Gi")).
-					tierMemory(resource.MustParse("30Gi")).
+					nodeMemory(resource.MustParse("5G")).
+					tierMemory(resource.MustParse("15G")).
 					build(),
 				policy: commonv1.ResourcePolicy{
 					Roles:      nil,
-					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5Gi"),
+					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 					MaxAllowed: commonv1.AllowedResources{Count: nil, Memory: nil},
 				},
 			},

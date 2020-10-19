@@ -9,7 +9,6 @@ import (
 )
 
 func updatePolicies(
-	parentCtx context.Context,
 	es esv1.Elasticsearch,
 	client k8s.Client,
 	esclient client.AutoScalingClient,
@@ -20,7 +19,7 @@ func updatePolicies(
 	}
 
 	for namedTier := range namedTiers {
-		if err := updatePolicy(parentCtx, esclient, namedTier); err != nil {
+		if err := updatePolicy(esclient, namedTier); err != nil {
 			return nil, err
 		}
 	}
@@ -29,11 +28,8 @@ func updatePolicies(
 }
 
 func updatePolicy(
-	parentCtx context.Context,
 	esclient client.AutoScalingClient,
 	namedTier string,
 ) error {
-	ctx, cancel := context.WithTimeout(parentCtx, client.DefaultReqTimeout)
-	defer cancel()
-	return esclient.UpsertAutoscalingPolicy(ctx, namedTier, client.AutoscalingPolicy{})
+	return esclient.UpsertAutoscalingPolicy(context.Background(), namedTier, client.AutoscalingPolicy{})
 }
