@@ -118,17 +118,17 @@ spec:
     minAllowed:
       count: 1
       cpu: 1
-      memory: 2Gi
+      memory: 2G
     maxAllowed:
       count: 3
       cpu: 3
-      memory: 4Gi
+      memory: 4G
   - roles: [ "ml" ]
     minAllowed:
       count: 1
       cpu: 1
-      memory: 2Gi
+      memory: 2G
     maxAllowed:
       count: 5
       cpu: 3
-      memory: 4Gi
+      memory: 4G
