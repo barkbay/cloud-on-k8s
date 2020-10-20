@@ -1500,7 +1500,6 @@ spec:
                         - type: string
                         description: storage represents storage request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                        x-kubernetes-int-or-string: true
                     required:
                     - cpu
                     - memory
@@ -1534,7 +1533,6 @@ spec:
                         - type: string
                         description: storage represents storage request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                        x-kubernetes-int-or-string: true
                     required:
                     - cpu
                     - memory
