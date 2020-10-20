@@ -24,10 +24,13 @@ type AllowedResources struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
 	// +kubebuilder:validation:Required
 	Count *int32 `json:"count,omitempty"`
-	// Cpu represents a CPU limits
+	// Cpu represents max CPU request
 	// +kubebuilder:validation:Required
 	Cpu *resource.Quantity `json:"cpu"`
-	// memory represents a CPU limits
+	// memory represents max memory request
 	// +kubebuilder:validation:Required
 	Memory *resource.Quantity `json:"memory"`
+	// storage represents storage request
+	// +kubebuilder:validation:Required
+	Storage *resource.Quantity `json:"storage"`
 }

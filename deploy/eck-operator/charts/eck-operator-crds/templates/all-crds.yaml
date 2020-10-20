@@ -1504,17 +1504,25 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: Cpu represents a CPU limits
+                        description: Cpu represents max CPU request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       memory:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: memory represents a CPU limits
+                        description: memory represents max memory request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      storage:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: storage represents storage request
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                     required:
                     - cpu
                     - memory
+                    - storage
                     type: object
                   minAllowed:
                     description: MinAllowed represents the lower limit for the resources
@@ -1530,17 +1538,25 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: Cpu represents a CPU limits
+                        description: Cpu represents max CPU request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       memory:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: memory represents a CPU limits
+                        description: memory represents max memory request
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      storage:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: storage represents storage request
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                     required:
                     - cpu
                     - memory
+                    - storage
                     type: object
                   roles:
                     items:

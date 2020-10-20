@@ -148,6 +148,13 @@ func min(x, y int) int {
 	return y
 }
 
+func maxQuantity(q1, q2 *resource.Quantity) resource.Quantity {
+	if q1.Value() > q2.Value() {
+		return *q1
+	}
+	return *q2
+}
+
 func max64(x, y int64) int64 {
 	if x > y {
 		return x
