@@ -5,6 +5,8 @@
 package autoscaling
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -76,11 +78,27 @@ func scaleVertically(
 				Name: containerName,
 			}
 		}
-		resourceMemory := resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
+
+		var resourceMemory *resource.Quantity
+		if *nodeCapacity.Memory >= giga && *nodeCapacity.Memory%giga == 0 {
+			// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
+			resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", *nodeCapacity.Memory/giga))
+			resourceMemory = &resourceMemoryAsGiga
+		} else {
+			resourceMemory = resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
+		}
+
+		// Update requests
 		container.Resources.Requests = corev1.ResourceList{
 			corev1.ResourceMemory: *resourceMemory,
 			corev1.ResourceCPU:    *cpuFromMemory(requiredMemoryCapacity, policy),
 		}
+
+		// Update limits
+		container.Resources.Limits = corev1.ResourceList{
+			corev1.ResourceMemory: *resourceMemory,
+		}
+
 		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
 
