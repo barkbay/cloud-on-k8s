@@ -15,6 +15,63 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 )
 
+// ensureResourcePolicies ensures that even if no decisions have been returned the nodeSet respect
+// the min. and max. resource requirements.
+// If resources are within the min. and max. boundaries then they are left untouched.
+func ensureResourcePolicies(
+	nodeSets []v1.NodeSet,
+	containerName string,
+	policy commonv1.ResourcePolicy,
+) ([]v1.NodeSet, error) {
+	updatedNodeSets := make([]v1.NodeSet, len(nodeSets))
+	for i, nodeSet := range nodeSets {
+		updatedNodeSets[i] = *nodeSet.DeepCopy()
+	}
+
+	for i := range updatedNodeSets {
+		// ensure that the min. number of nodes is set
+		if updatedNodeSets[i].Count < *policy.MinAllowed.Count {
+			updatedNodeSets[i].Count = *policy.MinAllowed.Count
+		} else if updatedNodeSets[i].Count > *policy.MaxAllowed.Count {
+			updatedNodeSets[i].Count = *policy.MaxAllowed.Count
+		}
+
+		container, containers := getContainer(containerName, updatedNodeSets[i].PodTemplate.Spec.Containers)
+		if container == nil {
+			container = &corev1.Container{
+				Name: containerName,
+			}
+		}
+
+		if container.Resources.Requests == nil {
+			container.Resources.Requests = corev1.ResourceList{}
+		}
+
+		if memoryRequirement, exist := container.Resources.Requests[corev1.ResourceMemory]; !exist ||
+			memoryRequirement.Cmp(*policy.MinAllowed.Memory) < 0 {
+			container.Resources.Requests[corev1.ResourceMemory] = *policy.MinAllowed.Memory
+		} else if memoryRequirement.Cmp(*policy.MaxAllowed.Memory) > 0 {
+			container.Resources.Requests[corev1.ResourceMemory] = *policy.MaxAllowed.Memory
+		}
+
+		if cpuRequirement, exist := container.Resources.Requests[corev1.ResourceCPU]; !exist ||
+			cpuRequirement.Cmp(*policy.MinAllowed.Cpu) < 0 {
+			container.Resources.Requests[corev1.ResourceCPU] = *policy.MinAllowed.Cpu
+		} else if cpuRequirement.Cmp(*policy.MaxAllowed.Cpu) > 0 {
+			container.Resources.Requests[corev1.ResourceCPU] = *policy.MaxAllowed.Cpu
+		}
+
+		// Update limits
+		container.Resources.Limits = corev1.ResourceList{
+			corev1.ResourceMemory: container.Resources.Requests[corev1.ResourceMemory],
+		}
+
+		updatedNodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
+	}
+
+	return updatedNodeSets, nil
+}
+
 // applyScaleDecision implements a "scale vertically" first scaling strategy.
 func applyScaleDecision(
 	nodeSets []v1.NodeSet,

@@ -137,28 +137,35 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	for tier, decision := range decisions.Policies {
-		log.V(1).Info("Get decision", "decision", decision)
-		// Get the resource policy
-		scalePolicy, exists := resourcePolicies[tier]
-		if !exists {
-			return results.WithError(fmt.Errorf("no resource policy for tier %s", tier)).Aggregate()
-		}
+	for tier, scalePolicy := range resourcePolicies /*decisions.Policies*/ {
+		log.V(1).Info("Autoscaling resources", "tier", tier)
 		// Get the currentNodeSets
 		nodeSets, exists := namedTiers[tier]
 		if !exists {
-			return results.WithError(fmt.Errorf("no nodeSet for tier %s", tier)).Aggregate()
-		}
-		updatedNodeSets, err := applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision.RequiredCapacity, scalePolicy)
-		if err != nil {
-			results.WithError(err)
+			return results.WithError(fmt.Errorf("no nodeSets for tier %s", tier)).Aggregate()
 		}
 
+		var updatedNodeSets []esv1.NodeSet
+		var err error
+		// Get the decision from the Elasticsearch API
+		switch decision, gotDecision := decisions.Policies[tier]; gotDecision {
+		case false:
+			log.V(1).Info("No decision for tier, ensure min. are set", "tier", tier)
+			updatedNodeSets, err = ensureResourcePolicies(nodeSets, esv1.ElasticsearchContainerName, scalePolicy)
+		case true:
+			updatedNodeSets, err = applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision.RequiredCapacity, scalePolicy)
+		}
+		if err != nil {
+			results.WithError(err)
+			continue
+		}
 		// Replace currentNodeSets in the Elasticsearch manifest
 		if err := updateNodeSets(es, updatedNodeSets); err != nil {
 			results.WithError(err)
 		}
 	}
+
+	// TODO: Check if we got a decision for an unknown tier
 
 	if results.HasError() {
 		return results.Aggregate()
