@@ -16,6 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func quantityPtr(quantity string) *resource.Quantity {
+	q := resource.MustParse(quantity)
+	return &q
+}
+
 // - NodeSet builder
 
 type nodeSetBuilder struct {

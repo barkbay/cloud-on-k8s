@@ -55,7 +55,7 @@ func scaleVertically(
 		roundedTiers,
 	)
 
-	// 1. Set desired capacity within the allowed range
+	// 1. Set desired memory capacity within the allowed range
 	nodeCapacity := client.Capacity{
 		Storage: nil,
 		Memory:  &requiredMemoryCapacity,
@@ -79,6 +79,7 @@ func scaleVertically(
 		resourceMemory := resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
 		container.Resources.Requests = corev1.ResourceList{
 			corev1.ResourceMemory: *resourceMemory,
+			corev1.ResourceCPU:    *cpuFromMemory(requiredMemoryCapacity, policy),
 		}
 		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
