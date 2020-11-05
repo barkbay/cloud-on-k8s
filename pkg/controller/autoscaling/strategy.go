@@ -7,6 +7,8 @@ package autoscaling
 import (
 	"fmt"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -106,19 +108,26 @@ func scaleVertically(
 
 	// Check if overall tier requirement is higher than node requirement
 	minNodesCount := int64(*policy.MinAllowed.Count) * int64(len(nodeSets))
-	// Tiers capacity distributed on min. nodes
-	tiers := *requiredCapacity.Tier.Memory / minNodesCount
-	roundedTiers := roundUp(tiers, giga)
+	// Tiers memory capacity distributed on min. nodes
+	memoryOverAllTiers := *requiredCapacity.Tier.Memory / minNodesCount
 	requiredMemoryCapacity := max64(
 		*requiredCapacity.Node.Memory,
-		roundedTiers,
+		roundUp(memoryOverAllTiers, giga),
+	)
+	// Tiers storage capacity distributed on min. nodes
+	storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
+	requiredStorageCapacity := max64(
+		*requiredCapacity.Node.Memory,
+		roundUp(storageOverAllTiers, giga),
 	)
 
-	// 1. Set desired memory capacity within the allowed range
+	// Build the ideal node capacity
 	nodeCapacity := client.Capacity{
-		Storage: nil,
+		Storage: &requiredStorageCapacity,
 		Memory:  &requiredMemoryCapacity,
 	}
+
+	// Set desired memory capacity within the allowed range
 	if requiredMemoryCapacity < policy.MinAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is less than the min. allowed value
 		requiredMemoryCapacity = policy.MinAllowed.Memory.Value()
@@ -126,6 +135,16 @@ func scaleVertically(
 	if requiredMemoryCapacity > policy.MaxAllowed.Memory.Value() {
 		// The amount of memory requested by Elasticsearch is more than the max. allowed value
 		requiredMemoryCapacity = policy.MaxAllowed.Memory.Value()
+	}
+
+	// Set desired storage capacity within the allowed range
+	if requiredStorageCapacity < policy.MinAllowed.Storage.Value() {
+		// The amount of storage requested by Elasticsearch is less than the min. allowed value
+		requiredStorageCapacity = policy.MinAllowed.Storage.Value()
+	}
+	if requiredStorageCapacity > policy.MaxAllowed.Storage.Value() {
+		// The amount of storage requested by Elasticsearch is more than the max. allowed value
+		requiredStorageCapacity = policy.MaxAllowed.Storage.Value()
 	}
 
 	for i := range nodeSets {
@@ -145,6 +164,15 @@ func scaleVertically(
 			resourceMemory = resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
 		}
 
+		var resourceStorage *resource.Quantity
+		if *nodeCapacity.Storage >= giga && *nodeCapacity.Storage%giga == 0 {
+			// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
+			resourceStorageAsGiga := resource.MustParse(fmt.Sprintf("%dGi", *nodeCapacity.Storage/giga))
+			resourceStorage = &resourceStorageAsGiga
+		} else {
+			resourceStorage = resource.NewQuantity(*nodeCapacity.Storage, resource.DecimalSI)
+		}
+
 		// Update requests
 		container.Resources.Requests = corev1.ResourceList{
 			corev1.ResourceMemory: *resourceMemory,
@@ -154,6 +182,24 @@ func scaleVertically(
 		// Update limits
 		container.Resources.Limits = corev1.ResourceList{
 			corev1.ResourceMemory: *resourceMemory,
+		}
+
+		// Update storage claim
+		if len(nodeSets[i].VolumeClaimTemplates) == 0 {
+			nodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
+		}
+		for _, claimTemplate := range nodeSets[i].VolumeClaimTemplates {
+			if claimTemplate.Name == volume.ElasticsearchDataVolumeName &&
+				claimTemplate.Spec.Resources.Requests != nil {
+				previousStorageCapacity, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
+				if !ok {
+					break
+				}
+				if !previousStorageCapacity.Equal(*resourceStorage) {
+					log.V(1).Info("Increase storage capacity", "node_set", nodeSets[i].Name, "current_capacity", previousStorageCapacity, "new_capacity", *resourceStorage)
+					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *resourceStorage
+				}
+			}
 		}
 
 		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
