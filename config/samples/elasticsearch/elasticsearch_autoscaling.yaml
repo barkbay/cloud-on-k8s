@@ -116,7 +116,7 @@ spec:
   resourcePolicies:
   - roles:  [ "master", "data", "ingest" ]
     minAllowed:
-      count: 1
+      count: 1 # for each nodeSet
       cpu: 1
       memory: 2Gi
       storage: 5Gi
