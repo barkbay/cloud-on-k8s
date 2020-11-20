@@ -1,5 +1,5 @@
 # Build the operator binary
-FROM golang:1.15.3 as builder
+FROM golang:1.15.4 as builder
 
 ARG GO_LDFLAGS
 ARG GO_TAGS
@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 			-o elastic-operator github.com/elastic/cloud-on-k8s/cmd
 
 # Copy the operator binary into a lighter image
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.2
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.3
 
 ARG VERSION
 
