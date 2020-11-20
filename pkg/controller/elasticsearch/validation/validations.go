@@ -22,6 +22,7 @@ import (
 var log = logf.Log.WithName("es-validation")
 
 const (
+	autoscalingVersionMsg    = "autoscaling is not available in this version of Elasticsearch"
 	cfgInvalidMsg            = "Configuration invalid"
 	duplicateNodeSets        = "NodeSet names must be unique"
 	invalidNamesErrMsg       = "Elasticsearch configuration would generate resources with invalid names"
@@ -47,6 +48,7 @@ var validations = []validation{
 	hasCorrectNodeRoles,
 	supportedVersion,
 	validSanIP,
+	autoscalingValidation,
 }
 
 type updateValidation func(esv1.Elasticsearch, esv1.Elasticsearch) field.ErrorList
@@ -258,6 +260,22 @@ func validUpgradePath(current, proposed esv1.Elasticsearch) field.ErrorList {
 	err = v.Supports(*currentVer)
 	if err != nil {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("version"), proposed.Spec.Version, unsupportedUpgradeMsg))
+	}
+	return errs
+}
+
+func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
+	if !es.IsAutoscalingDefined() {
+		return nil
+	}
+	proposedVer, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return field.ErrorList{field.Invalid(field.NewPath("spec").Child("version"), es.Spec.Version, parseVersionErrMsg)}
+	}
+
+	var errs field.ErrorList
+	if !proposedVer.IsSameOrAfter(version.From(7, 11, 0)) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.AutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
 	}
 	return errs
 }

@@ -13,7 +13,11 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 )
 
-const ElasticsearchContainerName = "elasticsearch"
+const (
+	ElasticsearchContainerName = "elasticsearch"
+
+	AutoscalingAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-policies"
+)
 
 // ElasticsearchSpec holds the specification of an Elasticsearch cluster.
 type ElasticsearchSpec struct {
@@ -343,6 +347,12 @@ type Elasticsearch struct {
 // IsMarkedForDeletion returns true if the Elasticsearch is going to be deleted
 func (es Elasticsearch) IsMarkedForDeletion() bool {
 	return !es.DeletionTimestamp.IsZero()
+}
+
+// IsAutoscalingDefined returns true if there is an autoscaling configuration in the annotations.
+func (es Elasticsearch) IsAutoscalingDefined() bool {
+	_, ok := es.Annotations[AutoscalingAnnotationName]
+	return ok
 }
 
 func (es Elasticsearch) SecureSettings() []commonv1.SecretSource {
