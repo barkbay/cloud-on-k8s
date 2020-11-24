@@ -2,8 +2,44 @@ apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
   name: elasticsearch-sample
+  annotations:
+    elasticsearch.alpha.elastic.co/autoscaling-policies: '[
+          {
+              "name": "mdi",
+              "roles": [ "master", "data", "ingest" ],
+              "minAllowed" : {
+                "count" : 1,
+                "cpu" : "1",
+                "memory" : "2Gi",
+                "storage" : "5Gi"
+              },
+              "maxAllowed" : {
+                "count" : 3,
+                "cpu" : "3",
+                "memory" : "4Gi",
+                "storage" : "10Gi"
+              }
+          },
+          {
+              "name": "ml",
+              "roles": [ "ml" ],
+              "minAllowed" : {
+                "count" : 1,
+                "cpu" : "1",
+                "memory" : "2Gi",
+                "storage" : "5Gi"
+              },
+              "maxAllowed" : {
+                "count" : 5,
+                "cpu" : "3",
+                "memory" : "4Gi",
+                "storage" : "10Gi"
+              }
+          }
+      ]'
 spec:
-  version: 7.9.2
+  version: 7.11.0
+  image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0-SNAPSHOT
   nodeSets:
     - name: data-zone-b
       count: 1
@@ -113,26 +149,3 @@ spec:
                         operator: In
                         values:
                           - europe-west1-d
-  resourcePolicies:
-  - roles:  [ "master", "data", "ingest" ]
-    minAllowed:
-      count: 1 # for each nodeSet
-      cpu: 1
-      memory: 2Gi
-      storage: 5Gi
-    maxAllowed:
-      count: 3
-      cpu: 3
-      memory: 4Gi
-      storage: 10Gi
-  - roles: [ "ml" ]
-    minAllowed:
-      count: 1
-      cpu: 1
-      memory: 2Gi
-      storage: 5Gi
-    maxAllowed:
-      count: 5
-      cpu: 3
-      memory: 4Gi
-      storage: 10Gi

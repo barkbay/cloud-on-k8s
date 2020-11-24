@@ -5,8 +5,7 @@
 package autoscaling
 
 import (
-	"sort"
-	"strings"
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,23 +21,34 @@ type rolesSetting struct {
 	Roles []string `config:"node.roles"`
 }
 
+// NamedTiers is used to hold the tiers in a manifest.
+// We use the name of the associated resource policy as the key.
 type NamedTiers map[string][]esv1.NodeSet
 
-// getNamedTiers retrieves the name of all the named tiers in the Elasticsearch manifest.
-func getNamedTiers(client k8s.Client, es esv1.Elasticsearch) (NamedTiers, error) {
+// getNamedTiers retrieves the name of all the tiers in the Elasticsearch manifest.
+func getNamedTiers(client k8s.Client, es esv1.Elasticsearch, resourcePolicies commonv1.ResourcePolicies) (NamedTiers, error) {
 	namedTiersSet := make(NamedTiers)
 	for _, nodeSet := range es.Spec.NodeSets {
-		namedTier, err := getNamedTier(client, es, nodeSet)
+		resourcePolicy, err := getNamedTier(client, es, resourcePolicies, nodeSet)
 		if err != nil {
 			return nil, err
 		}
-		namedTiersSet[namedTier] = append(namedTiersSet[namedTier], *nodeSet.DeepCopy())
+		if resourcePolicy == nil {
+			// This nodeSet is not managed by an autoscaling policy
+			continue
+		}
+		namedTiersSet[*resourcePolicy.Name] = append(namedTiersSet[*resourcePolicy.Name], *nodeSet.DeepCopy())
 	}
 	return namedTiersSet, nil
 }
 
-// getNamedTier computes the name of the named tier from a NodeSet.
-func getNamedTier(client k8s.Client, es esv1.Elasticsearch, nodeSet esv1.NodeSet) (string, error) {
+// getNamedTier retrieves the resource policy associated to a NodeSet or nil if none.
+func getNamedTier(
+	client k8s.Client,
+	es esv1.Elasticsearch,
+	resourcePolicies commonv1.ResourcePolicies,
+	nodeSet esv1.NodeSet,
+) (*commonv1.ResourcePolicy, error) {
 	// Get the config Secret
 	sset := esv1.StatefulSet(es.Name, nodeSet.Name)
 	var secret corev1.Secret
@@ -47,26 +57,20 @@ func getNamedTier(client k8s.Client, es esv1.Elasticsearch, nodeSet esv1.NodeSet
 		Name:      esv1.ConfigSecret(sset),
 	}
 	if err := client.Get(key, &secret); err != nil {
-		return "", err
+		return nil, err
 	}
 	rawCfg, exists := secret.Data[essettings.ConfigFileName]
 	if !exists {
-		return "", nil
+		return nil, nil
 	}
 	cfg, err := settings.ParseConfig(rawCfg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var r rolesSetting
 	if err := cfg.Unpack(&r); err != nil {
-		return "", err
+		return nil, err
 	}
-	sort.Strings(r.Roles)
-	return namedTierName(r.Roles), nil
-}
-
-func namedTierName(roles []string) string {
-	sort.Strings(roles)
-	return strings.Join(roles, "_")
+	return resourcePolicies.FindByRoles(r.Roles), nil
 }

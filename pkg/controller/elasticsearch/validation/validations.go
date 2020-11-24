@@ -275,7 +275,19 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 
 	var errs field.ErrorList
 	if !proposedVer.IsSameOrAfter(version.From(7, 11, 0)) {
-		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.AutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", commonv1.ElasticsearchAutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		return errs
 	}
-	return errs
+
+	// Attempt to unmarshall the proposed autoscaling spec.
+	rp, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
+	if err != nil {
+		errs = append(errs, field.Invalid(
+			field.NewPath("metadata").Child("annotations", commonv1.ElasticsearchAutoscalingAnnotationName),
+			es.AutoscalingSpec(),
+			err.Error(),
+		))
+		return errs
+	}
+	return rp.Validate()
 }

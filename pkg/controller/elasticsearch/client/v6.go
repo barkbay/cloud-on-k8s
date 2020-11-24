@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+
 	"github.com/pkg/errors"
 
 	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
@@ -149,7 +151,7 @@ func (c *clientV6) DeleteVotingConfigExclusions(ctx context.Context, waitForRemo
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
-func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ AutoscalingPolicy) error {
+func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ commonv1.AutoscalingPolicy) error {
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 

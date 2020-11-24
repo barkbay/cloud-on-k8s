@@ -7,8 +7,9 @@ package autoscaling
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
 
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -21,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
@@ -36,10 +37,8 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 const (
@@ -111,46 +110,46 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	// 1. Update named policies in Elasticsearch
-	namedTiers, err := updatePolicies(es, r.Client, esClient)
+	// Get resource policies from the Elasticsearch spec
+	resourcePolicies, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
+	// Update named policies in Elasticsearch
+	if err := updatePolicies(resourcePolicies, esClient); err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
 
-	// 2. Get resource policies from the Elasticsearch spec
-	resourcePolicies := make(map[string]v1.ResourcePolicy)
-	for _, scalePolicy := range es.Spec.ResourcePolicies {
-		namedTier := namedTierName(scalePolicy.Roles)
-		if _, exists := resourcePolicies[namedTier]; exists {
-			results.WithError(fmt.Errorf("duplicated tier %s", namedTier))
-		}
-		resourcePolicies[namedTier] = *scalePolicy.DeepCopy()
+	namedTiers, err := getNamedTiers(r.Client, es, resourcePolicies)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	if results.HasError() {
-		return results.Aggregate()
-	}
+	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
 	// 3. Get resource requirements from the Elasticsearch capacity API
 	decisions, err := esClient.GetAutoscalingCapacity(ctx)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	for tier, scalePolicy := range resourcePolicies /*decisions.Policies*/ {
-		log.V(1).Info("Autoscaling resources", "tier", tier)
+
+	// For each resource policy:
+	// 1. Get the associated nodeSets
+	for _, scalePolicy := range resourcePolicies /*decisions.Policies*/ {
+		scalePolicyName := *scalePolicy.Name
+		log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
 		// Get the currentNodeSets
-		nodeSets, exists := namedTiers[tier]
+		nodeSets, exists := namedTiers[scalePolicyName]
 		if !exists {
-			return results.WithError(fmt.Errorf("no nodeSets for tier %s", tier)).Aggregate()
+			return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
 		}
 
 		var updatedNodeSets []esv1.NodeSet
 		var err error
 		// Get the decision from the Elasticsearch API
-		switch decision, gotDecision := decisions.Policies[tier]; gotDecision {
+		switch decision, gotDecision := decisions.Policies[scalePolicyName]; gotDecision {
 		case false:
-			log.V(1).Info("No decision for tier, ensure min. are set", "tier", tier)
+			log.V(1).Info("No decision for tier, ensure min. are set", "tier", scalePolicyName)
 			updatedNodeSets, err = ensureResourcePolicies(nodeSets, esv1.ElasticsearchContainerName, scalePolicy)
 		case true:
 			updatedNodeSets, err = applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision.RequiredCapacity, scalePolicy)
@@ -295,9 +294,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 }
 
 func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.Elasticsearch) (client.Client, error) {
-	//url := services.ExternalServiceURL(es)
+	url := services.ExternalServiceURL(es)
 	// use a fake service for now
-	url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
+	//url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err

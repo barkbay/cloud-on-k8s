@@ -457,7 +457,7 @@ func Test_autoscalingValidation(t *testing.T) {
 		{
 			name: "unsupported version",
 			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.AutoscalingAnnotationName: "foo"}},
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{commonv1.ElasticsearchAutoscalingAnnotationName: "[]"}},
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.10.0",
 				},
@@ -467,12 +467,11 @@ func Test_autoscalingValidation(t *testing.T) {
 		{
 			name: "supported version",
 			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.AutoscalingAnnotationName: "foo"}},
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{commonv1.ElasticsearchAutoscalingAnnotationName: "[]"}},
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.11.0",
 				},
 			},
-			expectErrors: false,
 		},
 	}
 
@@ -480,9 +479,8 @@ func Test_autoscalingValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := autoscalingValidation(tt.es)
 			actualErrors := len(actual) > 0
-
 			if tt.expectErrors != actualErrors {
-				t.Errorf("failed checkNodeSetNameUniqueness(). Name: %v, actual %v, wanted: %v, value: %v", tt.name, actual, tt.expectErrors, tt.es.Spec.NodeSets)
+				t.Errorf("failed autoscalingValidation(). Name: %v, actual %v, wanted: %v, value: %v", tt.name, actual, tt.expectErrors, tt.es.Spec.NodeSets)
 			}
 		})
 	}

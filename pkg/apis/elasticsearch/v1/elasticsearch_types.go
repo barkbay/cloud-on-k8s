@@ -13,11 +13,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 )
 
-const (
-	ElasticsearchContainerName = "elasticsearch"
-
-	AutoscalingAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-policies"
-)
+const ElasticsearchContainerName = "elasticsearch"
 
 // ElasticsearchSpec holds the specification of an Elasticsearch cluster.
 type ElasticsearchSpec struct {
@@ -65,10 +61,6 @@ type ElasticsearchSpec struct {
 	// RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster.
 	// +optional
 	RemoteClusters []RemoteCluster `json:"remoteClusters,omitempty"`
-
-	// ResourcePolicies hold the resource policies which must be respected when scaling automatically.
-	// +optional
-	ResourcePolicies []commonv1.ResourcePolicy `json:"resourcePolicies,omitempty"`
 }
 
 // TransportConfig holds the transport layer settings for Elasticsearch.
@@ -351,8 +343,13 @@ func (es Elasticsearch) IsMarkedForDeletion() bool {
 
 // IsAutoscalingDefined returns true if there is an autoscaling configuration in the annotations.
 func (es Elasticsearch) IsAutoscalingDefined() bool {
-	_, ok := es.Annotations[AutoscalingAnnotationName]
+	_, ok := es.Annotations[commonv1.ElasticsearchAutoscalingAnnotationName]
 	return ok
+}
+
+// AutoscalingSpec returns the autoscaling spec in the Elasticsearch manifest.
+func (es Elasticsearch) AutoscalingSpec() string {
+	return es.Annotations[commonv1.ElasticsearchAutoscalingAnnotationName]
 }
 
 func (es Elasticsearch) SecureSettings() []commonv1.SecretSource {
