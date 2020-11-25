@@ -26,13 +26,15 @@ func Test_cpuFromMemory(t *testing.T) {
 			args: args{
 				requiredMemoryCapacity: 2147483648,
 				policy: commonv1.ResourcePolicy{
-					MinAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("1"),
-						Memory: quantityPtr("2Gi"),
-					},
-					MaxAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("3"),
-						Memory: quantityPtr("2Gi"),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("1"),
+							Memory: quantityPtr("2Gi"),
+						},
+						MaxAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("3"),
+							Memory: quantityPtr("2Gi"),
+						},
 					},
 				},
 			},
@@ -43,13 +45,15 @@ func Test_cpuFromMemory(t *testing.T) {
 			args: args{
 				requiredMemoryCapacity: 2147483648,
 				policy: commonv1.ResourcePolicy{
-					MinAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("1"),
-						Memory: quantityPtr("1Gi"),
-					},
-					MaxAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("4"),
-						Memory: quantityPtr("4Gi"),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("1"),
+							Memory: quantityPtr("1Gi"),
+						},
+						MaxAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("4"),
+							Memory: quantityPtr("4Gi"),
+						},
 					},
 				},
 			},
@@ -60,13 +64,15 @@ func Test_cpuFromMemory(t *testing.T) {
 			args: args{
 				requiredMemoryCapacity: 2147483648,
 				policy: commonv1.ResourcePolicy{
-					MinAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("1"),
-						Memory: quantityPtr("1Gi"),
-					},
-					MaxAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("4"),
-						Memory: quantityPtr("3Gi"),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("1"),
+							Memory: quantityPtr("1Gi"),
+						},
+						MaxAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("4"),
+							Memory: quantityPtr("3Gi"),
+						},
 					},
 				},
 			},
@@ -77,13 +83,15 @@ func Test_cpuFromMemory(t *testing.T) {
 			args: args{
 				requiredMemoryCapacity: 2147483648,
 				policy: commonv1.ResourcePolicy{
-					MinAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("2"),
-						Memory: quantityPtr("2Gi"),
-					},
-					MaxAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("4"),
-						Memory: quantityPtr("2Gi"),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("2"),
+							Memory: quantityPtr("2Gi"),
+						},
+						MaxAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("4"),
+							Memory: quantityPtr("2Gi"),
+						},
 					},
 				},
 			},
@@ -94,13 +102,15 @@ func Test_cpuFromMemory(t *testing.T) {
 			args: args{
 				requiredMemoryCapacity: 2147483648,
 				policy: commonv1.ResourcePolicy{
-					MinAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("4"),
-						Memory: quantityPtr("1Gi"),
-					},
-					MaxAllowed: commonv1.AllowedResources{
-						Cpu:    quantityPtr("4"),
-						Memory: quantityPtr("3Gi"),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("4"),
+							Memory: quantityPtr("1Gi"),
+						},
+						MaxAllowed: commonv1.ResourcesSpecification{
+							Cpu:    quantityPtr("4"),
+							Memory: quantityPtr("3Gi"),
+						},
 					},
 				},
 			},

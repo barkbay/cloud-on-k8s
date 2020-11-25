@@ -106,7 +106,8 @@ func scaleVertically(
 	policy commonv1.ResourcePolicy,
 ) client.Capacity {
 
-	// Check if overall tier requirement is higher than node requirement
+	// Check if overall tier requirement is higher than node requirement.
+	// This is done to check if we can fulfil the tier requirement only by scaling vertically
 	minNodesCount := int64(*policy.MinAllowed.Count) * int64(len(nodeSets))
 	// Tiers memory capacity distributed on min. nodes
 	memoryOverAllTiers := *requiredCapacity.Tier.Memory / minNodesCount
@@ -114,18 +115,6 @@ func scaleVertically(
 		*requiredCapacity.Node.Memory,
 		roundUp(memoryOverAllTiers, giga),
 	)
-	// Tiers storage capacity distributed on min. nodes
-	storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
-	requiredStorageCapacity := max64(
-		*requiredCapacity.Node.Memory,
-		roundUp(storageOverAllTiers, giga),
-	)
-
-	// Build the ideal node capacity
-	nodeCapacity := client.Capacity{
-		Storage: &requiredStorageCapacity,
-		Memory:  &requiredMemoryCapacity,
-	}
 
 	// Set desired memory capacity within the allowed range
 	if requiredMemoryCapacity < policy.MinAllowed.Memory.Value() {
@@ -137,14 +126,36 @@ func scaleVertically(
 		requiredMemoryCapacity = policy.MaxAllowed.Memory.Value()
 	}
 
-	// Set desired storage capacity within the allowed range
-	if requiredStorageCapacity < policy.MinAllowed.Storage.Value() {
-		// The amount of storage requested by Elasticsearch is less than the min. allowed value
-		requiredStorageCapacity = policy.MinAllowed.Storage.Value()
+	// Build the ideal node capacity
+	nodeCapacity := client.Capacity{
+		Memory: &requiredMemoryCapacity,
 	}
-	if requiredStorageCapacity > policy.MaxAllowed.Storage.Value() {
-		// The amount of storage requested by Elasticsearch is more than the max. allowed value
-		requiredStorageCapacity = policy.MaxAllowed.Storage.Value()
+
+	// Prepare the resource storage
+	var resourceStorage *resource.Quantity
+	if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
+		// Tiers storage capacity distributed on min. nodes
+		storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
+		requiredStorageCapacity := max64(
+			*requiredCapacity.Node.Storage,
+			roundUp(storageOverAllTiers, giga),
+		)
+		// Set desired storage capacity within the allowed range
+		if requiredStorageCapacity < policy.MinAllowed.Storage.Value() {
+			// The amount of storage requested by Elasticsearch is less than the min. allowed value
+			requiredStorageCapacity = policy.MinAllowed.Storage.Value()
+		}
+		if nodeCapacity.Storage != nil && *nodeCapacity.Storage > policy.MaxAllowed.Storage.Value() {
+			// The amount of storage requested by Elasticsearch is more than the max. allowed value
+			requiredStorageCapacity = policy.MaxAllowed.Storage.Value()
+		}
+		if requiredStorageCapacity >= giga && requiredStorageCapacity%giga == 0 {
+			// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
+			resourceStorageAsGiga := resource.MustParse(fmt.Sprintf("%dGi", requiredStorageCapacity/giga))
+			resourceStorage = &resourceStorageAsGiga
+		} else {
+			resourceStorage = resource.NewQuantity(requiredStorageCapacity, resource.DecimalSI)
+		}
 	}
 
 	for i := range nodeSets {
@@ -164,19 +175,12 @@ func scaleVertically(
 			resourceMemory = resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
 		}
 
-		var resourceStorage *resource.Quantity
-		if *nodeCapacity.Storage >= giga && *nodeCapacity.Storage%giga == 0 {
-			// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
-			resourceStorageAsGiga := resource.MustParse(fmt.Sprintf("%dGi", *nodeCapacity.Storage/giga))
-			resourceStorage = &resourceStorageAsGiga
-		} else {
-			resourceStorage = resource.NewQuantity(*nodeCapacity.Storage, resource.DecimalSI)
-		}
-
 		// Update requests
 		container.Resources.Requests = corev1.ResourceList{
 			corev1.ResourceMemory: *resourceMemory,
-			corev1.ResourceCPU:    *cpuFromMemory(requiredMemoryCapacity, policy),
+		}
+		if policy.MinAllowed.Cpu != nil && policy.MaxAllowed.Cpu != nil {
+			container.Resources.Requests[corev1.ResourceCPU] = *cpuFromMemory(requiredMemoryCapacity, policy)
 		}
 
 		// Update limits
@@ -268,13 +272,6 @@ func min(x, y int) int {
 		return x
 	}
 	return y
-}
-
-func maxQuantity(q1, q2 *resource.Quantity) resource.Quantity {
-	if q1.Value() > q2.Value() {
-		return *q1
-	}
-	return *q2
 }
 
 func max64(x, y int64) int64 {

@@ -151,6 +151,10 @@ func (c *clientV6) DeleteVotingConfigExclusions(ctx context.Context, waitForRemo
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
+func (c *clientV6) DeleteAutoscalingAutoscalingPolicies(_ context.Context) error {
+	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
 func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ commonv1.AutoscalingPolicy) error {
 	return errors.New("Not supported in Elasticsearch 6.x")
 }

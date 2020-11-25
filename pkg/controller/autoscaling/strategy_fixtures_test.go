@@ -113,8 +113,8 @@ func (arb *allowedResourcesBuilder) withMemory(ms string) *allowedResourcesBuild
 	return arb
 }
 
-func (arb *allowedResourcesBuilder) build() commonv1.AllowedResources {
-	return commonv1.AllowedResources{
+func (arb *allowedResourcesBuilder) build() commonv1.ResourcesSpecification {
+	return commonv1.ResourcesSpecification{
 		Count:  pointer.Int32(arb.count),
 		Memory: arb.memory,
 	}

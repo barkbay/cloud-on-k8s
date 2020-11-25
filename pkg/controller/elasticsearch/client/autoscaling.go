@@ -15,6 +15,7 @@ import (
 )
 
 type AutoScalingClient interface {
+	DeleteAutoscalingAutoscalingPolicies(ctx context.Context) error
 	UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy commonv1.AutoscalingPolicy) error
 	GetAutoscalingCapacity(ctx context.Context) (Policies, error)
 }
@@ -24,6 +25,10 @@ type DeciderConfiguration map[string]string
 func (c *clientV7) UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy commonv1.AutoscalingPolicy) error {
 	path := fmt.Sprintf("/_autoscaling/policy/%s", policyName)
 	return c.put(ctx, path, autoscalingPolicy, nil)
+}
+
+func (c *clientV7) DeleteAutoscalingAutoscalingPolicies(ctx context.Context) error {
+	return c.delete(ctx, "/_autoscaling/policy/*", nil, nil)
 }
 
 // Policies represents autoscaling policies and decisions.

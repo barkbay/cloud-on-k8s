@@ -38,9 +38,10 @@ func Test_applyScaleDecision(t *testing.T) {
 					tierMemory("15G").
 					build(),
 				policy: commonv1.ResourcePolicy{
-					Roles:      nil,
-					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
+						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					},
 				},
 			},
 			want: map[string]v1.NodeSet{
@@ -58,13 +59,14 @@ func Test_applyScaleDecision(t *testing.T) {
 					tierMemory("21G").
 					build(),
 				policy: commonv1.ResourcePolicy{
-					Roles:      nil,
-					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
+						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					},
 				},
 			},
 			want: map[string]v1.NodeSet{
-				"default": newNodeSetBuilder("default", 3).withMemoryRequest("7G").withStorageRequest("1G").build(),
+				"default": newNodeSetBuilder("default", 3).withMemoryRequest("7Gi").withStorageRequest("1G").build(),
 			},
 		},
 		{
@@ -78,9 +80,10 @@ func Test_applyScaleDecision(t *testing.T) {
 					tierMemory("48G").
 					build(),
 				policy: commonv1.ResourcePolicy{
-					Roles:      nil,
-					MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-					MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					AllowedResources: commonv1.AllowedResources{
+						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
+						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
+					},
 				},
 			},
 			want: map[string]v1.NodeSet{
