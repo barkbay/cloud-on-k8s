@@ -59,6 +59,11 @@ type ReconcileElasticsearch struct {
 	iteration uint64
 }
 
+var defaultReconcile = reconcile.Result{
+	Requeue:      true,
+	RequeueAfter: 1 * time.Minute,
+}
+
 // Reconcile attempts to update the capacity fields (count and memory request for now) in the currentNodeSets of the Elasticsearch
 // resource according to the result of the Elasticsearch capacity API and given the constraints provided by the user in
 // the resource policies.
@@ -66,13 +71,6 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	defer common.LogReconciliationRun(log, request, "es_name", &r.iteration)()
 	tx, ctx := tracing.NewTransaction(r.Tracer, request.NamespacedName, "elasticsearch")
 	defer tracing.EndTransaction(tx)
-	results := r.reconcileInternal(request)
-
-	// Poll the ELasticsearch API at least every minute
-	results.WithResult(reconcile.Result{
-		Requeue:      true,
-		RequeueAfter: 1 * time.Minute,
-	})
 
 	// Fetch the Elasticsearch instance
 	var es esv1.Elasticsearch
@@ -98,6 +96,74 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, nil
 	}
 
+	// Get resource policies from the Elasticsearch spec
+	resourcePolicies, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	// Compute named tiers
+	namedTiers, err := getNamedTiers(r.Client, es, resourcePolicies)
+	// Configuration does not exist yet, retry later.
+	if apierrors.IsNotFound(err) {
+		return defaultReconcile, nil
+	}
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
+
+	// Call the main function
+	current, err := r.reconcileInternal(ctx, namedTiers, resourcePolicies, es)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	results := &reconciler.Results{}
+	return results.WithResult(defaultReconcile).WithResult(current).Aggregate()
+}
+
+func (r *ReconcileElasticsearch) reconcileInternal(
+	ctx context.Context,
+	namedTiers NamedTiers,
+	resourcePolicies commonv1.ResourcePolicies,
+	es esv1.Elasticsearch,
+) (reconcile.Result, error) {
+	results := &reconciler.Results{}
+	// Check if the Service is available
+	externalService, err := services.GetExternalService(r.Client, es)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	esReachable, err := services.IsServiceReady(r.Client, externalService)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	if !esReachable {
+		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
+		for _, scalePolicy := range resourcePolicies {
+			scalePolicyName := *scalePolicy.Name
+			log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
+			nodeSets, exists := namedTiers[scalePolicyName]
+			if !exists {
+				return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
+			}
+			updatedNodeSets, err := ensureResourcePolicies(nodeSets, esv1.ElasticsearchContainerName, scalePolicy)
+			if err != nil {
+				results.WithError(err)
+				continue
+			}
+			// Replace currentNodeSets in the Elasticsearch manifest
+			if err := updateNodeSets(es, updatedNodeSets); err != nil {
+				return reconcile.Result{}, tracing.CaptureError(ctx, err)
+			}
+		}
+		// Apply the update Elasticsearch manifest with the minimums
+		if err := r.Client.Update(&es); err != nil {
+			return results.WithError(err).Aggregate()
+		}
+		return results.WithResult(defaultReconcile).Aggregate()
+	}
+
 	esClient, err := r.newElasticsearchClient(r.Client, es)
 	if apierrors.IsNotFound(err) {
 		// Some required Secrets might not exist yet
@@ -110,22 +176,10 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	// Get resource policies from the Elasticsearch spec
-	resourcePolicies, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
-	if err != nil {
-		return reconcile.Result{}, tracing.CaptureError(ctx, err)
-	}
-
 	// Update named policies in Elasticsearch
 	if err := updatePolicies(resourcePolicies, esClient); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-
-	namedTiers, err := getNamedTiers(r.Client, es, resourcePolicies)
-	if err != nil {
-		return reconcile.Result{}, tracing.CaptureError(ctx, err)
-	}
-	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
 	// 3. Get resource requirements from the Elasticsearch capacity API
 	decisions, err := esClient.GetAutoscalingCapacity(ctx)
@@ -135,7 +189,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 	// For each resource policy:
 	// 1. Get the associated nodeSets
-	for _, scalePolicy := range resourcePolicies /*decisions.Policies*/ {
+	for _, scalePolicy := range resourcePolicies {
 		scalePolicyName := *scalePolicy.Name
 		log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
 		// Get the currentNodeSets
@@ -175,9 +229,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return results.WithError(err).Aggregate()
 	}
 
-	current, err := results.Aggregate()
-	log.V(1).Info("Reconcile result", "requeue", current.Requeue, "requeueAfter", current.RequeueAfter)
-	return current, err
+	return results.Aggregate()
 }
 
 // updateNodeSets replaces the provided currentNodeSets in the Elasticsearch manifest
@@ -341,10 +393,4 @@ func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.El
 		caCerts,
 		esclient.Timeout(es),
 	), nil
-}
-
-func (r *ReconcileElasticsearch) reconcileInternal(request reconcile.Request) *reconciler.Results {
-	res := &reconciler.Results{}
-
-	return res
 }
