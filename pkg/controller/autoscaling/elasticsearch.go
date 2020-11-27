@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
 
 	"go.elastic.co/apm"
@@ -138,8 +140,13 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
+	autoscalingStatus, err := GetAutoscalingStatus(es)
+	var clusterNodeSetsResources NodeSetsResources
 	if !esReachable {
 		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
+		if err != nil {
+			return reconcile.Result{}, tracing.CaptureError(ctx, err)
+		}
 		for _, scalePolicy := range resourcePolicies {
 			scalePolicyName := *scalePolicy.Name
 			log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
@@ -147,15 +154,14 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 			if !exists {
 				return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
 			}
-			updatedNodeSets, err := ensureResourcePolicies(nodeSets, esv1.ElasticsearchContainerName, scalePolicy)
-			if err != nil {
-				results.WithError(err)
-				continue
-			}
-			// Replace currentNodeSets in the Elasticsearch manifest
-			if err := updateNodeSets(es, updatedNodeSets); err != nil {
-				return reconcile.Result{}, tracing.CaptureError(ctx, err)
-			}
+			nodeSetsResources := ensureResourcePolicies(nodeSets, scalePolicy, autoscalingStatus)
+			clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
+		}
+		// Replace currentNodeSets in the Elasticsearch manifest
+		updateNodeSets(&es, clusterNodeSetsResources)
+		// Update autoscaling status
+		if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
+			return reconcile.Result{}, tracing.CaptureError(ctx, err)
 		}
 		// Apply the update Elasticsearch manifest with the minimums
 		if err := r.Client.Update(&es); err != nil {
@@ -198,24 +204,22 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
 		}
 
-		var updatedNodeSets []esv1.NodeSet
-		var err error
 		// Get the decision from the Elasticsearch API
+		var nodeSetsResources NodeSetsResources
 		switch decision, gotDecision := decisions.Policies[scalePolicyName]; gotDecision {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", scalePolicyName)
-			updatedNodeSets, err = ensureResourcePolicies(nodeSets, esv1.ElasticsearchContainerName, scalePolicy)
+			nodeSetsResources = ensureResourcePolicies(nodeSets, scalePolicy, autoscalingStatus)
 		case true:
-			updatedNodeSets, err = applyScaleDecision(nodeSets, esv1.ElasticsearchContainerName, decision.RequiredCapacity, scalePolicy)
+			nodeSetsResources = getScaleDecision(nodeSets, decision.RequiredCapacity, scalePolicy)
 		}
-		if err != nil {
-			results.WithError(err)
-			continue
-		}
-		// Replace currentNodeSets in the Elasticsearch manifest
-		if err := updateNodeSets(es, updatedNodeSets); err != nil {
-			results.WithError(err)
-		}
+		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
+	}
+	// Replace currentNodeSets in the Elasticsearch manifest
+	updateNodeSets(&es, clusterNodeSetsResources)
+	// Update autoscaling status
+	if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
 	// TODO: Check if we got a decision for an unknown tier
@@ -233,24 +237,65 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 }
 
 // updateNodeSets replaces the provided currentNodeSets in the Elasticsearch manifest
-func updateNodeSets(es esv1.Elasticsearch, nodeSets []esv1.NodeSet) error {
-	for i := range nodeSets {
-		updatedNodeSet := nodeSets[i]
-		found := false
-		for j := range es.Spec.NodeSets {
-			existingNodeSet := es.Spec.NodeSets[j]
-			if updatedNodeSet.Name == existingNodeSet.Name {
-				es.Spec.NodeSets[j] = updatedNodeSet
-				found = true
-				continue
+func updateNodeSets(es *esv1.Elasticsearch, clusterNodeSetsResources NodeSetsResources) {
+	resourcesByNodeSet := clusterNodeSetsResources.byNodeSet()
+
+	for i, nodeSet := range es.Spec.NodeSets {
+		nodeSetResources, ok := resourcesByNodeSet[nodeSet.Name]
+		if !ok {
+			continue
+		}
+
+		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
+		if container == nil {
+			container = &corev1.Container{
+				Name: esv1.ElasticsearchContainerName,
 			}
 		}
-		if !found {
-			return fmt.Errorf(
-				"nodeSet %s not found in Elasticsearch spec for %s/%s", updatedNodeSet.Name, es.Namespace, es.Name)
+
+		// Update desired count
+		es.Spec.NodeSets[i].Count = nodeSetResources.Count
+
+		if container.Resources.Requests == nil {
+			container.Resources.Requests = corev1.ResourceList{}
 		}
+		if container.Resources.Limits == nil {
+			container.Resources.Limits = corev1.ResourceList{}
+		}
+
+		// Update memory requests and limits
+		if nodeSetResources.Memory != nil {
+			container.Resources.Requests[corev1.ResourceMemory] = *nodeSetResources.Memory
+			//TODO: apply request/memory ratio
+			container.Resources.Limits[corev1.ResourceMemory] = *nodeSetResources.Memory
+		}
+		if nodeSetResources.Cpu != nil {
+			container.Resources.Requests[corev1.ResourceCPU] = *nodeSetResources.Cpu
+			//TODO: apply request/memory ratio
+		}
+
+		if nodeSetResources.Storage != nil {
+			// Update storage claim
+			if len(es.Spec.NodeSets[i].VolumeClaimTemplates) == 0 {
+				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
+			}
+			for _, claimTemplate := range es.Spec.NodeSets[i].VolumeClaimTemplates {
+				if claimTemplate.Name == volume.ElasticsearchDataVolumeName &&
+					claimTemplate.Spec.Resources.Requests != nil {
+					previousStorageCapacity, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
+					if !ok {
+						break
+					}
+					if !previousStorageCapacity.Equal(*nodeSetResources.Storage) {
+						log.V(1).Info("Increase storage capacity", "node_set", es.Spec.NodeSets[i].Name, "current_capacity", previousStorageCapacity, "new_capacity", *nodeSetResources.Storage)
+						claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *nodeSetResources.Storage
+					}
+				}
+			}
+		}
+
+		es.Spec.NodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
-	return nil
 }
 
 func (r *ReconcileElasticsearch) internalReconcile(
