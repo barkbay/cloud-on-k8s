@@ -7,40 +7,37 @@ package autoscaling
 import (
 	"sort"
 	"strings"
-
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 )
 
 // FairNodesManager helps to distribute nodes among currentNodeSets which belongs to a same tier.
 type FairNodesManager struct {
-	nodeSets []esv1.NodeSet
+	nodeSetsResources NodeSetsResources
 }
 
 func (fnm *FairNodesManager) sort() {
-	sort.SliceStable(fnm.nodeSets, func(i, j int) bool {
-		if fnm.nodeSets[i].Count == fnm.nodeSets[j].Count {
-			return strings.Compare(fnm.nodeSets[i].Name, fnm.nodeSets[j].Name) < 0
+	sort.SliceStable(fnm.nodeSetsResources, func(i, j int) bool {
+		if fnm.nodeSetsResources[i].Count == fnm.nodeSetsResources[j].Count {
+			return strings.Compare(fnm.nodeSetsResources[i].Name, fnm.nodeSetsResources[j].Name) < 0
 		}
-		return fnm.nodeSets[i].Count < fnm.nodeSets[j].Count
+		return fnm.nodeSetsResources[i].Count < fnm.nodeSetsResources[j].Count
 	})
 }
 
-func NewFairNodesManager(nodeSets []v1.NodeSet) FairNodesManager {
-	fnm := FairNodesManager{nodeSets: nodeSets}
+func NewFairNodesManager(nodeSetsResources NodeSetsResources) FairNodesManager {
+	fnm := FairNodesManager{nodeSetsResources: nodeSetsResources}
 	fnm.sort()
 	return fnm
 }
 
 func (fnm *FairNodesManager) AddNode() {
 	// Peak the first element, this is the one with the less nodes
-	fnm.nodeSets[0].Count++
+	fnm.nodeSetsResources[0].Count++
 	// Ensure the set is sorted
 	fnm.sort()
 }
 
 func (fnm *FairNodesManager) RemoveNode() {
-	nodeSet := fnm.nodeSets[len(fnm.nodeSets)-1]
+	nodeSet := fnm.nodeSetsResources[len(fnm.nodeSetsResources)-1]
 	if nodeSet.Count == 1 {
 		log.V(1).Info("Can't scale down a nodeSet to 0", "nodeSet", nodeSet.Name)
 		return

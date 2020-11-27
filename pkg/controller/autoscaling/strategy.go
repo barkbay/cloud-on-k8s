@@ -9,13 +9,28 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+type NodeSetsResources []NodeSetResources
+
+type NodeSetResources struct {
+	Name  string
+	Count int32
+	commonv1.ResourcesSpecification
+}
+
+func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
+	byNodeSet := make(map[string]NodeSetResources, len(nsr))
+	for _, nodeSetsResource := range nsr {
+		byNodeSet[nodeSetsResource.Name] = nodeSetsResource
+	}
+	return byNodeSet
+}
 
 // ensureResourcePolicies ensures that even if no decisions have been returned the nodeSet respect
 // the min. and max. resource requirements.
@@ -77,7 +92,7 @@ func ensureResourcePolicies(
 // applyScaleDecision implements a "scale vertically" first scaling strategy.
 func applyScaleDecision(
 	nodeSets []v1.NodeSet,
-	container string,
+	containerName string,
 	requiredCapacity client.RequiredCapacity,
 	policy commonv1.ResourcePolicy,
 ) ([]v1.NodeSet, error) {
@@ -87,10 +102,64 @@ func applyScaleDecision(
 	}
 
 	// 1. Scale vertically
-	nodeCapacity := scaleVertically(updatedNodeSets, container, requiredCapacity, policy)
+	desiredNodeResources := scaleVertically(updatedNodeSets, requiredCapacity, policy)
 	// 2. Scale horizontally
-	if err := scaleHorizontally(updatedNodeSets, requiredCapacity.Tier, nodeCapacity, policy); err != nil {
-		return updatedNodeSets, err
+	nodeSetsResources := scaleHorizontally(updatedNodeSets, requiredCapacity.Tier, desiredNodeResources, policy).byNodeSet()
+
+	// 3. Update the status annotation
+
+	// 4. Update the nodeSet
+	for i := range updatedNodeSets {
+		container, containers := getContainer(containerName, updatedNodeSets[i].PodTemplate.Spec.Containers)
+		if container == nil {
+			container = &corev1.Container{
+				Name: containerName,
+			}
+		}
+		nodeSetsResource := nodeSetsResources[updatedNodeSets[i].Name]
+
+		// Update desired count
+		updatedNodeSets[i].Count = nodeSetsResource.Count
+
+		if container.Resources.Requests == nil {
+			container.Resources.Requests = corev1.ResourceList{}
+		}
+		if container.Resources.Limits == nil {
+			container.Resources.Limits = corev1.ResourceList{}
+		}
+
+		// Update memory requests and limits
+		if nodeSetsResource.Memory != nil {
+			container.Resources.Requests[corev1.ResourceMemory] = *nodeSetsResource.Memory
+			//TODO: apply request/memory ratio
+			container.Resources.Limits[corev1.ResourceMemory] = *nodeSetsResource.Memory
+		}
+		if nodeSetsResource.Cpu != nil {
+			container.Resources.Requests[corev1.ResourceCPU] = *nodeSetsResource.Cpu
+			//TODO: apply request/memory ratio
+		}
+
+		if nodeSetsResource.Storage != nil {
+			// Update storage claim
+			if len(updatedNodeSets[i].VolumeClaimTemplates) == 0 {
+				updatedNodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
+			}
+			for _, claimTemplate := range updatedNodeSets[i].VolumeClaimTemplates {
+				if claimTemplate.Name == volume.ElasticsearchDataVolumeName &&
+					claimTemplate.Spec.Resources.Requests != nil {
+					previousStorageCapacity, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
+					if !ok {
+						break
+					}
+					if !previousStorageCapacity.Equal(*nodeSetsResource.Storage) {
+						log.V(1).Info("Increase storage capacity", "node_set", nodeSets[i].Name, "current_capacity", previousStorageCapacity, "new_capacity", *nodeSetsResource.Storage)
+						claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *nodeSetsResource.Storage
+					}
+				}
+			}
+		}
+
+		updatedNodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
 	}
 
 	return updatedNodeSets, nil
@@ -98,13 +167,14 @@ func applyScaleDecision(
 
 var giga = int64(1024 * 1024 * 1024)
 
-// scaleVertically vertically scales nodeSet to match the per node requirements.
+// scaleVertically computes desired state for a node given the requested capacity from ES and the resource policy
+// specified by the user.
+// It attempts to scale all the resources vertically until the expectations are met.
 func scaleVertically(
 	nodeSets []v1.NodeSet,
-	containerName string,
 	requiredCapacity client.RequiredCapacity,
 	policy commonv1.ResourcePolicy,
-) client.Capacity {
+) commonv1.ResourcesSpecification {
 
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
@@ -126,11 +196,6 @@ func scaleVertically(
 		requiredMemoryCapacity = policy.MaxAllowed.Memory.Value()
 	}
 
-	// Build the ideal node capacity
-	nodeCapacity := client.Capacity{
-		Memory: &requiredMemoryCapacity,
-	}
-
 	// Prepare the resource storage
 	var resourceStorage *resource.Quantity
 	if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
@@ -145,7 +210,7 @@ func scaleVertically(
 			// The amount of storage requested by Elasticsearch is less than the min. allowed value
 			requiredStorageCapacity = policy.MinAllowed.Storage.Value()
 		}
-		if nodeCapacity.Storage != nil && *nodeCapacity.Storage > policy.MaxAllowed.Storage.Value() {
+		if requiredStorageCapacity > policy.MaxAllowed.Storage.Value() {
 			// The amount of storage requested by Elasticsearch is more than the max. allowed value
 			requiredStorageCapacity = policy.MaxAllowed.Storage.Value()
 		}
@@ -158,80 +223,54 @@ func scaleVertically(
 		}
 	}
 
-	for i := range nodeSets {
-		container, containers := getContainer(containerName, nodeSets[i].PodTemplate.Spec.Containers)
-		if container == nil {
-			container = &corev1.Container{
-				Name: containerName,
-			}
-		}
-
-		var resourceMemory *resource.Quantity
-		if *nodeCapacity.Memory >= giga && *nodeCapacity.Memory%giga == 0 {
-			// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
-			resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", *nodeCapacity.Memory/giga))
-			resourceMemory = &resourceMemoryAsGiga
-		} else {
-			resourceMemory = resource.NewQuantity(*nodeCapacity.Memory, resource.DecimalSI)
-		}
-
-		// Update requests
-		container.Resources.Requests = corev1.ResourceList{
-			corev1.ResourceMemory: *resourceMemory,
-		}
-		if policy.MinAllowed.Cpu != nil && policy.MaxAllowed.Cpu != nil {
-			container.Resources.Requests[corev1.ResourceCPU] = *cpuFromMemory(requiredMemoryCapacity, policy)
-		}
-
-		// Update limits
-		container.Resources.Limits = corev1.ResourceList{
-			corev1.ResourceMemory: *resourceMemory,
-		}
-
-		// Update storage claim
-		if len(nodeSets[i].VolumeClaimTemplates) == 0 {
-			nodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
-		}
-		for _, claimTemplate := range nodeSets[i].VolumeClaimTemplates {
-			if claimTemplate.Name == volume.ElasticsearchDataVolumeName &&
-				claimTemplate.Spec.Resources.Requests != nil {
-				previousStorageCapacity, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
-				if !ok {
-					break
-				}
-				if !previousStorageCapacity.Equal(*resourceStorage) {
-					log.V(1).Info("Increase storage capacity", "node_set", nodeSets[i].Name, "current_capacity", previousStorageCapacity, "new_capacity", *resourceStorage)
-					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *resourceStorage
-				}
-			}
-		}
-
-		nodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
+	var resourceMemory *resource.Quantity
+	if requiredMemoryCapacity >= giga && requiredMemoryCapacity%giga == 0 {
+		// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
+		resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", requiredMemoryCapacity/giga))
+		resourceMemory = &resourceMemoryAsGiga
+	} else {
+		resourceMemory = resource.NewQuantity(requiredMemoryCapacity, resource.DecimalSI)
 	}
 
-	return nodeCapacity
+	nodeResourcesSpecification := commonv1.ResourcesSpecification{
+		Memory:  resourceMemory,
+		Storage: resourceStorage,
+	}
+
+	if policy.MaxAllowed.Cpu != nil && policy.MinAllowed.Cpu != nil {
+		nodeResourcesSpecification.Cpu = cpuFromMemory(requiredMemoryCapacity, policy)
+	}
+
+	return nodeResourcesSpecification
 }
 
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func scaleHorizontally(
 	nodeSets []v1.NodeSet,
 	requestedCapacity client.Capacity,
-	nodeCapacity client.Capacity,
+	nodeCapacity commonv1.ResourcesSpecification,
 	policy commonv1.ResourcePolicy,
-) error {
-	// reset all the nodeSets the minimum
-	for i := range nodeSets {
-		nodeSets[i].Count = *policy.MinAllowed.Count
+) NodeSetsResources {
+	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
+	for i, nodeSet := range nodeSets {
+		nodeSetResources := *nodeCapacity.DeepCopy()
+		nodeSetsResources[i] = NodeSetResources{
+			Name: nodeSet.Name,
+			// set all the nodeSets count the minimum
+			Count:                  *policy.MinAllowed.Count,
+			ResourcesSpecification: nodeSetResources,
+		}
 	}
+
 	// scaleHorizontally always start from the min number of nodes and add nodes as necessary
 	minNodes := len(nodeSets) * int(*policy.MinAllowed.Count)
-	minMemory := int64(minNodes) * (*nodeCapacity.Memory)
+	minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 
 	// memoryDelta holds the memory variation, it can be:
 	// * a positive value if some memory needs to be added
 	// * a negative value if some memory can be reclaimed
 	memoryDelta := *requestedCapacity.Memory - minMemory
-	nodeToAdd := getNodeDelta(memoryDelta, *nodeCapacity.Memory, minMemory, *requestedCapacity.Memory)
+	nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value(), minMemory, *requestedCapacity.Memory)
 
 	log.V(1).Info(
 		"Memory status",
@@ -243,14 +282,14 @@ func scaleHorizontally(
 	if nodeToAdd > 0 {
 		nodeToAdd = min(int(*policy.MaxAllowed.Count)-minNodes, nodeToAdd)
 		log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
-		fnm := NewFairNodesManager(nodeSets)
+		fnm := NewFairNodesManager(nodeSetsResources)
 		for nodeToAdd > 0 {
 			fnm.AddNode()
 			nodeToAdd--
 		}
 	}
 
-	return nil
+	return nodeSetsResources
 }
 
 func getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, target int64) int {
