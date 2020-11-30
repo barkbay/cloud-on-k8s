@@ -17,7 +17,7 @@ func Test_applyScaleDecision(t *testing.T) {
 	type args struct {
 		currentNodeSets  []esv1.NodeSet
 		requiredCapacity client.RequiredCapacity
-		policy           esv1.ResourcePolicy
+		policy           esv1.AutoscalingSpec
 	}
 	tests := []struct {
 		name    string
@@ -35,7 +35,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
-				policy: esv1.ResourcePolicy{
+				policy: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
@@ -58,7 +58,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeStorage("1Gi").
 					tierStorage("3Gi").
 					build(),
-				policy: esv1.ResourcePolicy{
+				policy: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").withStorage("1G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").withStorage("20G").build(),
@@ -79,7 +79,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("21G").
 					build(),
-				policy: esv1.ResourcePolicy{
+				policy: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
@@ -100,7 +100,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("48G").
 					build(),
-				policy: esv1.ResourcePolicy{
+				policy: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),

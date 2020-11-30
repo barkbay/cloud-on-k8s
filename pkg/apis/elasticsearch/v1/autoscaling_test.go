@@ -195,7 +195,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 					},
 				},
 			}
-			rp, err := es.GetResourcePolicies()
+			rp, err := es.GetAutoscalingSpecifications()
 			assert.NoError(t, err)
 			got := rp.Validate()
 			assert.Equal(t, tt.wantError, got != nil)
@@ -208,7 +208,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			}
 
 			if tt.wantError && !found {
-				t.Errorf("ResourcePolicies.Validate() = %v, want string \"%v\"", got, tt.expectedError)
+				t.Errorf("AutoscalingSpecs.Validate() = %v, want string \"%v\"", got, tt.expectedError)
 			}
 		})
 	}

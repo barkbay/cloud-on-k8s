@@ -14,7 +14,7 @@ import (
 func Test_cpuFromMemory(t *testing.T) {
 	type args struct {
 		requiredMemoryCapacity int64
-		policy                 esv1.ResourcePolicy
+		autoscalingSpec        esv1.AutoscalingSpec
 	}
 	tests := []struct {
 		name    string
@@ -25,7 +25,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "Memory is at its min value, do not scale up CPU",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				policy: esv1.ResourcePolicy{
+				autoscalingSpec: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: esv1.ResourcesSpecification{
 							Cpu:    quantityPtr("1"),
@@ -44,7 +44,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "1/3 of the memory range should be translated to 1/3 of the CPU range",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				policy: esv1.ResourcePolicy{
+				autoscalingSpec: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: esv1.ResourcesSpecification{
 							Cpu:    quantityPtr("1"),
@@ -63,7 +63,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "half of the memory range should be translated to half of the CPU range",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				policy: esv1.ResourcePolicy{
+				autoscalingSpec: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: esv1.ResourcesSpecification{
 							Cpu:    quantityPtr("1"),
@@ -82,7 +82,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "min memory == max memory, do not scale cpu",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				policy: esv1.ResourcePolicy{
+				autoscalingSpec: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: esv1.ResourcesSpecification{
 							Cpu:    quantityPtr("2"),
@@ -101,7 +101,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "min and max CPU are equal",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				policy: esv1.ResourcePolicy{
+				autoscalingSpec: esv1.AutoscalingSpec{
 					AllowedResources: esv1.AllowedResources{
 						MinAllowed: esv1.ResourcesSpecification{
 							Cpu:    quantityPtr("4"),
@@ -119,7 +119,7 @@ func Test_cpuFromMemory(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, tt.args.policy); !got.Equal(*tt.wantCpu) {
+			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, tt.args.autoscalingSpec); !got.Equal(*tt.wantCpu) {
 				t.Errorf("cpuFromMemory() = %v, want %v", got, tt.wantCpu)
 			}
 		})

@@ -283,7 +283,7 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 	}
 
 	// Attempt to unmarshall the proposed autoscaling spec.
-	rp, err := es.GetResourcePolicies()
+	rp, err := es.GetAutoscalingSpecifications()
 	if err != nil {
 		errs = append(errs, field.Invalid(
 			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingAnnotationName),

@@ -18,33 +18,37 @@ import (
 const ElasticsearchAutoscalingAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-policies"
 
 // +kubebuilder:object:generate=false
-type ResourcePolicies []ResourcePolicy
+type AutoscalingSpecs []AutoscalingSpec
 
-func (es Elasticsearch) GetResourcePolicies() (ResourcePolicies, error) {
-	resourcePolicies := make(ResourcePolicies, 0)
+// GetAutoscalingSpecifications unmarshal autoscaling specifications from an Elasticsearch resource.
+func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpecs, error) {
+	autoscalingSpecs := make(AutoscalingSpecs, 0)
 	if len(es.AutoscalingSpec()) == 0 {
-		return resourcePolicies, nil
+		return autoscalingSpecs, nil
 	}
-	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &resourcePolicies)
-	return resourcePolicies, err
+	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpecs)
+	return autoscalingSpecs, err
 }
 
+// DeciderSettings allows the user to tweak autoscaling deciders.
+// +kubebuilder:object:generate=false
 type DeciderSettings struct {
 	Deciders map[string]string `json:"deciders,omitempty"`
 }
 
-// ResourcePolicy represents how resources can be scaled by the autoscaler controller.
+// AutoscalingSpec represents how resources can be scaled by the autoscaler controller.
 // +kubebuilder:object:generate=false
-type ResourcePolicy struct {
+type AutoscalingSpec struct {
 	NamedAutoscalingPolicy
 	AllowedResources
 }
 
+// +kubebuilder:object:generate=false
 type NamedAutoscalingPolicy struct {
-	AutoscalingPolicy
-
-	// A resource policy must identified by a unique name, provided by the user.
+	// A resource policy must be identified by a unique name, provided by the user.
 	Name string `json:"name,omitempty"`
+
+	AutoscalingPolicy
 }
 
 // +kubebuilder:object:generate=false
@@ -63,21 +67,23 @@ type AllowedResources struct {
 	MaxAllowed ResourcesSpecification `json:"maxAllowed,omitempty"`
 }
 
+// ResourcesSpecification represents a set of resource specifications which can be used to describe
+// either as a lower or an upper limit.
 // +kubebuilder:object:generate=false
 type ResourcesSpecification struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
 	Count int32 `json:"count,omitempty"`
-	// Cpu represents max CPU request
+	// Cpu represents the CPU value
 	Cpu *resource.Quantity `json:"cpu"`
-	// memory represents max memory request
+	// memory represents the memory value
 	Memory *resource.Quantity `json:"memory"`
-	// storage represents storage request
+	// storage represents the storage capacity value
 	Storage *resource.Quantity `json:"storage"`
 }
 
-// FindByRoles returns the policy associated to a set of roles or nil if not found.
-func (rps ResourcePolicies) FindByRoles(roles []string) *ResourcePolicy {
-	for _, rp := range rps {
+// FindByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
+func (as AutoscalingSpecs) FindByRoles(roles []string) *AutoscalingSpec {
+	for _, rp := range as {
 		if len(rp.Roles) != len(roles) {
 			continue
 		}
@@ -92,18 +98,18 @@ func (rps ResourcePolicies) FindByRoles(roles []string) *ResourcePolicy {
 	return nil
 }
 
-// FindByRoles returns the policy associated to a set of roles or nil if not found.
-func (rps ResourcePolicies) ByNames() map[string]ResourcePolicy {
-	rpByName := make(map[string]ResourcePolicy)
-	for _, scalePolicy := range rps {
+// ByNames returns autoscaling specifications indexed by name.
+func (as AutoscalingSpecs) ByNames() map[string]AutoscalingSpec {
+	rpByName := make(map[string]AutoscalingSpec)
+	for _, scalePolicy := range as {
 		scalePolicy := scalePolicy
 		rpByName[scalePolicy.Name] = scalePolicy
 	}
 	return rpByName
 }
 
-// NamedTiers is used to hold the tiers in a manifest.
-// We use the name of the associated resource policy as the key.
+// NamedTiers is used to hold the tiers in a manifest, indexed by the resource policy name.
+// +kubebuilder:object:generate=false
 type NamedTiers map[string][]NodeSet
 
 func (n NamedTiers) String() string {
@@ -121,10 +127,10 @@ func (n NamedTiers) String() string {
 }
 
 // GetNamedTiers retrieves the name of all the tiers in the Elasticsearch manifest.
-func (rps ResourcePolicies) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
+func (as AutoscalingSpecs) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 	namedTiersSet := make(NamedTiers)
 	for _, nodeSet := range es.Spec.NodeSets {
-		resourcePolicy, err := rps.getNamedTier(es, nodeSet)
+		resourcePolicy, err := as.getAutoscalingSpecFor(es, nodeSet)
 		if err != nil {
 			return nil, err
 		}
@@ -137,8 +143,8 @@ func (rps ResourcePolicies) GetNamedTiers(es Elasticsearch) (NamedTiers, error) 
 	return namedTiersSet, nil
 }
 
-// getNamedTier retrieves the resource policy associated to a NodeSet or nil if none.
-func (rps ResourcePolicies) getNamedTier(es Elasticsearch, nodeSet NodeSet) (*ResourcePolicy, error) {
+// getAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.
+func (as AutoscalingSpecs) getAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingSpec, error) {
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err
@@ -147,7 +153,7 @@ func (rps ResourcePolicies) getNamedTier(es Elasticsearch, nodeSet NodeSet) (*Re
 	if err := UnpackConfig(nodeSet.Config, *v, &cfg); err != nil {
 		return nil, err
 	}
-	return rps.FindByRoles(cfg.Node.Roles), nil
+	return as.FindByRoles(cfg.Node.Roles), nil
 }
 
 func resourcePolicyIndex(index int, child string, moreChildren ...string) *field.Path {
@@ -157,11 +163,12 @@ func resourcePolicyIndex(index int, child string, moreChildren ...string) *field
 		Child(child, moreChildren...)
 }
 
-func (rps ResourcePolicies) Validate() field.ErrorList {
+// Validate validates a set of autoscaling specifications.
+func (as AutoscalingSpecs) Validate() field.ErrorList {
 	policyNames := set.Make()
-	rolesSet := make([][]string, 0, len(rps))
+	rolesSet := make([][]string, 0, len(as))
 	var errs field.ErrorList
-	for i, resourcePolicy := range rps {
+	for i, resourcePolicy := range as {
 		// Validate the name field.
 		if len(resourcePolicy.Name) == 0 {
 			errs = append(errs, field.Required(resourcePolicyIndex(i, "name"), "name is mandatory"))
@@ -209,6 +216,7 @@ func (rps ResourcePolicies) Validate() field.ErrorList {
 	return errs
 }
 
+// ContainsStringSlide returns true if a slice is included in a slice of slice.
 func ContainsStringSlide(slices [][]string, slice []string) bool {
 	for _, s := range slices {
 		if Equal(s, slice) {
@@ -231,13 +239,14 @@ func Equal(s1, s2 []string) bool {
 	return true
 }
 
+// validateQuantities checks that 2 resources boundaries are valid.
 func validateQuantities(errs field.ErrorList, min, max *resource.Quantity, index int, resource string) field.ErrorList {
 	var quantityErrs field.ErrorList
 	if min == nil {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", "cpu"), "cpu field is mandatory"))
+		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "resource field is mandatory"))
 	}
 	if max == nil {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "maxAllowed", "cpu"), "cpu field is mandatory"))
+		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "maxAllowed", resource), "resource field is mandatory"))
 	}
 	if len(quantityErrs) > 0 {
 		return append(errs, quantityErrs...)

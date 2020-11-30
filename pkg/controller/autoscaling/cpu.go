@@ -9,17 +9,17 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func cpuFromMemory(requiredMemoryCapacity int64, policy esv1.ResourcePolicy) *resource.Quantity {
-	allowedMemoryRange := policy.MaxAllowed.Memory.Value() - policy.MinAllowed.Memory.Value()
+func cpuFromMemory(requiredMemoryCapacity int64, autoscalingSpec esv1.AutoscalingSpec) *resource.Quantity {
+	allowedMemoryRange := autoscalingSpec.MaxAllowed.Memory.Value() - autoscalingSpec.MinAllowed.Memory.Value()
 	if allowedMemoryRange == 0 {
 		// Can't scale CPU as min and max for memory are equal
-		minCpu := policy.MinAllowed.Cpu.DeepCopy()
+		minCpu := autoscalingSpec.MinAllowed.Cpu.DeepCopy()
 		return &minCpu
 	}
-	memRatio := float64(requiredMemoryCapacity-policy.MinAllowed.Memory.Value()) / float64(allowedMemoryRange)
-	allowedCpuRange := float64(policy.MaxAllowed.Cpu.MilliValue() - policy.MinAllowed.Cpu.MilliValue())
+	memRatio := float64(requiredMemoryCapacity-autoscalingSpec.MinAllowed.Memory.Value()) / float64(allowedMemoryRange)
+	allowedCpuRange := float64(autoscalingSpec.MaxAllowed.Cpu.MilliValue() - autoscalingSpec.MinAllowed.Cpu.MilliValue())
 	requiredAdditionalCpuCapacity := int64(allowedCpuRange * memRatio)
-	requiredCpuCapacity := policy.MinAllowed.Cpu.MilliValue() + requiredAdditionalCpuCapacity
+	requiredCpuCapacity := autoscalingSpec.MinAllowed.Cpu.MilliValue() + requiredAdditionalCpuCapacity
 
 	if requiredCpuCapacity%1000 == 0 {
 		return resource.NewQuantity(requiredCpuCapacity/1000, resource.DecimalSI)

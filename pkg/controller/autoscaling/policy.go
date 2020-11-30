@@ -10,7 +10,7 @@ import (
 
 // updatePolicies
 func updatePolicies(
-	resourcePolicies esv1.ResourcePolicies,
+	resourcePolicies esv1.AutoscalingSpecs,
 	esclient client.AutoScalingClient,
 ) error {
 	// Cleanup existing autoscaling policies

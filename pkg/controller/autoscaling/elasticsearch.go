@@ -103,7 +103,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Get resource policies from the Elasticsearch spec
-	resourcePolicies, err := es.GetResourcePolicies()
+	autoscalingSpecifications, err := es.GetAutoscalingSpecifications()
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -113,7 +113,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	if len(resourcePolicies) == 0 && len(autoscalingStatus.NodeSetResources) == 0 {
+	if len(autoscalingSpecifications) == 0 && len(autoscalingStatus.NodeSetResources) == 0 {
 		// This cluster is not managed by the autoscaler
 		return reconcile.Result{}, nil
 	}
@@ -128,7 +128,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Compute named tiers
-	namedTiers, err := resourcePolicies.GetNamedTiers(es)
+	namedTiers, err := autoscalingSpecifications.GetNamedTiers(es)
 	// Configuration does not exist yet, retry later.
 	if apierrors.IsNotFound(err) {
 		return defaultReconcile, nil
@@ -139,7 +139,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
 	// Call the main function
-	current, err := r.reconcileInternal(ctx, autoscalingStatus, namedTiers, resourcePolicies, es)
+	current, err := r.reconcileInternal(ctx, autoscalingStatus, namedTiers, autoscalingSpecifications, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -151,7 +151,7 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
 	autoscalingStatus Status,
 	namedTiers esv1.NamedTiers,
-	resourcePolicies esv1.ResourcePolicies,
+	autoscalingSpecs esv1.AutoscalingSpecs,
 	es esv1.Elasticsearch,
 ) (reconcile.Result, error) {
 	results := &reconciler.Results{}
@@ -168,13 +168,13 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	var clusterNodeSetsResources NodeSetsResources
 	if !esReachable {
 		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
-		for _, scalePolicy := range resourcePolicies {
-			log.V(1).Info("Autoscaling resources", "tier", scalePolicy.Name)
-			nodeSets, exists := namedTiers[scalePolicy.Name]
+		for _, autoscalingSpec := range autoscalingSpecs {
+			log.V(1).Info("Autoscaling resources", "tier", autoscalingSpec.Name)
+			nodeSets, exists := namedTiers[autoscalingSpec.Name]
 			if !exists {
-				return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicy.Name)).Aggregate()
+				return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 			}
-			nodeSetsResources := ensureResourcePolicies(nodeSets, scalePolicy, autoscalingStatus)
+			nodeSetsResources := ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
 			clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 		}
 		// Replace currentNodeSets in the Elasticsearch manifest
@@ -206,7 +206,7 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	}
 
 	// Update named policies in Elasticsearch
-	if err := updatePolicies(resourcePolicies, esClient); err != nil {
+	if err := updatePolicies(autoscalingSpecs, esClient); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -216,9 +216,9 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	// For each resource policy:
+	// For each resource autoscalingSpec:
 	// 1. Get the associated nodeSets
-	for _, scalePolicy := range resourcePolicies {
+	for _, scalePolicy := range autoscalingSpecs {
 		log.V(1).Info("Autoscaling resources", "tier", scalePolicy.Name)
 		// Get the currentNodeSets
 		nodeSets, exists := namedTiers[scalePolicy.Name]
