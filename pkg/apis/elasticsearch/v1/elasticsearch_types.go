@@ -343,13 +343,13 @@ func (es Elasticsearch) IsMarkedForDeletion() bool {
 
 // IsAutoscalingDefined returns true if there is an autoscaling configuration in the annotations.
 func (es Elasticsearch) IsAutoscalingDefined() bool {
-	_, ok := es.Annotations[commonv1.ElasticsearchAutoscalingAnnotationName]
+	_, ok := es.Annotations[ElasticsearchAutoscalingAnnotationName]
 	return ok
 }
 
 // AutoscalingSpec returns the autoscaling spec in the Elasticsearch manifest.
 func (es Elasticsearch) AutoscalingSpec() string {
-	return es.Annotations[commonv1.ElasticsearchAutoscalingAnnotationName]
+	return es.Annotations[ElasticsearchAutoscalingAnnotationName]
 }
 
 func (es Elasticsearch) SecureSettings() []commonv1.SecretSource {

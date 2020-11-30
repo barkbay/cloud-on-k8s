@@ -5,11 +5,11 @@
 package autoscaling
 
 import (
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func cpuFromMemory(requiredMemoryCapacity int64, policy commonv1.ResourcePolicy) *resource.Quantity {
+func cpuFromMemory(requiredMemoryCapacity int64, policy esv1.ResourcePolicy) *resource.Quantity {
 	allowedMemoryRange := policy.MaxAllowed.Memory.Value() - policy.MinAllowed.Memory.Value()
 	if allowedMemoryRange == 0 {
 		// Can't scale CPU as min and max for memory are equal

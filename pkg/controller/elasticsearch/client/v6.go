@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 
 	"github.com/pkg/errors"
 
@@ -155,7 +155,7 @@ func (c *clientV6) DeleteAutoscalingAutoscalingPolicies(_ context.Context) error
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
-func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ commonv1.AutoscalingPolicy) error {
+func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ esv1.AutoscalingPolicy) error {
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 

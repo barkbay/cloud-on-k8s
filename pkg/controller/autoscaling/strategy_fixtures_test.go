@@ -7,15 +7,12 @@ package autoscaling
 import (
 	"fmt"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func quantityPtr(quantity string) *resource.Quantity {
@@ -128,7 +125,7 @@ func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
 func (nsb *resourcesBuilder) build() NodeSetResources {
 	nodeSetResources := NodeSetResources{
 		Name: nsb.name,
-		ResourcesSpecification: commonv1.ResourcesSpecification{
+		ResourcesSpecification: esv1.ResourcesSpecification{
 			Count:   nsb.count,
 			Memory:  nsb.memoryRequest,
 			Storage: nsb.storageRequest,
@@ -165,8 +162,8 @@ func (arb *allowedResourcesBuilder) withStorage(sto string) *allowedResourcesBui
 	return arb
 }
 
-func (arb *allowedResourcesBuilder) build() commonv1.ResourcesSpecification {
-	return commonv1.ResourcesSpecification{
+func (arb *allowedResourcesBuilder) build() esv1.ResourcesSpecification {
+	return esv1.ResourcesSpecification{
 		Count:   arb.count,
 		Memory:  arb.memory,
 		Storage: arb.storage,

@@ -9,20 +9,21 @@ import (
 	"encoding/json"
 	"fmt"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+
 	"github.com/docker/go-units"
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 )
 
 type AutoScalingClient interface {
 	DeleteAutoscalingAutoscalingPolicies(ctx context.Context) error
-	UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy commonv1.AutoscalingPolicy) error
+	UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy esv1.AutoscalingPolicy) error
 	GetAutoscalingCapacity(ctx context.Context) (Policies, error)
 }
 
 type DeciderConfiguration map[string]string
 
-func (c *clientV7) UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy commonv1.AutoscalingPolicy) error {
+func (c *clientV7) UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy esv1.AutoscalingPolicy) error {
 	path := fmt.Sprintf("/_autoscaling/policy/%s", policyName)
 	return c.put(ctx, path, autoscalingPolicy, nil)
 }

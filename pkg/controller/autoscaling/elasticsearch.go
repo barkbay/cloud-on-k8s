@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
@@ -104,7 +103,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Get resource policies from the Elasticsearch spec
-	resourcePolicies, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
+	resourcePolicies, err := es.GetResourcePolicies()
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -129,7 +128,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Compute named tiers
-	namedTiers, err := GetNamedTiers(es, resourcePolicies)
+	namedTiers, err := resourcePolicies.GetNamedTiers(es)
 	// Configuration does not exist yet, retry later.
 	if apierrors.IsNotFound(err) {
 		return defaultReconcile, nil
@@ -151,8 +150,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
 	autoscalingStatus Status,
-	namedTiers NamedTiers,
-	resourcePolicies commonv1.ResourcePolicies,
+	namedTiers esv1.NamedTiers,
+	resourcePolicies esv1.ResourcePolicies,
 	es esv1.Elasticsearch,
 ) (reconcile.Result, error) {
 	results := &reconciler.Results{}
@@ -170,11 +169,10 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	if !esReachable {
 		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
 		for _, scalePolicy := range resourcePolicies {
-			scalePolicyName := *scalePolicy.Name
-			log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
-			nodeSets, exists := namedTiers[scalePolicyName]
+			log.V(1).Info("Autoscaling resources", "tier", scalePolicy.Name)
+			nodeSets, exists := namedTiers[scalePolicy.Name]
 			if !exists {
-				return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
+				return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicy.Name)).Aggregate()
 			}
 			nodeSetsResources := ensureResourcePolicies(nodeSets, scalePolicy, autoscalingStatus)
 			clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
@@ -221,19 +219,18 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	// For each resource policy:
 	// 1. Get the associated nodeSets
 	for _, scalePolicy := range resourcePolicies {
-		scalePolicyName := *scalePolicy.Name
-		log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
+		log.V(1).Info("Autoscaling resources", "tier", scalePolicy.Name)
 		// Get the currentNodeSets
-		nodeSets, exists := namedTiers[scalePolicyName]
+		nodeSets, exists := namedTiers[scalePolicy.Name]
 		if !exists {
-			return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicyName)).Aggregate()
+			return results.WithError(fmt.Errorf("no nodeSets for tier %s", scalePolicy.Name)).Aggregate()
 		}
 
 		// Get the decision from the Elasticsearch API
 		var nodeSetsResources NodeSetsResources
-		switch decision, gotDecision := decisions.Policies[scalePolicyName]; gotDecision {
+		switch decision, gotDecision := decisions.Policies[scalePolicy.Name]; gotDecision {
 		case false:
-			log.V(1).Info("No decision for tier, ensure min. are set", "tier", scalePolicyName)
+			log.V(1).Info("No decision for tier, ensure min. are set", "tier", scalePolicy.Name)
 			nodeSetsResources = ensureResourcePolicies(nodeSets, scalePolicy, autoscalingStatus)
 		case true:
 			nodeSetsResources = getScaleDecision(nodeSets, decision.RequiredCapacity, scalePolicy)

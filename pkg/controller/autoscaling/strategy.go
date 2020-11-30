@@ -7,11 +7,10 @@ package autoscaling
 import (
 	"fmt"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -20,7 +19,7 @@ type NodeSetsResources []NodeSetResources
 
 type NodeSetResources struct {
 	Name string `json:"name,omitempty"`
-	commonv1.ResourcesSpecification
+	esv1.ResourcesSpecification
 }
 
 func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
@@ -32,7 +31,7 @@ func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
 }
 
 // getMaxStorage extracts the max storage size among a set of nodeSets.
-func getMaxStorage(nodeSets ...v1.NodeSet) resource.Quantity {
+func getMaxStorage(nodeSets ...esv1.NodeSet) resource.Quantity {
 	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
 	// TODO: refactor for/for/if/if
 	for _, nodeSet := range nodeSets {
@@ -48,7 +47,7 @@ func getMaxStorage(nodeSets ...v1.NodeSet) resource.Quantity {
 	return storage
 }
 
-func minStorage(minAllowed *resource.Quantity, nodeSets ...v1.NodeSet) resource.Quantity {
+func minStorage(minAllowed *resource.Quantity, nodeSets ...esv1.NodeSet) resource.Quantity {
 	// TODO: nodeSet with more than once volume claim is not supported
 	storage := getMaxStorage(nodeSets...)
 	if minAllowed != nil && minAllowed.Cmp(storage) > 0 {
@@ -61,8 +60,8 @@ func minStorage(minAllowed *resource.Quantity, nodeSets ...v1.NodeSet) resource.
 // the min. and max. resource requirements.
 // If resources are within the min. and max. boundaries then they are left untouched.
 func ensureResourcePolicies(
-	nodeSets []v1.NodeSet,
-	policy commonv1.ResourcePolicy,
+	nodeSets []esv1.NodeSet,
+	policy esv1.ResourcePolicy,
 	autoscalingStatus Status,
 ) NodeSetsResources {
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
@@ -71,7 +70,7 @@ func ensureResourcePolicies(
 		storage := minStorage(policy.MinAllowed.Storage, nodeSet)
 		nodeSetResources := NodeSetResources{
 			Name: nodeSet.Name,
-			ResourcesSpecification: commonv1.ResourcesSpecification{
+			ResourcesSpecification: esv1.ResourcesSpecification{
 				Count:   policy.MinAllowed.Count,
 				Cpu:     policy.MinAllowed.Cpu,
 				Memory:  policy.MinAllowed.Memory,
@@ -94,30 +93,18 @@ func ensureResourcePolicies(
 
 		// Ensure memory settings are in the allowed range
 		if nodeSetStatus.Memory != nil && policy.MinAllowed.Memory != nil && policy.MaxAllowed.Memory != nil {
-			if nodeSetStatus.Memory.Cmp(*policy.MinAllowed.Memory) < 0 {
-				nodeSetStatus.Memory = policy.MinAllowed.Memory
-			} else if nodeSetStatus.Memory.Cmp(*policy.MaxAllowed.Memory) > 0 {
-				nodeSetStatus.Memory = policy.MaxAllowed.Memory
-			}
+			nodeSetStatus.Memory = adjustQuantity(*nodeSetStatus.Memory, *policy.MinAllowed.Memory, *policy.MinAllowed.Memory)
 		}
 
 		// Ensure CPU settings are in the allowed range
 		if nodeSetStatus.Cpu != nil && policy.MinAllowed.Cpu != nil && policy.MaxAllowed.Cpu != nil {
-			if nodeSetStatus.Cpu.Cmp(*policy.MinAllowed.Cpu) < 0 {
-				nodeSetStatus.Cpu = policy.MinAllowed.Cpu
-			} else if nodeSetStatus.Cpu.Cmp(*policy.MaxAllowed.Cpu) > 0 {
-				nodeSetStatus.Cpu = policy.MaxAllowed.Cpu
-			}
+			nodeSetStatus.Cpu = adjustQuantity(*nodeSetStatus.Cpu, *policy.MinAllowed.Cpu, *policy.MinAllowed.Cpu)
 		}
 
 		// Ensure Storage settings are in the allowed range but not below the current size
 		currentStorage := getMaxStorage(nodeSet)
 		if nodeSetStatus.Storage != nil && policy.MinAllowed.Storage != nil && policy.MaxAllowed.Storage != nil {
-			if nodeSetStatus.Storage.Cmp(*policy.MinAllowed.Storage) < 0 {
-				nodeSetStatus.Storage = policy.MinAllowed.Storage
-			} else if nodeSetStatus.Storage.Cmp(*policy.MaxAllowed.Storage) > 0 {
-				nodeSetStatus.Storage = policy.MaxAllowed.Storage
-			}
+			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, *policy.MinAllowed.Storage, *policy.MinAllowed.Storage)
 			if currentStorage.Cmp(*nodeSetStatus.Storage) > 0 {
 				nodeSetStatus.Storage = &currentStorage
 			}
@@ -131,10 +118,19 @@ func ensureResourcePolicies(
 	return nodeSetsResources
 }
 
+func adjustQuantity(value, min, max resource.Quantity) *resource.Quantity {
+	if value.Cmp(min) < 0 {
+		return &min
+	} else if value.Cmp(max) > 0 {
+		return &max
+	}
+	return &value
+}
+
 func getScaleDecision(
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
-	policy commonv1.ResourcePolicy,
+	policy esv1.ResourcePolicy,
 ) NodeSetsResources {
 	// 1. Scale vertically
 	desiredNodeResources := scaleVertically(nodeSets, requiredCapacity, policy)
@@ -150,8 +146,8 @@ var giga = int64(1024 * 1024 * 1024)
 func scaleVertically(
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
-	policy commonv1.ResourcePolicy,
-) commonv1.ResourcesSpecification {
+	policy esv1.ResourcePolicy,
+) esv1.ResourcesSpecification {
 
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
@@ -214,7 +210,7 @@ func scaleVertically(
 		resourceMemory = resource.NewQuantity(requiredMemoryCapacity, resource.DecimalSI)
 	}
 
-	nodeResourcesSpecification := commonv1.ResourcesSpecification{
+	nodeResourcesSpecification := esv1.ResourcesSpecification{
 		Memory:  resourceMemory,
 		Storage: resourceStorage,
 	}
@@ -230,15 +226,14 @@ func scaleVertically(
 func scaleHorizontally(
 	nodeSets []v1.NodeSet,
 	requestedCapacity client.Capacity,
-	nodeCapacity commonv1.ResourcesSpecification,
-	policy commonv1.ResourcePolicy,
+	nodeCapacity esv1.ResourcesSpecification,
+	policy esv1.ResourcePolicy,
 ) NodeSetsResources {
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
 	for i, nodeSet := range nodeSets {
-		nodeSetResources := *nodeCapacity.DeepCopy()
 		nodeSetsResources[i] = NodeSetResources{
 			Name:                   nodeSet.Name,
-			ResourcesSpecification: nodeSetResources,
+			ResourcesSpecification: nodeCapacity,
 		}
 		// set all the nodeSets count the minimum
 		nodeSetsResources[i].Count = policy.MinAllowed.Count

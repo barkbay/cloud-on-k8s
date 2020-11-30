@@ -7,18 +7,17 @@ package autoscaling
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_applyScaleDecision(t *testing.T) {
 	type args struct {
-		currentNodeSets  []v1.NodeSet
+		currentNodeSets  []esv1.NodeSet
 		requiredCapacity client.RequiredCapacity
-		policy           commonv1.ResourcePolicy
+		policy           esv1.ResourcePolicy
 	}
 	tests := []struct {
 		name    string
@@ -36,8 +35,8 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
-				policy: commonv1.ResourcePolicy{
-					AllowedResources: commonv1.AllowedResources{
+				policy: esv1.ResourcePolicy{
+					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
 					},
@@ -59,8 +58,8 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeStorage("1Gi").
 					tierStorage("3Gi").
 					build(),
-				policy: commonv1.ResourcePolicy{
-					AllowedResources: commonv1.AllowedResources{
+				policy: esv1.ResourcePolicy{
+					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").withStorage("1G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").withStorage("20G").build(),
 					},
@@ -80,8 +79,8 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("21G").
 					build(),
-				policy: commonv1.ResourcePolicy{
-					AllowedResources: commonv1.AllowedResources{
+				policy: esv1.ResourcePolicy{
+					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
 					},
@@ -101,8 +100,8 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("48G").
 					build(),
-				policy: commonv1.ResourcePolicy{
-					AllowedResources: commonv1.AllowedResources{
+				policy: esv1.ResourcePolicy{
+					AllowedResources: esv1.AllowedResources{
 						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
 						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
 					},

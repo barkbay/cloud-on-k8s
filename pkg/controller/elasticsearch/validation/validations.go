@@ -143,7 +143,8 @@ func hasCorrectNodeRoles(es esv1.Elasticsearch) field.ErrorList {
 		}
 
 		// check if this nodeSet has the master role
-		seenMaster = seenMaster || (cfg.Node.HasMasterRole() && !cfg.Node.HasVotingOnlyRole() && ns.Count > 0)
+		// TODO: the check is disabled if autoscaling is enabled, we may try to be smarter
+		seenMaster = seenMaster || (cfg.Node.HasMasterRole() && !cfg.Node.HasVotingOnlyRole() && ns.Count > 0) || es.IsAutoscalingDefined()
 	}
 
 	if !seenMaster {
@@ -277,15 +278,15 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 
 	var errs field.ErrorList
 	if !proposedVer.IsSameOrAfter(ElasticsearchMinAutoscalingVersion) {
-		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", commonv1.ElasticsearchAutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
 		return errs
 	}
 
 	// Attempt to unmarshall the proposed autoscaling spec.
-	rp, err := commonv1.ResourcePoliciesFrom(es.AutoscalingSpec())
+	rp, err := es.GetResourcePolicies()
 	if err != nil {
 		errs = append(errs, field.Invalid(
-			field.NewPath("metadata").Child("annotations", commonv1.ElasticsearchAutoscalingAnnotationName),
+			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingAnnotationName),
 			es.AutoscalingSpec(),
 			err.Error(),
 		))
