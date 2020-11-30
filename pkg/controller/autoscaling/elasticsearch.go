@@ -165,35 +165,18 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	var clusterNodeSetsResources NodeSetsResources
 	if !esReachable {
-		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
-		for _, autoscalingSpec := range autoscalingSpecs {
-			log.V(1).Info("Autoscaling resources", "tier", autoscalingSpec.Name)
-			nodeSets, exists := namedTiers[autoscalingSpec.Name]
-			if !exists {
-				return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
-			}
-			nodeSetsResources := ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
-			clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
-		}
-		// Replace currentNodeSets in the Elasticsearch manifest
-		updateNodeSets(&es, clusterNodeSetsResources)
-		// Update autoscaling status
-		if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
-			return reconcile.Result{}, tracing.CaptureError(ctx, err)
-		}
-		// Apply the update Elasticsearch manifest with the minimums
-		if err := r.Client.Update(&es); err != nil {
-			if apierrors.IsConflict(err) {
-				return results.WithResult(reconcile.Result{Requeue: true}).Aggregate()
-			}
-			return results.WithError(err).Aggregate()
-		}
-		return results.WithResult(defaultReconcile).Aggregate()
+		return r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results)
 	}
 
-	esClient, err := r.newElasticsearchClient(r.Client, es)
+	// Cluster is supposed to be online
+	result, err := r.attemptOnlineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results)
+	if err != nil {
+		// Attempt an offline reconciliation
+		if _, err := r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results); err != nil {
+			log.Error(err, "error while trying an offline reconciliation")
+		}
+	}
 	if apierrors.IsNotFound(err) {
 		// Some required Secrets might not exist yet
 		return reconcile.Result{
@@ -201,6 +184,18 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 			RequeueAfter: 10 * time.Second,
 		}, nil
 	}
+	return result, err
+}
+
+func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
+	ctx context.Context,
+	autoscalingStatus Status,
+	namedTiers esv1.NamedTiers,
+	autoscalingSpecs esv1.AutoscalingSpecs,
+	es esv1.Elasticsearch,
+	results *reconciler.Results,
+) (reconcile.Result, error) {
+	esClient, err := r.newElasticsearchClient(r.Client, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -216,6 +211,7 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
+	var clusterNodeSetsResources NodeSetsResources
 	// For each resource autoscalingSpec:
 	// 1. Get the associated nodeSets
 	for _, scalePolicy := range autoscalingSpecs {
@@ -257,8 +253,42 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		}
 		return results.WithError(err).Aggregate()
 	}
+	return reconcile.Result{}, nil
+}
 
-	return results.Aggregate()
+// doOfflineReconciliation runs an autoscaling reconciliation even of the autoscaling API is not ready (yet).
+func (r *ReconcileElasticsearch) doOfflineReconciliation(
+	ctx context.Context, autoscalingStatus Status,
+	namedTiers esv1.NamedTiers,
+	autoscalingSpecs esv1.AutoscalingSpecs,
+	es esv1.Elasticsearch,
+	results *reconciler.Results,
+) (reconcile.Result, error) {
+	var clusterNodeSetsResources NodeSetsResources
+	// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
+	for _, autoscalingSpec := range autoscalingSpecs {
+		log.V(1).Info("Autoscaling resources", "tier", autoscalingSpec.Name)
+		nodeSets, exists := namedTiers[autoscalingSpec.Name]
+		if !exists {
+			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
+		}
+		nodeSetsResources := ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
+		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
+	}
+	// Replace currentNodeSets in the Elasticsearch manifest
+	updateNodeSets(&es, clusterNodeSetsResources)
+	// Update autoscaling status
+	if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	// Apply the update Elasticsearch manifest with the minimums
+	if err := r.Client.Update(&es); err != nil {
+		if apierrors.IsConflict(err) {
+			return results.WithResult(reconcile.Result{Requeue: true}).Aggregate()
+		}
+		return results.WithError(err).Aggregate()
+	}
+	return results.WithResult(defaultReconcile).Aggregate()
 }
 
 // updateNodeSets replaces the provided currentNodeSets in the Elasticsearch manifest
