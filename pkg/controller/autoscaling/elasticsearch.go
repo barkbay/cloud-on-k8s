@@ -7,8 +7,12 @@ package autoscaling
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/validation"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
@@ -41,6 +45,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 const (
@@ -104,8 +109,27 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
+	autoscalingStatus, err := GetAutoscalingStatus(es)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	if len(resourcePolicies) == 0 && len(autoscalingStatus.NodeSetResources) == 0 {
+		// This cluster is not managed by the autoscaler
+		return reconcile.Result{}, nil
+	}
+
+	v, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	if !v.IsSameOrAfter(validation.ElasticsearchMinAutoscalingVersion) {
+		compatibilityErr := fmt.Errorf("autoscaling requires version %s of Elasticsearch, current version is %s", validation.ElasticsearchMinAutoscalingVersion, v)
+		k8s.EmitErrorEvent(r.recorder, compatibilityErr, &es, events.EventCompatCheckError, "Error during compatibility check: %v", compatibilityErr)
+	}
+
 	// Compute named tiers
-	namedTiers, err := getNamedTiers(r.Client, es, resourcePolicies)
+	namedTiers, err := GetNamedTiers(es, resourcePolicies)
 	// Configuration does not exist yet, retry later.
 	if apierrors.IsNotFound(err) {
 		return defaultReconcile, nil
@@ -116,7 +140,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
 	// Call the main function
-	current, err := r.reconcileInternal(ctx, namedTiers, resourcePolicies, es)
+	current, err := r.reconcileInternal(ctx, autoscalingStatus, namedTiers, resourcePolicies, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -126,6 +150,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
+	autoscalingStatus Status,
 	namedTiers NamedTiers,
 	resourcePolicies commonv1.ResourcePolicies,
 	es esv1.Elasticsearch,
@@ -140,13 +165,10 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	autoscalingStatus, err := GetAutoscalingStatus(es)
+
 	var clusterNodeSetsResources NodeSetsResources
 	if !esReachable {
 		// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
-		if err != nil {
-			return reconcile.Result{}, tracing.CaptureError(ctx, err)
-		}
 		for _, scalePolicy := range resourcePolicies {
 			scalePolicyName := *scalePolicy.Name
 			log.V(1).Info("Autoscaling resources", "tier", scalePolicyName)
@@ -165,6 +187,9 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		}
 		// Apply the update Elasticsearch manifest with the minimums
 		if err := r.Client.Update(&es); err != nil {
+			if apierrors.IsConflict(err) {
+				return results.WithResult(reconcile.Result{Requeue: true}).Aggregate()
+			}
 			return results.WithError(err).Aggregate()
 		}
 		return results.WithResult(defaultReconcile).Aggregate()
@@ -230,6 +255,9 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 
 	// Apply the update Elasticsearch manifest
 	if err := r.Client.Update(&es); err != nil {
+		if apierrors.IsConflict(err) {
+			return results.WithResult(reconcile.Result{Requeue: true}).Aggregate()
+		}
 		return results.WithError(err).Aggregate()
 	}
 
@@ -391,9 +419,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 }
 
 func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.Elasticsearch) (client.Client, error) {
-	url := services.ExternalServiceURL(es)
+	//url := services.ExternalServiceURL(es)
 	// use a fake service for now
-	//url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
+	url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err

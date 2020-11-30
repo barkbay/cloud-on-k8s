@@ -7,6 +7,8 @@ package autoscaling
 import (
 	"fmt"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -30,6 +32,32 @@ func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
 	return byNodeSet
 }
 
+// getMaxStorage extracts the max storage size among a set of nodeSets.
+func getMaxStorage(nodeSets ...v1.NodeSet) resource.Quantity {
+	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
+	// TODO: refactor for/for/if/if
+	for _, nodeSet := range nodeSets {
+		for _, claimTemplate := range nodeSet.VolumeClaimTemplates {
+			if claimTemplate.Name == volume.ElasticsearchDataVolumeName && claimTemplate.Spec.Resources.Requests != nil {
+				nodeSetStorage, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
+				if ok && nodeSetStorage.Cmp(storage) > 0 {
+					storage = nodeSetStorage
+				}
+			}
+		}
+	}
+	return storage
+}
+
+func minStorage(minAllowed *resource.Quantity, nodeSets ...v1.NodeSet) resource.Quantity {
+	// TODO: nodeSet with more than once volume claim is not supported
+	storage := getMaxStorage(nodeSets...)
+	if minAllowed != nil && minAllowed.Cmp(storage) > 0 {
+		storage = minAllowed.DeepCopy()
+	}
+	return storage
+}
+
 // ensureResourcePolicies ensures that even if no decisions have been returned the nodeSet respect
 // the min. and max. resource requirements.
 // If resources are within the min. and max. boundaries then they are left untouched.
@@ -40,7 +68,8 @@ func ensureResourcePolicies(
 ) NodeSetsResources {
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
 	statusByNodeSet := autoscalingStatus.ByNodeSet()
-	for _, nodeSet := range nodeSets {
+	for i, nodeSet := range nodeSets {
+		storage := minStorage(policy.MinAllowed.Storage, nodeSet)
 		nodeSetResources := NodeSetResources{
 			Name:  nodeSet.Name,
 			Count: *policy.MinAllowed.Count,
@@ -48,13 +77,13 @@ func ensureResourcePolicies(
 				Count:   policy.MinAllowed.Count,
 				Cpu:     policy.MinAllowed.Cpu,
 				Memory:  policy.MinAllowed.Memory,
-				Storage: policy.MinAllowed.Storage,
+				Storage: &storage,
 			},
 		}
 		nodeSetStatus, ok := statusByNodeSet[nodeSet.Name]
 		if !ok {
 			// No current status for this nodeSet, create a new one with minimums
-			nodeSetsResources = append(nodeSetsResources, nodeSetResources)
+			nodeSetsResources[i] = nodeSetResources
 			continue
 		}
 
@@ -92,7 +121,7 @@ func ensureResourcePolicies(
 			}
 		}
 
-		nodeSetsResources = append(nodeSetsResources, nodeSetResources)
+		nodeSetsResources[i] = nodeSetResources
 	}
 
 	return nodeSetsResources
@@ -141,7 +170,8 @@ func scaleVertically(
 	}
 
 	// Prepare the resource storage
-	var resourceStorage *resource.Quantity
+	currentMinStorage := minStorage(policy.MinAllowed.Storage, nodeSets...)
+	resourceStorage := &currentMinStorage
 	if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
 		// Tiers storage capacity distributed on min. nodes
 		storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
