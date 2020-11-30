@@ -278,7 +278,7 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 
 	var errs field.ErrorList
 	if !proposedVer.IsSameOrAfter(ElasticsearchMinAutoscalingVersion) {
-		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName), es.Spec.Version, autoscalingVersionMsg))
 		return errs
 	}
 
@@ -286,7 +286,7 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 	rp, err := es.GetAutoscalingSpecifications()
 	if err != nil {
 		errs = append(errs, field.Invalid(
-			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingAnnotationName),
+			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName),
 			es.AutoscalingSpec(),
 			err.Error(),
 		))

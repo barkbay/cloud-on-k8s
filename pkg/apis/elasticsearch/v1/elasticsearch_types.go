@@ -176,7 +176,7 @@ type NodeSet struct {
 	Config *commonv1.Config `json:"config,omitempty"`
 
 	// Count of Elasticsearch nodes to deploy.
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
 	Count int32 `json:"count"`
 
 	// PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the Pods belonging to this NodeSet.
@@ -343,13 +343,13 @@ func (es Elasticsearch) IsMarkedForDeletion() bool {
 
 // IsAutoscalingDefined returns true if there is an autoscaling configuration in the annotations.
 func (es Elasticsearch) IsAutoscalingDefined() bool {
-	_, ok := es.Annotations[ElasticsearchAutoscalingAnnotationName]
+	_, ok := es.Annotations[ElasticsearchAutoscalingSpecAnnotationName]
 	return ok
 }
 
 // AutoscalingSpec returns the autoscaling spec in the Elasticsearch manifest.
 func (es Elasticsearch) AutoscalingSpec() string {
-	return es.Annotations[ElasticsearchAutoscalingAnnotationName]
+	return es.Annotations[ElasticsearchAutoscalingSpecAnnotationName]
 }
 
 func (es Elasticsearch) SecureSettings() []commonv1.SecretSource {

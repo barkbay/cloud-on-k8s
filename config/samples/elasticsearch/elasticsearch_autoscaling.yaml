@@ -3,7 +3,7 @@ kind: Elasticsearch
 metadata:
   name: elasticsearch-sample
   annotations:
-    elasticsearch.alpha.elastic.co/autoscaling-policies: '[
+    elasticsearch.alpha.elastic.co/autoscaling-spec: '[
           {
               "name": "mdi",
               "roles": [ "master", "data", "ingest" ],

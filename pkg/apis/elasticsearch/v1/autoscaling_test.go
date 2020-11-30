@@ -191,7 +191,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			es := Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						ElasticsearchAutoscalingAnnotationName: tt.resourcePolicies,
+						ElasticsearchAutoscalingSpecAnnotationName: tt.resourcePolicies,
 					},
 				},
 			}

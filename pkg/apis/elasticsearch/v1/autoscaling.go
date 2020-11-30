@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-const ElasticsearchAutoscalingAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-policies"
+const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
 // +kubebuilder:object:generate=false
 type AutoscalingSpecs []AutoscalingSpec
@@ -158,7 +158,7 @@ func (as AutoscalingSpecs) getAutoscalingSpecFor(es Elasticsearch, nodeSet NodeS
 
 func resourcePolicyIndex(index int, child string, moreChildren ...string) *field.Path {
 	return field.NewPath("metadata").
-		Child("annotations", `"`+ElasticsearchAutoscalingAnnotationName+`"`).
+		Child("annotations", `"`+ElasticsearchAutoscalingSpecAnnotationName+`"`).
 		Index(index).
 		Child(child, moreChildren...)
 }

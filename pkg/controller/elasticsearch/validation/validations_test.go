@@ -457,7 +457,7 @@ func Test_autoscalingValidation(t *testing.T) {
 		{
 			name: "unsupported version",
 			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.ElasticsearchAutoscalingAnnotationName: "[]"}},
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.ElasticsearchAutoscalingSpecAnnotationName: "[]"}},
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.10.0",
 				},
@@ -467,7 +467,7 @@ func Test_autoscalingValidation(t *testing.T) {
 		{
 			name: "supported version",
 			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.ElasticsearchAutoscalingAnnotationName: "[]"}},
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{esv1.ElasticsearchAutoscalingSpecAnnotationName: "[]"}},
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.11.0",
 				},
