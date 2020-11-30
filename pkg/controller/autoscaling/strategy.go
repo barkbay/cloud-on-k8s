@@ -19,8 +19,7 @@ import (
 type NodeSetsResources []NodeSetResources
 
 type NodeSetResources struct {
-	Name  string `json:"name,omitempty"`
-	Count int32  `json:"count,omitempty"`
+	Name string `json:"name,omitempty"`
 	commonv1.ResourcesSpecification
 }
 
@@ -71,8 +70,7 @@ func ensureResourcePolicies(
 	for i, nodeSet := range nodeSets {
 		storage := minStorage(policy.MinAllowed.Storage, nodeSet)
 		nodeSetResources := NodeSetResources{
-			Name:  nodeSet.Name,
-			Count: *policy.MinAllowed.Count,
+			Name: nodeSet.Name,
 			ResourcesSpecification: commonv1.ResourcesSpecification{
 				Count:   policy.MinAllowed.Count,
 				Cpu:     policy.MinAllowed.Cpu,
@@ -88,10 +86,10 @@ func ensureResourcePolicies(
 		}
 
 		// ensure that the min. number of nodes is set
-		if nodeSetStatus.Count < *policy.MinAllowed.Count {
-			nodeSetResources.Count = *policy.MinAllowed.Count
-		} else if nodeSetStatus.Count > *policy.MaxAllowed.Count {
-			nodeSetResources.Count = *policy.MaxAllowed.Count
+		if nodeSetStatus.Count < policy.MinAllowed.Count {
+			nodeSetResources.Count = policy.MinAllowed.Count
+		} else if nodeSetStatus.Count > policy.MaxAllowed.Count {
+			nodeSetResources.Count = policy.MaxAllowed.Count
 		}
 
 		// Ensure memory settings are in the allowed range
@@ -112,13 +110,19 @@ func ensureResourcePolicies(
 			}
 		}
 
-		// Ensure Storage settings are in the allowed range
+		// Ensure Storage settings are in the allowed range but not below the current size
+		currentStorage := getMaxStorage(nodeSet)
 		if nodeSetStatus.Storage != nil && policy.MinAllowed.Storage != nil && policy.MaxAllowed.Storage != nil {
 			if nodeSetStatus.Storage.Cmp(*policy.MinAllowed.Storage) < 0 {
 				nodeSetStatus.Storage = policy.MinAllowed.Storage
 			} else if nodeSetStatus.Storage.Cmp(*policy.MaxAllowed.Storage) > 0 {
 				nodeSetStatus.Storage = policy.MaxAllowed.Storage
 			}
+			if currentStorage.Cmp(*nodeSetStatus.Storage) > 0 {
+				nodeSetStatus.Storage = &currentStorage
+			}
+		} else {
+			nodeSetStatus.Storage = &currentStorage
 		}
 
 		nodeSetsResources[i] = nodeSetResources
@@ -151,7 +155,7 @@ func scaleVertically(
 
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
-	minNodesCount := int64(*policy.MinAllowed.Count) * int64(len(nodeSets))
+	minNodesCount := int64(policy.MinAllowed.Count) * int64(len(nodeSets))
 	// Tiers memory capacity distributed on min. nodes
 	memoryOverAllTiers := *requiredCapacity.Tier.Memory / minNodesCount
 	requiredMemoryCapacity := max64(
@@ -172,12 +176,16 @@ func scaleVertically(
 	// Prepare the resource storage
 	currentMinStorage := minStorage(policy.MinAllowed.Storage, nodeSets...)
 	resourceStorage := &currentMinStorage
-	if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
+	if (requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil) &&
+		(policy.MinAllowed.Storage == nil || policy.MaxAllowed.Storage == nil) {
+		// TODO: not limit defined, raise an event
+	} else if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
 		// Tiers storage capacity distributed on min. nodes
 		storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
 		requiredStorageCapacity := max64(
 			*requiredCapacity.Node.Storage,
 			roundUp(storageOverAllTiers, giga),
+			currentMinStorage.Value(),
 		)
 		// Set desired storage capacity within the allowed range
 		if requiredStorageCapacity < policy.MinAllowed.Storage.Value() {
@@ -229,15 +237,15 @@ func scaleHorizontally(
 	for i, nodeSet := range nodeSets {
 		nodeSetResources := *nodeCapacity.DeepCopy()
 		nodeSetsResources[i] = NodeSetResources{
-			Name: nodeSet.Name,
-			// set all the nodeSets count the minimum
-			Count:                  *policy.MinAllowed.Count,
+			Name:                   nodeSet.Name,
 			ResourcesSpecification: nodeSetResources,
 		}
+		// set all the nodeSets count the minimum
+		nodeSetsResources[i].Count = policy.MinAllowed.Count
 	}
 
 	// scaleHorizontally always start from the min number of nodes and add nodes as necessary
-	minNodes := len(nodeSets) * int(*policy.MinAllowed.Count)
+	minNodes := len(nodeSets) * int(policy.MinAllowed.Count)
 	minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 
 	// memoryDelta holds the memory variation, it can be:
@@ -254,7 +262,7 @@ func scaleHorizontally(
 	)
 
 	if nodeToAdd > 0 {
-		nodeToAdd = min(int(*policy.MaxAllowed.Count)-minNodes, nodeToAdd)
+		nodeToAdd = min(int(policy.MaxAllowed.Count)-minNodes, nodeToAdd)
 		log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
 		fnm := NewFairNodesManager(nodeSetsResources)
 		for nodeToAdd > 0 {
@@ -287,11 +295,14 @@ func min(x, y int) int {
 	return y
 }
 
-func max64(x, y int64) int64 {
-	if x > y {
-		return x
+func max64(x int64, others ...int64) int64 {
+	max := x
+	for _, other := range others {
+		if other > max {
+			max = other
+		}
 	}
-	return y
+	return max
 }
 
 func roundUp(v, n int64) int64 {

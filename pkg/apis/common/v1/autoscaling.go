@@ -55,16 +55,12 @@ type AllowedResources struct {
 
 type ResourcesSpecification struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
-	// +kubebuilder:validation:Required
-	Count *int32 `json:"count,omitempty"`
+	Count int32 `json:"count,omitempty"`
 	// Cpu represents max CPU request
-	// +kubebuilder:validation:Required
 	Cpu *resource.Quantity `json:"cpu"`
 	// memory represents max memory request
-	// +kubebuilder:validation:Required
 	Memory *resource.Quantity `json:"memory"`
 	// storage represents storage request
-	// +kubebuilder:validation:Required
 	Storage *resource.Quantity `json:"storage"`
 }
 
@@ -115,22 +111,17 @@ func (rps ResourcePolicies) Validate() field.ErrorList {
 			errs = append(errs, field.Required(resourcePolicyIndex(i, "roles"), "roles is mandatory"))
 		}
 
-		// All fields are mandatory
-		if resourcePolicy.MinAllowed.Count == nil {
-			errs = append(errs, field.Required(resourcePolicyIndex(i, "minAllowed", "count"), "count field is mandatory"))
-		} else if !(*resourcePolicy.MinAllowed.Count >= 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), *resourcePolicy.MinAllowed.Count, "count must be a positive integer"))
+		if !(resourcePolicy.MinAllowed.Count >= 0) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), resourcePolicy.MaxAllowed.Count, "count must be a positive integer"))
 		}
-		if resourcePolicy.MaxAllowed.Count == nil {
-			errs = append(errs, field.Required(resourcePolicyIndex(i, "maxAllowed", "count"), "count field is mandatory"))
-		} else if !(*resourcePolicy.MaxAllowed.Count >= 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), *resourcePolicy.MaxAllowed.Count, "count must be a positive integer"))
+
+		if !(resourcePolicy.MaxAllowed.Count > 0) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.MaxAllowed.Count, "count must be an integer greater than 0"))
 		}
 
 		// Check that max count is greater or equal than min count.
-		if resourcePolicy.MaxAllowed.Count != nil && resourcePolicy.MinAllowed.Count != nil &&
-			!(*resourcePolicy.MaxAllowed.Count >= *resourcePolicy.MinAllowed.Count) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), *resourcePolicy.MaxAllowed.Count, "maxAllowed must be greater or equal than minAllowed"))
+		if !(resourcePolicy.MaxAllowed.Count >= resourcePolicy.MinAllowed.Count) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.MaxAllowed.Count, "maxAllowed must be greater or equal than minAllowed"))
 		}
 
 		// Check CPU

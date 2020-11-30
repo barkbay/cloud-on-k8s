@@ -7,13 +7,15 @@ package autoscaling
 import (
 	"fmt"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func quantityPtr(quantity string) *resource.Quantity {
@@ -79,10 +81,14 @@ func (nsb *nodeSetBuilder) build() esv1.NodeSet {
 		storageRequest[corev1.ResourceStorage] = *nsb.storageRequest
 		nodeSet.VolumeClaimTemplates = append(nodeSet.VolumeClaimTemplates,
 			corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: volume.ElasticsearchDataVolumeName,
+				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					Resources: corev1.ResourceRequirements{
-						Requests: nil,
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: *nsb.storageRequest,
+						},
 					},
 				},
 			},
@@ -91,11 +97,51 @@ func (nsb *nodeSetBuilder) build() esv1.NodeSet {
 	return nodeSet
 }
 
+// - NodeSetResources builder
+
+type resourcesBuilder struct {
+	name           string
+	count          int32
+	memoryRequest  *resource.Quantity
+	storageRequest *resource.Quantity
+}
+
+func newResourcesBuilder(name string, count int) *resourcesBuilder {
+	return &resourcesBuilder{
+		name:  name,
+		count: int32(count),
+	}
+}
+
+func (nsb *resourcesBuilder) withMemoryRequest(qs string) *resourcesBuilder {
+	q := resource.MustParse(qs)
+	nsb.memoryRequest = &q
+	return nsb
+}
+
+func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
+	q := resource.MustParse(qs)
+	nsb.storageRequest = &q
+	return nsb
+}
+
+func (nsb *resourcesBuilder) build() NodeSetResources {
+	nodeSetResources := NodeSetResources{
+		Name: nsb.name,
+		ResourcesSpecification: commonv1.ResourcesSpecification{
+			Count:   nsb.count,
+			Memory:  nsb.memoryRequest,
+			Storage: nsb.storageRequest,
+		},
+	}
+	return nodeSetResources
+}
+
 // - Allowed resource builder
 
 type allowedResourcesBuilder struct {
-	count  int32
-	memory *resource.Quantity
+	count           int32
+	memory, storage *resource.Quantity
 }
 
 func newAllowedResourcesBuilder() *allowedResourcesBuilder {
@@ -113,10 +159,17 @@ func (arb *allowedResourcesBuilder) withMemory(ms string) *allowedResourcesBuild
 	return arb
 }
 
+func (arb *allowedResourcesBuilder) withStorage(sto string) *allowedResourcesBuilder {
+	s := resource.MustParse(sto)
+	arb.storage = &s
+	return arb
+}
+
 func (arb *allowedResourcesBuilder) build() commonv1.ResourcesSpecification {
 	return commonv1.ResourcesSpecification{
-		Count:  pointer.Int32(arb.count),
-		Memory: arb.memory,
+		Count:   arb.count,
+		Memory:  arb.memory,
+		Storage: arb.storage,
 	}
 }
 
