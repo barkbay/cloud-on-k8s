@@ -5,11 +5,11 @@
 package v1
 
 import (
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/hash"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 )
 
@@ -181,7 +181,7 @@ type NodeSet struct {
 	Config *commonv1.Config `json:"config,omitempty"`
 
 	// Count of Elasticsearch nodes to deploy.
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
 	Count int32 `json:"count"`
 
 	// PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the Pods belonging to this NodeSet.
@@ -344,6 +344,17 @@ type Elasticsearch struct {
 // IsMarkedForDeletion returns true if the Elasticsearch is going to be deleted
 func (es Elasticsearch) IsMarkedForDeletion() bool {
 	return !es.DeletionTimestamp.IsZero()
+}
+
+// IsAutoscalingDefined returns true if there is an autoscaling configuration in the annotations.
+func (es Elasticsearch) IsAutoscalingDefined() bool {
+	_, ok := es.Annotations[ElasticsearchAutoscalingSpecAnnotationName]
+	return ok
+}
+
+// AutoscalingSpec returns the autoscaling spec in the Elasticsearch manifest.
+func (es Elasticsearch) AutoscalingSpec() string {
+	return es.Annotations[ElasticsearchAutoscalingSpecAnnotationName]
 }
 
 func (es Elasticsearch) SecureSettings() []commonv1.SecretSource {

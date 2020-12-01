@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+
 	"github.com/pkg/errors"
+
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 type clientV6 struct {
@@ -146,6 +149,18 @@ func (c *clientV6) AddVotingConfigExclusions(ctx context.Context, nodeNames []st
 
 func (c *clientV6) DeleteVotingConfigExclusions(ctx context.Context, waitForRemoval bool) error {
 	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
+func (c *clientV6) DeleteAutoscalingAutoscalingPolicies(_ context.Context) error {
+	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
+func (c *clientV6) UpsertAutoscalingPolicy(_ context.Context, _ string, _ esv1.AutoscalingPolicy) error {
+	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
+func (c *clientV6) GetAutoscalingCapacity(_ context.Context) (Policies, error) {
+	return Policies{}, errors.New("Not supported in Elasticsearch 6.x")
 }
 
 func (c *clientV6) ClusterBootstrappedForZen2(ctx context.Context) (bool, error) {

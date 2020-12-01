@@ -5,11 +5,18 @@
 package tracing
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-logr/logr"
 	pkgerrors "github.com/pkg/errors"
 	"go.elastic.co/apm"
+)
+
+const (
+	SpanIDField        = "span.id"
+	TraceIDField       = "trace.id"
+	TransactionIDField = "transaction.id"
 )
 
 // NewLogAdapter returns an implementation of the log interface expected by the APM agent.
@@ -37,3 +44,20 @@ func (l *logAdapter) Debugf(format string, args ...interface{}) {
 
 var _ apm.Logger = &logAdapter{}
 var _ apm.WarningLogger = &logAdapter{}
+
+// TraceContextKV returns logger key-values for the current trace context.
+func TraceContextKV(ctx context.Context) []interface{} {
+	tx := apm.TransactionFromContext(ctx)
+	if tx == nil {
+		return nil
+	}
+
+	traceCtx := tx.TraceContext()
+	fields := []interface{}{TraceIDField, traceCtx.Trace, TransactionIDField, traceCtx.Span}
+
+	if span := apm.SpanFromContext(ctx); span != nil {
+		fields = append(fields, SpanIDField, span.TraceContext().Span)
+	}
+
+	return fields
+}

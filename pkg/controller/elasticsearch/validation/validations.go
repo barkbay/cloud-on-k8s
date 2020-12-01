@@ -21,7 +21,10 @@ import (
 
 var log = logf.Log.WithName("es-validation")
 
+var ElasticsearchMinAutoscalingVersion = version.From(7, 11, 0)
+
 const (
+	autoscalingVersionMsg    = "autoscaling is not available in this version of Elasticsearch"
 	cfgInvalidMsg            = "Configuration invalid"
 	duplicateNodeSets        = "NodeSet names must be unique"
 	invalidNamesErrMsg       = "Elasticsearch configuration would generate resources with invalid names"
@@ -47,6 +50,7 @@ var validations = []validation{
 	hasCorrectNodeRoles,
 	supportedVersion,
 	validSanIP,
+	autoscalingValidation,
 }
 
 type updateValidation func(esv1.Elasticsearch, esv1.Elasticsearch) field.ErrorList
@@ -139,7 +143,8 @@ func hasCorrectNodeRoles(es esv1.Elasticsearch) field.ErrorList {
 		}
 
 		// check if this nodeSet has the master role
-		seenMaster = seenMaster || (cfg.Node.HasMasterRole() && !cfg.Node.HasVotingOnlyRole() && ns.Count > 0)
+		// TODO: the check is disabled if autoscaling is enabled, we may try to be smarter
+		seenMaster = seenMaster || (cfg.Node.HasMasterRole() && !cfg.Node.HasVotingOnlyRole() && ns.Count > 0) || es.IsAutoscalingDefined()
 	}
 
 	if !seenMaster {
@@ -260,4 +265,32 @@ func validUpgradePath(current, proposed esv1.Elasticsearch) field.ErrorList {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("version"), proposed.Spec.Version, unsupportedUpgradeMsg))
 	}
 	return errs
+}
+
+func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
+	if !es.IsAutoscalingDefined() {
+		return nil
+	}
+	proposedVer, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return field.ErrorList{field.Invalid(field.NewPath("spec").Child("version"), es.Spec.Version, parseVersionErrMsg)}
+	}
+
+	var errs field.ErrorList
+	if !proposedVer.IsSameOrAfter(ElasticsearchMinAutoscalingVersion) {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		return errs
+	}
+
+	// Attempt to unmarshall the proposed autoscaling spec.
+	rp, err := es.GetAutoscalingSpecifications()
+	if err != nil {
+		errs = append(errs, field.Invalid(
+			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName),
+			es.AutoscalingSpec(),
+			err.Error(),
+		))
+		return errs
+	}
+	return rp.Validate()
 }

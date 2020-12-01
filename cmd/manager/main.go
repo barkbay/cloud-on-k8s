@@ -27,6 +27,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/apmserver"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/association"
 	associationctl "github.com/elastic/cloud-on-k8s/pkg/controller/association/controller"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/beat"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/container"
@@ -640,6 +641,7 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 		registerFunc func(manager.Manager, operator.Parameters) error
 	}{
 		{name: "APMServer", registerFunc: apmserver.Add},
+		{name: "ElasticsearchAutoscaling", registerFunc: autoscaling.Add},
 		{name: "Elasticsearch", registerFunc: elasticsearch.Add},
 		{name: "Kibana", registerFunc: kibana.Add},
 		{name: "EnterpriseSearch", registerFunc: enterprisesearch.Add},
