@@ -26,6 +26,27 @@ func Test_applyScaleDecision(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "Scale both horizontally to fulfil storage capacity request",
+			args: args{
+				currentNodeSets: []v1.NodeSet{
+					newNodeSetBuilder("default", 3).withMemoryRequest("4G").withStorageRequest("1Gi").build(),
+				},
+				requiredCapacity: newRequiredCapacityBuilder().
+					nodeMemory("3Gi").nodeStorage("8Gi").
+					tierMemory("9Gi").tierStorage("50Gi").
+					build(),
+				policy: esv1.AutoscalingSpec{
+					AllowedResources: esv1.AllowedResources{
+						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("3Gi").withStorage("5Gi").build(),
+						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("4Gi").withStorage("10Gi").build(),
+					},
+				},
+			},
+			want: map[string]NodeSetResources{
+				"default": newResourcesBuilder("default", 5).withMemoryRequest("3Gi").withStorageRequest("10Gi").build(),
+			},
+		},
+		{
 			name: "Scale existing nodes vertically",
 			args: args{
 				currentNodeSets: []v1.NodeSet{

@@ -105,6 +105,7 @@ func ensureResourcePolicies(
 		currentStorage := getMaxStorage(nodeSet)
 		if nodeSetStatus.Storage != nil && autoscalingSpec.MinAllowed.Storage != nil && autoscalingSpec.MaxAllowed.Storage != nil {
 			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, *autoscalingSpec.MinAllowed.Storage, *autoscalingSpec.MinAllowed.Storage)
+			// Do not downscale storage capacity.
 			if currentStorage.Cmp(*nodeSetStatus.Storage) > 0 {
 				nodeSetStatus.Storage = &currentStorage
 			}
@@ -118,6 +119,7 @@ func ensureResourcePolicies(
 	return nodeSetsResources
 }
 
+// adjustQuantity ensures that a quantity is comprised between a min and a max.
 func adjustQuantity(value, min, max resource.Quantity) *resource.Quantity {
 	if value.Cmp(min) < 0 {
 		return &min
@@ -143,6 +145,7 @@ var giga = int64(1024 * 1024 * 1024)
 // scaleVertically computes desired state for a node given the requested capacity from ES and the resource autoscalingSpec
 // specified by the user.
 // It attempts to scale all the resources vertically until the expectations are met.
+// TODO: current code assumes that Elasticsearch API returns at least a memory requirements, storage is not mandatory.
 func scaleVertically(
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
@@ -249,6 +252,15 @@ func scaleHorizontally(
 	memoryDelta := *requestedCapacity.Memory - minMemory
 	nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value(), minMemory, *requestedCapacity.Memory)
 
+	if requestedCapacity.Storage != nil && nodeCapacity.Storage != nil {
+		minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
+		storageDelta := *requestedCapacity.Storage - minStorage
+		nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value(), minStorage, *requestedCapacity.Storage)
+		if nodeToAddStorage > nodeToAdd {
+			nodeToAdd = nodeToAddStorage
+		}
+	}
+
 	log.V(1).Info(
 		"Memory status",
 		"tier", autoscalingSpec.Roles,
@@ -301,7 +313,11 @@ func max64(x int64, others ...int64) int64 {
 }
 
 func roundUp(v, n int64) int64 {
-	return v + n - v%n
+	r := v % n
+	if r == 0 {
+		return v
+	}
+	return v + n - r
 }
 
 func getContainer(name string, containers []corev1.Container) (*corev1.Container, []corev1.Container) {
