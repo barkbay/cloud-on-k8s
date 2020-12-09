@@ -5,8 +5,6 @@
 package driver
 
 import (
-	"fmt"
-
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling"
 )
@@ -30,9 +28,6 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 		}
 
 		nodeSetHash := autoscaling.ResourcesHash(nodeSet)
-		if nodeSet.Name == "ml-zone-b" {
-			fmt.Printf("driver: %v", nodeSet.PodTemplate.Spec.Containers)
-		}
 		if status.Hash != nodeSetHash {
 			return false, nil
 		}

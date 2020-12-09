@@ -77,8 +77,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	log := logf.Log.WithName(name).
 		WithValues("event.sequence", currentIteration, "event.dataset", name).
 		WithValues("labels", map[string]interface{}{
-			"reconcile.name":      request.Name,
-			"reconcile.namespace": request.Namespace,
+			"reconcile.policyName": request.Name,
+			"reconcile.namespace":  request.Namespace,
 		}).
 		WithValues(keyValues...)
 	log.Info("Starting reconciliation run")
@@ -127,7 +127,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	if len(autoscalingSpecifications) == 0 && len(autoscalingStatus.NodeSetResources) == 0 {
+	if len(autoscalingSpecifications) == 0 && len(autoscalingStatus) == 0 {
 		// This cluster is not managed by the autoscaler
 		return reconcile.Result{}, nil
 	}
@@ -163,7 +163,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
-	autoscalingStatus Status,
+	autoscalingStatus NodeSetsStatus,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpecs,
 	es esv1.Elasticsearch,
@@ -218,7 +218,7 @@ func (r *ReconcileElasticsearch) isElasticsearchReachable(ctx context.Context, e
 // attemptOnlineReconciliation attempts an online autoscaling reconciliation with a call the Elasticsearch autoscaling API.
 func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	ctx context.Context,
-	autoscalingStatus Status,
+	autoscalingStatus NodeSetsStatus,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpecs,
 	es esv1.Elasticsearch,
@@ -243,6 +243,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
+	statusBuilder := NewPolicyStatesBuilder()
 	var clusterNodeSetsResources NodeSetsResources
 	// For each resource autoscalingSpec:
 	// 1. Get the associated nodeSets
@@ -253,6 +254,8 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
+		// Save the nodeSets in the status
+		statusBuilder.ForPolicy(autoscalingSpec.Name).SetNodeSets(nodeSets)
 
 		// Get the decision from the Elasticsearch API
 		var nodeSetsResources NodeSetsResources
@@ -261,14 +264,14 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
 			nodeSetsResources = ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
 		case true:
-			nodeSetsResources = getScaleDecision(log, nodeSets, decision.RequiredCapacity, autoscalingSpec)
+			nodeSetsResources = getScaleDecision(log, nodeSets, decision.RequiredCapacity, autoscalingSpec, statusBuilder)
 		}
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
 	// Replace currentNodeSets in the Elasticsearch manifest
 	updateNodeSets(ctx, &es, clusterNodeSetsResources)
 	// Update autoscaling status
-	if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
+	if err := UpdateAutoscalingStatus(&es, statusBuilder, clusterNodeSetsResources); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -291,7 +294,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 // doOfflineReconciliation runs an autoscaling reconciliation if the autoscaling API is not ready (yet).
 func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	ctx context.Context,
-	autoscalingStatus Status,
+	autoscalingStatus NodeSetsStatus,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpecs,
 	es esv1.Elasticsearch,
@@ -300,6 +303,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	span, _ := apm.StartSpan(ctx, "offline_reconciliation", tracing.SpanTypeApp)
 	defer span.End()
 	log := logf.FromContext(ctx)
+	statusBuilder := NewPolicyStatesBuilder()
 	var clusterNodeSetsResources NodeSetsResources
 	// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
 	for _, autoscalingSpec := range autoscalingSpecs {
@@ -314,7 +318,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	// Replace currentNodeSets in the Elasticsearch manifest
 	updateNodeSets(ctx, &es, clusterNodeSetsResources)
 	// Update autoscaling status
-	if err := UpdateAutoscalingStatus(&es, clusterNodeSetsResources); err != nil {
+	if err := UpdateAutoscalingStatus(&es, statusBuilder, clusterNodeSetsResources); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 	// Apply the update Elasticsearch manifest with the minimums

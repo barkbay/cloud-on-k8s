@@ -24,6 +24,8 @@ type NodeSetResources struct {
 	esv1.ResourcesSpecification
 }
 
+// TODO: Create a context struct to embed things like nodeSets, log, autoscalingSpec or statusBuilder
+
 func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
 	byNodeSet := make(map[string]NodeSetResources, len(nsr))
 	for _, nodeSetsResource := range nsr {
@@ -64,7 +66,7 @@ func minStorage(minAllowed *resource.Quantity, nodeSets ...esv1.NodeSet) resourc
 func ensureResourcePolicies(
 	nodeSets []esv1.NodeSet,
 	autoscalingSpec esv1.AutoscalingSpec,
-	autoscalingStatus Status,
+	autoscalingStatus NodeSetsStatus,
 ) NodeSetsResources {
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
 	statusByNodeSet := autoscalingStatus.ByNodeSet()
@@ -136,9 +138,10 @@ func getScaleDecision(
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
+	statusBuilder *PolicyStatesBuilder,
 ) NodeSetsResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(log, nodeSets, requiredCapacity, autoscalingSpec)
+	desiredNodeResources := scaleVertically(log, nodeSets, requiredCapacity, autoscalingSpec, statusBuilder)
 	// 2. Scale horizontally
 	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec)
 }
@@ -154,6 +157,7 @@ func scaleVertically(
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
+	statusBuilder *PolicyStatesBuilder,
 ) esv1.ResourcesSpecification {
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
@@ -169,6 +173,13 @@ func scaleVertically(
 			"max_allowed_memory",
 			autoscalingSpec.MaxAllowed.Memory.Value(),
 		)
+		// Update the autoscaling status accordingly
+		statusBuilder.
+			ForPolicy(autoscalingSpec.Name).
+			WithPolicyState(
+				ScalingLimitReached,
+				fmt.Sprintf("Required memory %d is greater than max allowed: %d", *requiredCapacity.Node.Memory, autoscalingSpec.MaxAllowed.Memory.Value()),
+			)
 	}
 
 	// Adjust the requested memory to try to fit the total memory capacity
@@ -201,12 +212,20 @@ func scaleVertically(
 		if *requiredCapacity.Node.Storage > autoscalingSpec.MaxAllowed.Storage.Value() {
 			// Elasticsearch requested more memory per node than allowed
 			log.Info(
-				"Required storage is greater than the allowed one",
+				"Required storage is greater than max allowed",
 				"required_storage",
 				*requiredCapacity.Node.Storage,
 				"max_allowed_storage",
 				autoscalingSpec.MaxAllowed.Storage.Value(),
 			)
+
+			// Update the autoscaling status accordingly
+			statusBuilder.
+				ForPolicy(autoscalingSpec.Name).
+				WithPolicyState(
+					ScalingLimitReached,
+					fmt.Sprintf("Required storage %d is greater than max allowed: %d", *requiredCapacity.Node.Storage, autoscalingSpec.MaxAllowed.Storage.Value()),
+				)
 		}
 
 		// Tiers storage capacity distributed on min. nodes

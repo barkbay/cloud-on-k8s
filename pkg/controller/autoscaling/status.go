@@ -16,50 +16,154 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 )
 
-const ElasticsearchAutoscalingStatusAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-status"
+const (
+	ElasticsearchAutoscalingStatusAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-status"
+
+	ScalingLimitReached PolicyStateType = "ScalingLimitReached"
+	OverlappingPolicies PolicyStateType = "OverlappingPolicies"
+)
+
+type Status struct {
+	// PolicyStatus is used to expose state messages to user or external system
+	PolicyStates []PolicyStateItem `json:"policies"`
+
+	// NodeSetsStatus is used to expose the last computed resources per nodeSet
+	NodeSetResources NodeSetsStatus `json:"resources"`
+}
+
+type PolicyStateItem struct {
+	Name         string        `json:"name"`
+	NodeSets     []string      `json:"nodeSets"`
+	PolicyStates []PolicyState `json:"state"`
+}
+
+type PolicyStateBuilder struct {
+	policyName string
+	nodeSets   []string
+	states     map[PolicyStateType]PolicyState
+}
+
+func NewPolicyStateBuilder(name string) *PolicyStateBuilder {
+	return &PolicyStateBuilder{
+		policyName: name,
+		states:     make(map[PolicyStateType]PolicyState),
+	}
+}
+
+func (psb *PolicyStateBuilder) Build() PolicyStateItem {
+	policyStates := make([]PolicyState, len(psb.states))
+	i := 0
+	for _, v := range psb.states {
+		policyStates[i] = PolicyState{
+			Type:     v.Type,
+			Messages: v.Messages,
+		}
+		i++
+	}
+	return PolicyStateItem{
+		Name:         psb.policyName,
+		NodeSets:     psb.nodeSets,
+		PolicyStates: policyStates,
+	}
+}
+
+func (psb *PolicyStateBuilder) WithPolicyState(stateType PolicyStateType, message string) *PolicyStateBuilder {
+	if policyState, ok := psb.states[stateType]; ok {
+		policyState.Messages = append(policyState.Messages, message)
+		psb.states[stateType] = policyState
+		return psb
+	}
+	psb.states[stateType] = PolicyState{
+		Type:     stateType,
+		Messages: []string{message},
+	}
+	return psb
+}
+
+func (psb *PolicyStateBuilder) SetNodeSets(nodeSets []esv1.NodeSet) *PolicyStateBuilder {
+	psb.nodeSets = make([]string, len(nodeSets))
+	for i := range nodeSets {
+		psb.nodeSets[i] = nodeSets[i].Name
+	}
+	return psb
+}
+
+type PolicyStateType string
+
+type PolicyState struct {
+	Type     PolicyStateType `json:"type"`
+	Messages []string        `json:"messages"`
+}
+
+type PolicyStatesBuilder struct {
+	policyStatesBuilder map[string]*PolicyStateBuilder
+}
+
+func NewPolicyStatesBuilder() *PolicyStatesBuilder {
+	return &PolicyStatesBuilder{
+		policyStatesBuilder: make(map[string]*PolicyStateBuilder),
+	}
+}
+
+func (psb *PolicyStatesBuilder) ForPolicy(policyName string) *PolicyStateBuilder {
+	if value, ok := psb.policyStatesBuilder[policyName]; ok {
+		return value
+	}
+	policyStatusBuilder := NewPolicyStateBuilder(policyName)
+	psb.policyStatesBuilder[policyName] = policyStatusBuilder
+	return policyStatusBuilder
+}
+
+func (psb *PolicyStatesBuilder) Build() []PolicyStateItem {
+	policyStates := make([]PolicyStateItem, len(psb.policyStatesBuilder))
+	i := 0
+	for _, policyStateBuilder := range psb.policyStatesBuilder {
+		policyStates[i] = policyStateBuilder.Build()
+		i++
+	}
+
+	return policyStates
+}
 
 type NodeSetResourcesWithHash struct {
 	Hash string `json:"hash,omitempty"`
 	NodeSetResources
 }
 
-type Status struct {
-	NodeSetResources []NodeSetResourcesWithHash `json:"nodeSets,omitempty"`
-}
+type NodeSetsStatus []NodeSetResourcesWithHash
 
-func (s Status) ByNodeSet() map[string]NodeSetResourcesWithHash {
+func (s NodeSetsStatus) ByNodeSet() map[string]NodeSetResourcesWithHash {
 	byNodeSet := make(map[string]NodeSetResourcesWithHash)
-	for _, nodeSetResources := range s.NodeSetResources {
+	for _, nodeSetResources := range s {
 		nodeSetResources := nodeSetResources
 		byNodeSet[nodeSetResources.Name] = nodeSetResources
 	}
 	return byNodeSet
 }
 
-func GetAutoscalingStatus(es esv1.Elasticsearch) (Status, error) {
+func GetAutoscalingStatus(es esv1.Elasticsearch) (NodeSetsStatus, error) {
 	status := Status{}
 	if es.Annotations == nil {
-		return status, nil
+		return status.NodeSetResources, nil
 	}
 	serializedStatus, ok := es.Annotations[ElasticsearchAutoscalingStatusAnnotationName]
 	if !ok {
-		return status, nil
+		return NodeSetsStatus{}, nil
 	}
 	err := json.Unmarshal([]byte(serializedStatus), &status)
-	return status, err
+	return status.NodeSetResources, err
 }
 
-func UpdateAutoscalingStatus(es *esv1.Elasticsearch, nodeSetsResources NodeSetsResources) error {
-	status := Status{}
+func UpdateAutoscalingStatus(es *esv1.Elasticsearch, statusBuilder *PolicyStatesBuilder, nodeSetsResources NodeSetsResources) error {
+	status := Status{
+		PolicyStates: statusBuilder.Build(),
+	}
 	byNodeSetsResources := nodeSetsResources.byNodeSet()
 	for _, nodeSet := range es.Spec.NodeSets {
 		nodeSetResource, ok := byNodeSetsResources[nodeSet.Name]
 		if !ok {
 			// nodeSet not managed by the autoscaler
 			continue
-		}
-		if nodeSet.Name == "ml-zone-b" {
-			fmt.Printf("ac: %v", nodeSet.PodTemplate.Spec.Containers)
 		}
 		status.NodeSetResources = append(status.NodeSetResources,
 			NodeSetResourcesWithHash{
