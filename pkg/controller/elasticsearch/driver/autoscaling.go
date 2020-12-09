@@ -11,6 +11,9 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling"
 )
 
+// resourcesAutoscaled checks that the autoscaler controller has updated the resources
+// if autoscaling is enabled. This is to avoid situations where resources have been manually
+// deleted or replaced by an external event.
 func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	if !es.IsAutoscalingDefined() {
 		return true, nil

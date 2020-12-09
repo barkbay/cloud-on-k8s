@@ -30,12 +30,6 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpecs, error)
 	return autoscalingSpecs, err
 }
 
-// DeciderSettings allows the user to tweak autoscaling deciders.
-// +kubebuilder:object:generate=false
-type DeciderSettings struct {
-	Deciders map[string]string `json:"deciders,omitempty"`
-}
-
 // AutoscalingSpec represents how resources can be scaled by the autoscaler controller.
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
@@ -50,6 +44,10 @@ type NamedAutoscalingPolicy struct {
 
 	AutoscalingPolicy
 }
+
+// DeciderSettings allows the user to tweak autoscaling deciders.
+// +kubebuilder:object:generate=false
+type DeciderSettings map[string]string
 
 // +kubebuilder:object:generate=false
 type AutoscalingPolicy struct {

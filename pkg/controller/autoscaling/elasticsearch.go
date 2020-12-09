@@ -7,7 +7,6 @@ package autoscaling
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -36,13 +35,11 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/validation"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 )
 
 const (
@@ -96,6 +93,10 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	requeue, err := r.fetchElasticsearch(ctx, request, &es)
 	if err != nil || requeue {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	if !es.IsAutoscalingDefined() {
+		return reconcile.Result{}, nil
 	}
 
 	if common.IsUnmanaged(&es) {
@@ -486,9 +487,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 }
 
 func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.Elasticsearch) (client.Client, error) {
-	//url := services.ExternalServiceURL(es)
+	url := services.ExternalServiceURL(es)
 	// use a fake service for now
-	url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
+	//url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err

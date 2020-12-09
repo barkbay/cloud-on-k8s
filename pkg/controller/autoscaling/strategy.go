@@ -140,7 +140,7 @@ func getScaleDecision(
 	// 1. Scale vertically
 	desiredNodeResources := scaleVertically(nodeSets, requiredCapacity, autoscalingSpec)
 	// 2. Scale horizontally
-	return scaleHorizontally(ctx, nodeSets, requiredCapacity.Tier, desiredNodeResources, autoscalingSpec)
+	return scaleHorizontally(ctx, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec)
 }
 
 var giga = int64(1024 * 1024 * 1024)
@@ -158,12 +158,15 @@ func scaleVertically(
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
 	minNodesCount := int64(autoscalingSpec.MinAllowed.Count) * int64(len(nodeSets))
+	requiredMemoryCapacity := *requiredCapacity.Node.Memory
 	// Tiers memory capacity distributed on min. nodes
-	memoryOverAllTiers := *requiredCapacity.Tier.Memory / minNodesCount
-	requiredMemoryCapacity := max64(
-		*requiredCapacity.Node.Memory,
-		roundUp(memoryOverAllTiers, giga),
-	)
+	if requiredCapacity.Total.Memory != nil {
+		memoryOverAllTiers := *requiredCapacity.Total.Memory / minNodesCount
+		requiredMemoryCapacity = max64(
+			*requiredCapacity.Node.Memory,
+			roundUp(memoryOverAllTiers, giga),
+		)
+	}
 
 	// Set desired memory capacity within the allowed range
 	if requiredMemoryCapacity < autoscalingSpec.MinAllowed.Memory.Value() {
@@ -178,12 +181,12 @@ func scaleVertically(
 	// Prepare the resource storage
 	currentMinStorage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSets...)
 	resourceStorage := &currentMinStorage
-	if (requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil) &&
+	if (requiredCapacity.Total.Storage != nil && requiredCapacity.Node.Storage != nil) &&
 		(autoscalingSpec.MinAllowed.Storage == nil || autoscalingSpec.MaxAllowed.Storage == nil) {
 		// TODO: not limit defined, raise an event
-	} else if requiredCapacity.Tier.Storage != nil && requiredCapacity.Node.Storage != nil {
+	} else if requiredCapacity.Total.Storage != nil && requiredCapacity.Node.Storage != nil {
 		// Tiers storage capacity distributed on min. nodes
-		storageOverAllTiers := *requiredCapacity.Tier.Storage / minNodesCount
+		storageOverAllTiers := *requiredCapacity.Total.Storage / minNodesCount
 		requiredStorageCapacity := max64(
 			*requiredCapacity.Node.Storage,
 			roundUp(storageOverAllTiers, giga),
@@ -249,37 +252,39 @@ func scaleHorizontally(
 
 	// scaleHorizontally always start from the min number of nodes and add nodes as necessary
 	minNodes := len(nodeSets) * int(autoscalingSpec.MinAllowed.Count)
-	minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 
-	// memoryDelta holds the memory variation, it can be:
-	// * a positive value if some memory needs to be added
-	// * a negative value if some memory can be reclaimed
-	memoryDelta := *requestedCapacity.Memory - minMemory
-	nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value(), minMemory, *requestedCapacity.Memory)
+	if requestedCapacity.Memory != nil {
+		minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
+		// memoryDelta holds the memory variation, it can be:
+		// * a positive value if some memory needs to be added
+		// * a negative value if some memory can be reclaimed
+		memoryDelta := *requestedCapacity.Memory - minMemory
+		nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value(), minMemory, *requestedCapacity.Memory)
 
-	if requestedCapacity.Storage != nil && nodeCapacity.Storage != nil {
-		minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
-		storageDelta := *requestedCapacity.Storage - minStorage
-		nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value(), minStorage, *requestedCapacity.Storage)
-		if nodeToAddStorage > nodeToAdd {
-			nodeToAdd = nodeToAddStorage
+		if requestedCapacity.Storage != nil && nodeCapacity.Storage != nil {
+			minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
+			storageDelta := *requestedCapacity.Storage - minStorage
+			nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value(), minStorage, *requestedCapacity.Storage)
+			if nodeToAddStorage > nodeToAdd {
+				nodeToAdd = nodeToAddStorage
+			}
 		}
-	}
 
-	log.V(1).Info(
-		"Memory status",
-		"tier", autoscalingSpec.Roles,
-		"tier_target", requestedCapacity.Memory,
-		"node_target", minNodes+nodeToAdd,
-	)
+		log.V(1).Info(
+			"Memory status",
+			"tier", autoscalingSpec.Roles,
+			"tier_target", requestedCapacity.Memory,
+			"node_target", minNodes+nodeToAdd,
+		)
 
-	if nodeToAdd > 0 {
-		nodeToAdd = min(int(autoscalingSpec.MaxAllowed.Count)-minNodes, nodeToAdd)
-		log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
-		fnm := NewFairNodesManager(ctx, nodeSetsResources)
-		for nodeToAdd > 0 {
-			fnm.AddNode()
-			nodeToAdd--
+		if nodeToAdd > 0 {
+			nodeToAdd = min(int(autoscalingSpec.MaxAllowed.Count)-minNodes, nodeToAdd)
+			log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
+			fnm := NewFairNodesManager(ctx, nodeSetsResources)
+			for nodeToAdd > 0 {
+				fnm.AddNode()
+				nodeToAdd--
+			}
 		}
 	}
 

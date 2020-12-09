@@ -43,8 +43,8 @@ type PolicyInfo struct {
 }
 
 type RequiredCapacity struct {
-	Node Capacity `yaml:"node" json:"node,omitempty"`
-	Tier Capacity `yaml:"tier" json:"tier,omitempty"`
+	Node  Capacity `yaml:"node" json:"node,omitempty"`
+	Total Capacity `yaml:"total" json:"total,omitempty"`
 }
 
 type Capacity struct {

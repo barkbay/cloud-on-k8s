@@ -194,7 +194,7 @@ func (rcb *requiredCapacityBuilder) nodeMemory(m string) *requiredCapacityBuilde
 }
 
 func (rcb *requiredCapacityBuilder) tierMemory(m string) *requiredCapacityBuilder {
-	rcb.Tier.Memory = ptr(value(m))
+	rcb.Total.Memory = ptr(value(m))
 	return rcb
 }
 
@@ -204,7 +204,7 @@ func (rcb *requiredCapacityBuilder) nodeStorage(m string) *requiredCapacityBuild
 }
 
 func (rcb *requiredCapacityBuilder) tierStorage(m string) *requiredCapacityBuilder {
-	rcb.Tier.Storage = ptr(value(m))
+	rcb.Total.Storage = ptr(value(m))
 	return rcb
 }
 
