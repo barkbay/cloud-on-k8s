@@ -5,16 +5,15 @@
 package autoscaling
 
 import (
-	"context"
 	"sort"
 	"strings"
 
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/go-logr/logr"
 )
 
 // FairNodesManager helps to distribute nodes among NodeSets whose belong to a same tier.
 type FairNodesManager struct {
-	ctx               context.Context
+	log               logr.Logger
 	nodeSetsResources NodeSetsResources
 }
 
@@ -27,9 +26,9 @@ func (fnm *FairNodesManager) sort() {
 	})
 }
 
-func NewFairNodesManager(ctx context.Context, nodeSetsResources NodeSetsResources) FairNodesManager {
+func NewFairNodesManager(log logr.Logger, nodeSetsResources NodeSetsResources) FairNodesManager {
 	fnm := FairNodesManager{
-		ctx:               ctx,
+		log:               log,
 		nodeSetsResources: nodeSetsResources,
 	}
 	fnm.sort()
@@ -46,7 +45,7 @@ func (fnm *FairNodesManager) AddNode() {
 func (fnm *FairNodesManager) RemoveNode() {
 	nodeSet := fnm.nodeSetsResources[len(fnm.nodeSetsResources)-1]
 	if nodeSet.Count == 1 {
-		logf.FromContext(fnm.ctx).V(1).Info("Can't scale down a nodeSet to 0", "nodeSet", nodeSet.Name)
+		fnm.log.V(1).Info("Can't scale down a nodeSet to 0", "nodeSet", nodeSet.Name)
 		return
 	}
 	// Peak the last element, this is the one with the more nodes

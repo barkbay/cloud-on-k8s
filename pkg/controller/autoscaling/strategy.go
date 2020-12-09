@@ -5,8 +5,9 @@
 package autoscaling
 
 import (
-	"context"
 	"fmt"
+
+	"github.com/go-logr/logr"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -14,7 +15,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type NodeSetsResources []NodeSetResources
@@ -132,15 +132,15 @@ func adjustQuantity(value, min, max resource.Quantity) *resource.Quantity {
 }
 
 func getScaleDecision(
-	ctx context.Context,
+	log logr.Logger,
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
 ) NodeSetsResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(nodeSets, requiredCapacity, autoscalingSpec)
+	desiredNodeResources := scaleVertically(log, nodeSets, requiredCapacity, autoscalingSpec)
 	// 2. Scale horizontally
-	return scaleHorizontally(ctx, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec)
+	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec)
 }
 
 var giga = int64(1024 * 1024 * 1024)
@@ -150,16 +150,28 @@ var giga = int64(1024 * 1024 * 1024)
 // It attempts to scale all the resources vertically until the expectations are met.
 // TODO: current code assumes that Elasticsearch API returns at least a memory requirements, storage is not mandatory.
 func scaleVertically(
+	log logr.Logger,
 	nodeSets []v1.NodeSet,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
 ) esv1.ResourcesSpecification {
-
 	// Check if overall tier requirement is higher than node requirement.
 	// This is done to check if we can fulfil the tier requirement only by scaling vertically
 	minNodesCount := int64(autoscalingSpec.MinAllowed.Count) * int64(len(nodeSets))
 	requiredMemoryCapacity := *requiredCapacity.Node.Memory
-	// Tiers memory capacity distributed on min. nodes
+
+	if requiredMemoryCapacity > autoscalingSpec.MaxAllowed.Memory.Value() {
+		// Elasticsearch requested more memory per node than allowed
+		log.Info(
+			"Required memory is greater than the allowed one",
+			"required_memory",
+			*requiredCapacity.Node.Memory,
+			"max_allowed_memory",
+			autoscalingSpec.MaxAllowed.Memory.Value(),
+		)
+	}
+
+	// Adjust the requested memory to try to fit the total memory capacity
 	if requiredCapacity.Total.Memory != nil {
 		memoryOverAllTiers := *requiredCapacity.Total.Memory / minNodesCount
 		requiredMemoryCapacity = max64(
@@ -185,6 +197,18 @@ func scaleVertically(
 		(autoscalingSpec.MinAllowed.Storage == nil || autoscalingSpec.MaxAllowed.Storage == nil) {
 		// TODO: not limit defined, raise an event
 	} else if requiredCapacity.Total.Storage != nil && requiredCapacity.Node.Storage != nil {
+
+		if *requiredCapacity.Node.Storage > autoscalingSpec.MaxAllowed.Storage.Value() {
+			// Elasticsearch requested more memory per node than allowed
+			log.Info(
+				"Required storage is greater than the allowed one",
+				"required_storage",
+				*requiredCapacity.Node.Storage,
+				"max_allowed_storage",
+				autoscalingSpec.MaxAllowed.Storage.Value(),
+			)
+		}
+
 		// Tiers storage capacity distributed on min. nodes
 		storageOverAllTiers := *requiredCapacity.Total.Storage / minNodesCount
 		requiredStorageCapacity := max64(
@@ -233,13 +257,12 @@ func scaleVertically(
 
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func scaleHorizontally(
-	ctx context.Context,
+	log logr.Logger,
 	nodeSets []v1.NodeSet,
 	requestedCapacity client.Capacity,
 	nodeCapacity esv1.ResourcesSpecification,
 	autoscalingSpec esv1.AutoscalingSpec,
 ) NodeSetsResources {
-	log := logf.FromContext(ctx)
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
 	for i, nodeSet := range nodeSets {
 		nodeSetsResources[i] = NodeSetResources{
@@ -280,7 +303,7 @@ func scaleHorizontally(
 		if nodeToAdd > 0 {
 			nodeToAdd = min(int(autoscalingSpec.MaxAllowed.Count)-minNodes, nodeToAdd)
 			log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
-			fnm := NewFairNodesManager(ctx, nodeSetsResources)
+			fnm := NewFairNodesManager(log, nodeSetsResources)
 			for nodeToAdd > 0 {
 				fnm.AddNode()
 				nodeToAdd--

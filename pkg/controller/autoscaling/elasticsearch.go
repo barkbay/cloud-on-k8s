@@ -261,7 +261,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
 			nodeSetsResources = ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
 		case true:
-			nodeSetsResources = getScaleDecision(ctx, nodeSets, decision.RequiredCapacity, autoscalingSpec)
+			nodeSetsResources = getScaleDecision(log, nodeSets, decision.RequiredCapacity, autoscalingSpec)
 		}
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
