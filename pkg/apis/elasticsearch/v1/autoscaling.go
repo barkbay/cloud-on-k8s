@@ -70,7 +70,7 @@ type AllowedResources struct {
 // +kubebuilder:object:generate=false
 type ResourcesSpecification struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
-	Count int32 `json:"count,omitempty"`
+	Count int32 `json:"count"`
 	// Cpu represents the CPU value
 	Cpu *resource.Quantity `json:"cpu"`
 	// memory represents the memory value
@@ -166,6 +166,10 @@ func (as AutoscalingSpecs) Validate() field.ErrorList {
 	policyNames := set.Make()
 	rolesSet := make([][]string, 0, len(as))
 	var errs field.ErrorList
+
+	// TODO: We need the namedTiers to check if the min count allowed is at least >= than the number of nodeSets managed in a policy
+	// Unfortunately it requires to parse the node configuration to grab the roles which may raise an error.
+
 	for i, resourcePolicy := range as {
 		// Validate the name field.
 		if len(resourcePolicy.Name) == 0 {

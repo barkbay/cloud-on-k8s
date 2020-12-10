@@ -19,8 +19,10 @@ import (
 const (
 	ElasticsearchAutoscalingStatusAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-status"
 
-	ScalingLimitReached PolicyStateType = "ScalingLimitReached"
-	OverlappingPolicies PolicyStateType = "OverlappingPolicies"
+	VerticalScalingLimitReached   PolicyStateType = "VerticalScalingLimitReached"
+	HorizontalScalingLimitReached PolicyStateType = "HorizontalScalingLimitReached"
+	OverlappingPolicies           PolicyStateType = "OverlappingPolicies"
+	InvalidMinimumNodeCount       PolicyStateType = "InvalidMinimumNodeCount"
 )
 
 type Status struct {

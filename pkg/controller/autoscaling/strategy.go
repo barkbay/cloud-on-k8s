@@ -35,25 +35,20 @@ func (nsr NodeSetsResources) byNodeSet() map[string]NodeSetResources {
 }
 
 // getMaxStorage extracts the max storage size among a set of nodeSets.
-func getMaxStorage(nodeSets ...esv1.NodeSet) resource.Quantity {
+func getMaxStorage(nodeSets NodeSetsStatus) resource.Quantity {
 	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
 	// TODO: refactor for/for/if/if
-	for _, nodeSet := range nodeSets {
-		for _, claimTemplate := range nodeSet.VolumeClaimTemplates {
-			if claimTemplate.Name == volume.ElasticsearchDataVolumeName && claimTemplate.Spec.Resources.Requests != nil {
-				nodeSetStorage, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
-				if ok && nodeSetStorage.Cmp(storage) > 0 {
-					storage = nodeSetStorage
-				}
-			}
+	for _, nodeSet := range nodeSets.ByNodeSet() {
+		if nodeSet.Storage != nil && nodeSet.Storage.Cmp(storage) > 0 {
+			storage = *nodeSet.Storage
 		}
 	}
 	return storage
 }
 
-func minStorage(minAllowed *resource.Quantity, nodeSets ...esv1.NodeSet) resource.Quantity {
+func minStorage(minAllowed *resource.Quantity, nodeSetsStatus NodeSetsStatus) resource.Quantity {
 	// TODO: nodeSet with more than once volume claim is not supported
-	storage := getMaxStorage(nodeSets...)
+	storage := getMaxStorage(nodeSetsStatus)
 	if minAllowed != nil && minAllowed.Cmp(storage) > 0 {
 		storage = minAllowed.DeepCopy()
 	}
@@ -66,12 +61,13 @@ func minStorage(minAllowed *resource.Quantity, nodeSets ...esv1.NodeSet) resourc
 func ensureResourcePolicies(
 	nodeSets []esv1.NodeSet,
 	autoscalingSpec esv1.AutoscalingSpec,
-	autoscalingStatus NodeSetsStatus,
+	nodeSetsStatus NodeSetsStatus,
 ) NodeSetsResources {
+	currentStorage := getMaxStorage(nodeSetsStatus)
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
-	statusByNodeSet := autoscalingStatus.ByNodeSet()
+	statusByNodeSet := nodeSetsStatus.ByNodeSet()
 	for i, nodeSet := range nodeSets {
-		storage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSet)
+		storage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSetsStatus)
 		nodeSetResources := NodeSetResources{
 			Name: nodeSet.Name,
 			ResourcesSpecification: esv1.ResourcesSpecification{
@@ -106,7 +102,6 @@ func ensureResourcePolicies(
 		}
 
 		// Ensure Storage settings are in the allowed range but not below the current size
-		currentStorage := getMaxStorage(nodeSet)
 		if nodeSetStatus.Storage != nil && autoscalingSpec.MinAllowed.Storage != nil && autoscalingSpec.MaxAllowed.Storage != nil {
 			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, *autoscalingSpec.MinAllowed.Storage, *autoscalingSpec.MinAllowed.Storage)
 			// Do not downscale storage capacity.
@@ -136,14 +131,15 @@ func adjustQuantity(value, min, max resource.Quantity) *resource.Quantity {
 func getScaleDecision(
 	log logr.Logger,
 	nodeSets []v1.NodeSet,
+	nodeSetsStatus NodeSetsStatus,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
 	statusBuilder *PolicyStatesBuilder,
 ) NodeSetsResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(log, nodeSets, requiredCapacity, autoscalingSpec, statusBuilder)
+	desiredNodeResources := scaleVertically(log, nodeSets, nodeSetsStatus, requiredCapacity, autoscalingSpec, statusBuilder)
 	// 2. Scale horizontally
-	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec)
+	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec, statusBuilder)
 }
 
 var giga = int64(1024 * 1024 * 1024)
@@ -155,6 +151,7 @@ var giga = int64(1024 * 1024 * 1024)
 func scaleVertically(
 	log logr.Logger,
 	nodeSets []v1.NodeSet,
+	nodeSetsStatus NodeSetsStatus,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingSpec,
 	statusBuilder *PolicyStatesBuilder,
@@ -167,7 +164,9 @@ func scaleVertically(
 	if requiredMemoryCapacity > autoscalingSpec.MaxAllowed.Memory.Value() {
 		// Elasticsearch requested more memory per node than allowed
 		log.Info(
-			"Required memory is greater than the allowed one",
+			"Node required memory is greater than the allowed one",
+			"scope", "node",
+			"policy", autoscalingSpec.Name,
 			"required_memory",
 			*requiredCapacity.Node.Memory,
 			"max_allowed_memory",
@@ -177,8 +176,8 @@ func scaleVertically(
 		statusBuilder.
 			ForPolicy(autoscalingSpec.Name).
 			WithPolicyState(
-				ScalingLimitReached,
-				fmt.Sprintf("Required memory %d is greater than max allowed: %d", *requiredCapacity.Node.Memory, autoscalingSpec.MaxAllowed.Memory.Value()),
+				VerticalScalingLimitReached,
+				fmt.Sprintf("Node required memory %d is greater than max allowed: %d", *requiredCapacity.Node.Memory, autoscalingSpec.MaxAllowed.Memory.Value()),
 			)
 	}
 
@@ -202,7 +201,7 @@ func scaleVertically(
 	}
 
 	// Prepare the resource storage
-	currentMinStorage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSets...)
+	currentMinStorage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSetsStatus)
 	resourceStorage := &currentMinStorage
 	if (requiredCapacity.Total.Storage != nil && requiredCapacity.Node.Storage != nil) &&
 		(autoscalingSpec.MinAllowed.Storage == nil || autoscalingSpec.MaxAllowed.Storage == nil) {
@@ -212,7 +211,9 @@ func scaleVertically(
 		if *requiredCapacity.Node.Storage > autoscalingSpec.MaxAllowed.Storage.Value() {
 			// Elasticsearch requested more memory per node than allowed
 			log.Info(
-				"Required storage is greater than max allowed",
+				"Node required storage is greater than max allowed",
+				"scope", "node",
+				"policy", autoscalingSpec.Name,
 				"required_storage",
 				*requiredCapacity.Node.Storage,
 				"max_allowed_storage",
@@ -223,8 +224,8 @@ func scaleVertically(
 			statusBuilder.
 				ForPolicy(autoscalingSpec.Name).
 				WithPolicyState(
-					ScalingLimitReached,
-					fmt.Sprintf("Required storage %d is greater than max allowed: %d", *requiredCapacity.Node.Storage, autoscalingSpec.MaxAllowed.Storage.Value()),
+					VerticalScalingLimitReached,
+					fmt.Sprintf("Node required storage %d is greater than max allowed: %d", *requiredCapacity.Node.Storage, autoscalingSpec.MaxAllowed.Storage.Value()),
 				)
 		}
 
@@ -274,6 +275,43 @@ func scaleVertically(
 	return nodeResourcesSpecification
 }
 
+// adjustMinMaxCount ensures that the min nodes is at leats the smae than the number of nodeSets managed by a policy.
+// This is is to avoid nodeSets with count set to 0, which is not supported.
+func adjustMinMaxCount(
+	log logr.Logger,
+	nodeSets []v1.NodeSet,
+	autoscalingSpec esv1.AutoscalingSpec,
+	statusBuilder *PolicyStatesBuilder,
+) (int, int) {
+	minNodes := int(autoscalingSpec.MinAllowed.Count)
+	maxNodes := int(autoscalingSpec.MaxAllowed.Count)
+	if !(minNodes >= len(nodeSets)) {
+		minNodes = len(nodeSets)
+		if minNodes >= maxNodes {
+			// If needed also adjust the max number of Pods
+			maxNodes = minNodes
+		}
+		log.Info(
+			"Adjusting minimum and maximum number of nodes",
+			"policy", autoscalingSpec.Name,
+			"scope", "tier",
+			"min_count", autoscalingSpec.MinAllowed.Count,
+			"new_min_count", minNodes,
+			"max_count", autoscalingSpec.MaxAllowed.Count,
+			"new_max_count", maxNodes,
+		)
+
+		// Update the autoscaling status accordingly
+		statusBuilder.
+			ForPolicy(autoscalingSpec.Name).
+			WithPolicyState(
+				InvalidMinimumNodeCount,
+				fmt.Sprintf("At leats 1 node per nodeSet is required, minimum number of nodes has been adjusted from %d to %d", autoscalingSpec.MinAllowed.Count, minNodes),
+			)
+	}
+	return minNodes, maxNodes
+}
+
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func scaleHorizontally(
 	log logr.Logger,
@@ -281,59 +319,95 @@ func scaleHorizontally(
 	requestedCapacity client.Capacity,
 	nodeCapacity esv1.ResourcesSpecification,
 	autoscalingSpec esv1.AutoscalingSpec,
+	statusBuilder *PolicyStatesBuilder,
 ) NodeSetsResources {
+	// Ensure that we have at least 1 node per nodeSet
+	minNodes, maxNodes := adjustMinMaxCount(log, nodeSets, autoscalingSpec, statusBuilder)
+
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
-	for i, nodeSet := range nodeSets {
-		nodeSetsResources[i] = NodeSetResources{
-			Name:                   nodeSet.Name,
-			ResourcesSpecification: nodeCapacity,
-		}
-		// set all the nodeSets count the minimum
-		nodeSetsResources[i].Count = autoscalingSpec.MinAllowed.Count
-	}
-
-	// scaleHorizontally always start from the min number of nodes and add nodes as necessary
-	minNodes := len(nodeSets) * int(autoscalingSpec.MinAllowed.Count)
-
 	if requestedCapacity.Memory != nil {
 		minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed
 		memoryDelta := *requestedCapacity.Memory - minMemory
-		nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value(), minMemory, *requestedCapacity.Memory)
+		nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value())
+
+		if minNodes+nodeToAdd > maxNodes {
+			// Elasticsearch requested more memory per node than allowed
+			log.Info(
+				"Can't provide total required memory",
+				"policy", autoscalingSpec.Name,
+				"scope", "tier",
+				"resource", "memory",
+				"node_value", nodeCapacity.Memory.Value(),
+				"requested_value", *requestedCapacity.Memory,
+				"requested_count", minNodes+nodeToAdd,
+				"max_count", maxNodes,
+			)
+
+			// Update the autoscaling status accordingly
+			statusBuilder.
+				ForPolicy(autoscalingSpec.Name).
+				WithPolicyState(
+					HorizontalScalingLimitReached,
+					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *requestedCapacity.Memory, maxNodes, minNodes+nodeToAdd),
+				)
+			nodeToAdd = maxNodes - minNodes
+		}
 
 		if requestedCapacity.Storage != nil && nodeCapacity.Storage != nil {
 			minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
 			storageDelta := *requestedCapacity.Storage - minStorage
-			nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value(), minStorage, *requestedCapacity.Storage)
+			nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value())
+			if minNodes+nodeToAddStorage > maxNodes {
+				// Elasticsearch requested more memory per node than allowed
+				log.Info(
+					"Can't provide total required storage",
+					"policy", autoscalingSpec.Name,
+					"scope", "tier",
+					"resource", "storage",
+					"node_value", nodeCapacity.Storage.Value(),
+					"requested_value", *requestedCapacity.Storage,
+					"requested_count", minNodes+nodeToAddStorage,
+					"max_count", maxNodes,
+				)
+
+				// Update the autoscaling status accordingly
+				statusBuilder.
+					ForPolicy(autoscalingSpec.Name).
+					WithPolicyState(
+						HorizontalScalingLimitReached,
+						fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *requestedCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
+					)
+				nodeToAddStorage = maxNodes - minNodes
+			}
 			if nodeToAddStorage > nodeToAdd {
 				nodeToAdd = nodeToAddStorage
 			}
 		}
 
-		log.V(1).Info(
-			"Memory status",
-			"tier", autoscalingSpec.Roles,
-			"tier_target", requestedCapacity.Memory,
-			"node_target", minNodes+nodeToAdd,
-		)
-
-		if nodeToAdd > 0 {
-			nodeToAdd = min(int(autoscalingSpec.MaxAllowed.Count)-minNodes, nodeToAdd)
-			log.V(1).Info("Need to add nodes", "to_add", nodeToAdd)
-			fnm := NewFairNodesManager(log, nodeSetsResources)
-			for nodeToAdd > 0 {
-				fnm.AddNode()
-				nodeToAdd--
+		// TODO: add a log to explain the computation
+		for i, nodeSet := range nodeSets {
+			nodeSetsResources[i] = NodeSetResources{
+				Name:                   nodeSet.Name,
+				ResourcesSpecification: nodeCapacity,
 			}
 		}
+		totalNodes := nodeToAdd + minNodes
+		log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name, "count", totalNodes)
+		fnm := NewFairNodesManager(log, nodeSetsResources)
+		for totalNodes > 0 {
+			fnm.AddNode()
+			totalNodes--
+		}
+
 	}
 
 	return nodeSetsResources
 }
 
-func getNodeDelta(memoryDelta, nodeMemoryCapacity, currentMemory, target int64) int {
+func getNodeDelta(memoryDelta, nodeMemoryCapacity int64) int {
 	nodeToAdd := 0
 	if memoryDelta < 0 {
 		return 0

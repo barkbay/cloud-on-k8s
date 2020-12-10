@@ -77,8 +77,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	log := logf.Log.WithName(name).
 		WithValues("event.sequence", currentIteration, "event.dataset", name).
 		WithValues("labels", map[string]interface{}{
-			"reconcile.policyName": request.Name,
-			"reconcile.namespace":  request.Namespace,
+			"reconcile.name":      request.Name,
+			"reconcile.namespace": request.Namespace,
 		}).
 		WithValues(keyValues...)
 	log.Info("Starting reconciliation run")
@@ -218,7 +218,7 @@ func (r *ReconcileElasticsearch) isElasticsearchReachable(ctx context.Context, e
 // attemptOnlineReconciliation attempts an online autoscaling reconciliation with a call the Elasticsearch autoscaling API.
 func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	ctx context.Context,
-	autoscalingStatus NodeSetsStatus,
+	nodeSetsStatus NodeSetsStatus,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpecs,
 	es esv1.Elasticsearch,
@@ -262,9 +262,9 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		switch decision, gotDecision := decisions.Policies[autoscalingSpec.Name]; gotDecision {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
-			nodeSetsResources = ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
+			nodeSetsResources = ensureResourcePolicies(nodeSets, autoscalingSpec, nodeSetsStatus)
 		case true:
-			nodeSetsResources = getScaleDecision(log, nodeSets, decision.RequiredCapacity, autoscalingSpec, statusBuilder)
+			nodeSetsResources = getScaleDecision(log, nodeSets, nodeSetsStatus, decision.RequiredCapacity, autoscalingSpec, statusBuilder)
 		}
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
@@ -338,7 +338,6 @@ func updateNodeSets(
 	es *esv1.Elasticsearch,
 	clusterNodeSetsResources NodeSetsResources,
 ) {
-	log := logf.FromContext(ctx)
 	resourcesByNodeSet := clusterNodeSetsResources.byNodeSet()
 	for i, nodeSet := range es.Spec.NodeSets {
 		nodeSetResources, ok := resourcesByNodeSet[nodeSet.Name]
@@ -380,16 +379,8 @@ func updateNodeSets(
 				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
 			}
 			for _, claimTemplate := range es.Spec.NodeSets[i].VolumeClaimTemplates {
-				if claimTemplate.Name == volume.ElasticsearchDataVolumeName &&
-					claimTemplate.Spec.Resources.Requests != nil {
-					previousStorageCapacity, ok := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
-					if !ok {
-						break
-					}
-					if !previousStorageCapacity.Equal(*nodeSetResources.Storage) {
-						log.V(1).Info("Increase storage capacity", "node_set", es.Spec.NodeSets[i].Name, "current_capacity", previousStorageCapacity, "new_capacity", *nodeSetResources.Storage)
-						claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *nodeSetResources.Storage
-					}
+				if claimTemplate.Name == volume.ElasticsearchDataVolumeName {
+					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *nodeSetResources.Storage
 				}
 			}
 		}
