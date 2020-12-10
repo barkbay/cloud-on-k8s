@@ -262,7 +262,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		switch decision, gotDecision := decisions.Policies[autoscalingSpec.Name]; gotDecision {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
-			nodeSetsResources = ensureResourcePolicies(nodeSets, autoscalingSpec, nodeSetsStatus)
+			nodeSetsResources = ensureResourcePolicies(log, nodeSets, autoscalingSpec, nodeSetsStatus)
 		case true:
 			nodeSetsResources = getScaleDecision(log, nodeSets, nodeSetsStatus, decision.RequiredCapacity, autoscalingSpec, statusBuilder)
 		}
@@ -312,7 +312,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
-		nodeSetsResources := ensureResourcePolicies(nodeSets, autoscalingSpec, autoscalingStatus)
+		nodeSetsResources := ensureResourcePolicies(log, nodeSets, autoscalingSpec, autoscalingStatus)
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
 	// Replace currentNodeSets in the Elasticsearch manifest

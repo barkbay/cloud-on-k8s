@@ -59,6 +59,7 @@ func minStorage(minAllowed *resource.Quantity, nodeSetsStatus NodeSetsStatus) re
 // the min. and max. resource requirements.
 // If resources are within the min. and max. boundaries then they are left untouched.
 func ensureResourcePolicies(
+	log logr.Logger,
 	nodeSets []esv1.NodeSet,
 	autoscalingSpec esv1.AutoscalingSpec,
 	nodeSetsStatus NodeSetsStatus,
@@ -66,12 +67,15 @@ func ensureResourcePolicies(
 	currentStorage := getMaxStorage(nodeSetsStatus)
 	nodeSetsResources := make(NodeSetsResources, len(nodeSets))
 	statusByNodeSet := nodeSetsStatus.ByNodeSet()
+
+	// TODO: compute current count and use the fair manager to check that everything is ok
+	var totalNodes int32 = 0
+
 	for i, nodeSet := range nodeSets {
 		storage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSetsStatus)
 		nodeSetResources := NodeSetResources{
 			Name: nodeSet.Name,
 			ResourcesSpecification: esv1.ResourcesSpecification{
-				Count:   autoscalingSpec.MinAllowed.Count,
 				Cpu:     autoscalingSpec.MinAllowed.Cpu,
 				Memory:  autoscalingSpec.MinAllowed.Memory,
 				Storage: &storage,
@@ -84,12 +88,7 @@ func ensureResourcePolicies(
 			continue
 		}
 
-		// ensure that the min. number of nodes is set
-		if nodeSetStatus.Count < autoscalingSpec.MinAllowed.Count {
-			nodeSetResources.Count = autoscalingSpec.MinAllowed.Count
-		} else if nodeSetStatus.Count > autoscalingSpec.MaxAllowed.Count {
-			nodeSetResources.Count = autoscalingSpec.MaxAllowed.Count
-		}
+		totalNodes += nodeSetResources.Count
 
 		// Ensure memory settings are in the allowed range
 		if nodeSetStatus.Memory != nil && autoscalingSpec.MinAllowed.Memory != nil && autoscalingSpec.MaxAllowed.Memory != nil {
@@ -113,6 +112,19 @@ func ensureResourcePolicies(
 		}
 
 		nodeSetsResources[i] = nodeSetResources
+	}
+
+	// ensure that the min. number of nodes is set
+	if totalNodes < autoscalingSpec.MinAllowed.Count {
+		totalNodes = autoscalingSpec.MinAllowed.Count
+	} else if totalNodes > autoscalingSpec.MaxAllowed.Count {
+		totalNodes = autoscalingSpec.MaxAllowed.Count
+	}
+
+	fnm := NewFairNodesManager(log, nodeSetsResources)
+	for totalNodes > 0 {
+		fnm.AddNode()
+		totalNodes--
 	}
 
 	return nodeSetsResources
