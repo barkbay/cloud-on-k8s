@@ -5,8 +5,6 @@
 package autoscaling
 
 import (
-	"fmt"
-
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -134,42 +132,6 @@ func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
 	return nodeSetResources
 }
 
-// - Allowed resource builder
-
-type allowedResourcesBuilder struct {
-	count           int32
-	memory, storage *resource.Quantity
-}
-
-func newAllowedResourcesBuilder() *allowedResourcesBuilder {
-	return &allowedResourcesBuilder{}
-}
-
-func (arb *allowedResourcesBuilder) withCount(c int) *allowedResourcesBuilder {
-	arb.count = int32(c)
-	return arb
-}
-
-func (arb *allowedResourcesBuilder) withMemory(ms string) *allowedResourcesBuilder {
-	m := resource.MustParse(ms)
-	arb.memory = &m
-	return arb
-}
-
-func (arb *allowedResourcesBuilder) withStorage(sto string) *allowedResourcesBuilder {
-	s := resource.MustParse(sto)
-	arb.storage = &s
-	return arb
-}
-
-func (arb *allowedResourcesBuilder) build() esv1.ResourcesSpecification {
-	return esv1.ResourcesSpecification{
-		Count:   arb.count,
-		Memory:  arb.memory,
-		Storage: arb.storage,
-	}
-}
-
 // - RequiredCapacity builder
 
 type requiredCapacityBuilder struct {
@@ -211,31 +173,4 @@ func (rcb *requiredCapacityBuilder) tierStorage(m string) *requiredCapacityBuild
 func value(v string) int64 {
 	q := resource.MustParse(v)
 	return (&q).Value()
-}
-
-// - nodeSet comparison tool
-
-func resourcesDiff(expected, actual esv1.NodeSet) []string {
-	var diff []string
-	if expected.Count != actual.Count {
-		diff = append(diff, fmt.Sprintf("nodeSet: %s, expectedCount: %d, actualCount: %d", expected.Name, expected.Count, actual.Count))
-	}
-	// We support only one container
-	expectedContainer := expected.PodTemplate.Spec.Containers[0]
-	actualContainer := actual.PodTemplate.Spec.Containers[0]
-
-	// Compare memory
-	expectedMemory := expectedContainer.Resources.Requests.Memory()
-	actualMemory := actualContainer.Resources.Requests.Memory()
-	switch {
-	case expectedMemory != nil && actualMemory != nil:
-		if expectedMemory.Value() != actualMemory.Value() {
-			diff = append(diff, fmt.Sprintf("nodeSet: %s, expectedMemory: %s, actualMemory: %s", expected.Name, expectedMemory, actualMemory))
-		}
-	case expectedMemory != nil && actualMemory == nil ||
-		expectedMemory == nil && actualMemory != nil:
-		diff = append(diff, fmt.Sprintf("nodeSet: %s, expectedMemory: %s, actualMemory: %s", expected.Name, expectedMemory, actualMemory))
-	}
-
-	return diff
 }

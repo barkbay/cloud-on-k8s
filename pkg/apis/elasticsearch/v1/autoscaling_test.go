@@ -26,14 +26,18 @@ func TestResourcePolicies_Validate(t *testing.T) {
 [{
   "name": "data_policy",
   "roles": [ "data" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 },
 {
   "name": "ml_policy",
   "roles": [ "ml" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
@@ -45,14 +49,18 @@ func TestResourcePolicies_Validate(t *testing.T) {
 [{
   "name": "my_policy",
   "roles": [ "data" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 },
 {
   "name": "my_policy",
   "roles": [ "ml" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
@@ -64,14 +72,18 @@ func TestResourcePolicies_Validate(t *testing.T) {
 [{
   "name": "my_policy",
   "roles": [ "data, ml" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 },
 {
   "name": "my_policy2",
   "roles": [ "data, ml" ],
-  "minAllowed" : { "count" : 1, "cpu" : "1", "memory" : "2Gi", "storage" : "5Gi" },
-  "maxAllowed" : { "count" : 2, "cpu" : "1", "memory" : "2Gi", "storage" : "10Gi" }
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
@@ -81,6 +93,11 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			expectedError: "name: Required value: name is mandatory",
 			resourcePolicies: `
 [{
+  "roles": [ "data, ml" ],
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
@@ -90,98 +107,73 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			expectedError: "roles: Required value: roles is mandatory",
 			resourcePolicies: `
 [{
-  "name": "my_policy"
+  "name": "my_policy",
+  "nodeCount" : { "min" : 1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
 		{
 			name:          "No count",
 			wantError:     true,
-			expectedError: "maxAllowed.count: Invalid value: 0: count must be an integer greater than 0",
+			expectedError: "maxAllowed.count: Invalid value: 0: max node count must be an integer greater than min node count",
 			resourcePolicies: `
 [{
   "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "minAllowed" : {
-    "count" : 0,
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "5Gi"
-  },
-  "maxAllowed" : {
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "10Gi"
-  }
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
 		{
-			name:          "Min. count should not be negative value",
+			name:          "Min. count should be greater than 1",
 			wantError:     true,
-			expectedError: "minAllowed.count: Invalid value: -1: count must be a positive integer",
+			expectedError: "minAllowed.count: Invalid value: -1: count must be a greater than 1",
 			resourcePolicies: `
 [{
   "name": "my_policy",
   "roles": [ "data, ml" ],
-  "minAllowed" : {
-    "count" : -1,
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "5Gi"
-  },
-  "maxAllowed" : {
-    "count" : 4,
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "10Gi"
-  }
+  "nodeCount" : { "min" : -1 , "max" : 2 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
 		{
 			name:          "Min. count is greater than max",
 			wantError:     true,
-			expectedError: "maxAllowed.count: Invalid value: 4: maxAllowed must be greater or equal than minAllowed",
+			expectedError: "maxAllowed.count: Invalid value: 4: max node count must be an integer greater than min node count",
 			resourcePolicies: `
 [{
   "name": "my_policy",
   "roles": [ "data, ml" ],
-  "minAllowed" : {
-    "count" : 5,
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "5Gi"
-  },
-  "maxAllowed" : {
-    "count" : 4,
-    "cpu" : "1",
-    "memory" : "2Gi",
-    "storage" : "10Gi"
-  }
+  "name": "my_policy",
+  "roles": [ "data, ml" ],
+  "nodeCount" : { "min" : 5 , "max" : 4 },
+  "cpu" : { "min" : 1 , "max" : 1 },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},
 		{
 			name:          "Min. CPU is greater than max",
 			wantError:     true,
-			expectedError: "cpu: Invalid value: \"50m\": maxAllowed must be greater or equal than minAllowed",
+			expectedError: "cpu: Invalid value: \"50m\": max quantity must be greater or equal than min quantity",
 			resourcePolicies: `
 [{
   "name": "my_policy",
   "roles": [ "data, ml" ],
-  "minAllowed" : {
-    "count" : 1,
-    "cpu" : "100m",
-    "memory" : "2Gi",
-    "storage" : "5Gi"
-  },
-  "maxAllowed" : {
-    "count" : 4,
-    "cpu" : "50m",
-    "memory" : "2Gi",
-    "storage" : "10Gi"
-  }
+  "name": "my_policy",
+  "roles": [ "data, ml" ],
+  "nodeCount" : { "min" : -1 , "max" : 2 },
+  "cpu" : { "min" : "100m" , "max" : "50m" },
+  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
 }]
 `,
 		},

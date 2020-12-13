@@ -34,7 +34,12 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpecs, error)
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
 	NamedAutoscalingPolicy
-	AllowedResources
+
+	// Resources
+	Cpu       *QuantityRange `json:"cpu,omitempty"`
+	Memory    *QuantityRange `json:"memory,omitempty"`
+	Storage   *QuantityRange `json:"storage,omitempty"`
+	NodeCount CountRange     `json:"nodeCount,omitempty"`
 }
 
 // +kubebuilder:object:generate=false
@@ -58,23 +63,33 @@ type AutoscalingPolicy struct {
 }
 
 // +kubebuilder:object:generate=false
-type AllowedResources struct {
-	// MinAllowed represents the lower limit for the resources managed by the autoscaler.
-	MinAllowed ResourcesSpecification `json:"minAllowed,omitempty"`
-	// MaxAllowed represents the upper limit for the resources managed by the autoscaler.
-	MaxAllowed ResourcesSpecification `json:"maxAllowed,omitempty"`
+type QuantityRange struct {
+	// Min represents the lower limit for the resources managed by the autoscaler.
+	Min resource.Quantity `json:"min"`
+	// Max represents the upper limit for the resources managed by the autoscaler.
+	Max resource.Quantity `json:"max"`
+	// RequestsToLimitsRatio allows to customize Kubernetes resource limit based on the requirement.
+	RequestsToLimitsRatio *float64 `json:"requestsToLimitsRatio"`
 }
 
-func (ar AllowedResources) IsMemoryDefined() bool {
-	return ar.MinAllowed.IsMemoryDefined() && ar.MaxAllowed.IsMemoryDefined()
+// +kubebuilder:object:generate=false
+type CountRange struct {
+	// Min represents the minimum number of nodes in a tier.
+	Min int32 `json:"min"`
+	// Max represents the minimum number of nodes in a tier.
+	Max int32 `json:"max"`
 }
 
-func (ar AllowedResources) IsCpuDefined() bool {
-	return ar.MinAllowed.IsCpuDefined() && ar.MaxAllowed.IsCpuDefined()
+func (as AutoscalingSpec) IsMemoryDefined() bool {
+	return as.Memory != nil
 }
 
-func (ar AllowedResources) IsStorageDefined() bool {
-	return ar.MinAllowed.IsStorageDefined() && ar.MaxAllowed.IsStorageDefined()
+func (as AutoscalingSpec) IsCpuDefined() bool {
+	return as.Cpu != nil
+}
+
+func (as AutoscalingSpec) IsStorageDefined() bool {
+	return as.Storage != nil
 }
 
 // ResourcesSpecification represents a set of resource specifications which can be used to describe
@@ -232,27 +247,22 @@ func (as AutoscalingSpecs) Validate() field.ErrorList {
 			}
 		}
 
-		if !(resourcePolicy.MinAllowed.Count >= 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), resourcePolicy.MinAllowed.Count, "count must be a positive integer"))
+		if !(resourcePolicy.NodeCount.Min > 0) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), resourcePolicy.NodeCount.Min, "count must be a greater than 1"))
 		}
 
-		if !(resourcePolicy.MaxAllowed.Count > 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.MaxAllowed.Count, "count must be an integer greater than 0"))
-		}
-
-		// Check that max count is greater or equal than min count.
-		if !(resourcePolicy.MaxAllowed.Count >= resourcePolicy.MinAllowed.Count) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.MaxAllowed.Count, "maxAllowed must be greater or equal than minAllowed"))
+		if !(resourcePolicy.NodeCount.Max > resourcePolicy.NodeCount.Min) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.NodeCount.Max, "max node count must be an integer greater than min node count"))
 		}
 
 		// Check CPU
-		errs = validateQuantities(errs, resourcePolicy.MinAllowed.Cpu, resourcePolicy.MaxAllowed.Cpu, i, "cpu")
+		errs = validateQuantities(errs, resourcePolicy.Cpu, i, "cpu")
 
 		// Check Memory
-		errs = validateQuantities(errs, resourcePolicy.MinAllowed.Memory, resourcePolicy.MaxAllowed.Memory, i, "memory")
+		errs = validateQuantities(errs, resourcePolicy.Memory, i, "memory")
 
 		// Check storage
-		errs = validateQuantities(errs, resourcePolicy.MinAllowed.Storage, resourcePolicy.MaxAllowed.Storage, i, "storage")
+		errs = validateQuantities(errs, resourcePolicy.Storage, i, "storage")
 	}
 	return errs
 }
@@ -281,19 +291,17 @@ func Equal(s1, s2 []string) bool {
 }
 
 // validateQuantities checks that 2 resources boundaries are valid.
-func validateQuantities(errs field.ErrorList, min, max *resource.Quantity, index int, resource string) field.ErrorList {
+func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string) field.ErrorList {
 	var quantityErrs field.ErrorList
-	if min == nil {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "resource field is mandatory"))
+	if quantityRange == nil {
+		return quantityErrs
 	}
-	if max == nil {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "maxAllowed", resource), "resource field is mandatory"))
+	if !(quantityRange.Min.Value() > 0) {
+		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "min quantity must be greater than 0"))
 	}
-	if len(quantityErrs) > 0 {
-		return append(errs, quantityErrs...)
-	}
-	if !(max.Cmp(*min) >= 0) {
-		errs = append(quantityErrs, field.Invalid(resourcePolicyIndex(index, "maxAllowed", resource), (*max).String(), "maxAllowed must be greater or equal than minAllowed"))
+
+	if quantityRange.Min.Cmp(quantityRange.Max) > 0 {
+		errs = append(quantityErrs, field.Invalid(resourcePolicyIndex(index, "maxAllowed", resource), quantityRange.Max.String(), "max quantity must be greater or equal than min quantity"))
 	}
 	return append(errs, quantityErrs...)
 }

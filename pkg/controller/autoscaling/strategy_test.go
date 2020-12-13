@@ -45,12 +45,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("3Gi").nodeStorage("8Gi").
 					tierMemory("9Gi").tierStorage("50Gi").
 					build(),
-				policy: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("3Gi").withStorage("5Gi").build(),
-						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("4Gi").withStorage("10Gi").build(),
-					},
-				},
+				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("3Gi", "4Gi").WithStorage("5Gi", "10Gi").Build(),
 			},
 			want: map[string]nodesets.NodeSetResources{
 				"default": newResourcesBuilder("default", 5).withMemoryRequest("3Gi").withStorageRequest("10Gi").build(),
@@ -69,12 +64,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
-				policy: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
-					},
-				},
+				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: map[string]nodesets.NodeSetResources{
 				"default": newResourcesBuilder("default", 3).withMemoryRequest("6G").build(),
@@ -95,12 +85,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeStorage("1Gi").
 					tierStorage("3Gi").
 					build(),
-				policy: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").withStorage("1G").build(),
-						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").withStorage("20G").build(),
-					},
-				},
+				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").WithStorage("1G", "20G").Build(),
 			},
 			want: map[string]nodesets.NodeSetResources{
 				"default": newResourcesBuilder("default", 3).withMemoryRequest("6G").withStorageRequest("10G").build(),
@@ -119,12 +104,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("21G").
 					build(),
-				policy: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
-					},
-				},
+				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: map[string]nodesets.NodeSetResources{
 				"default": newResourcesBuilder("default", 3).withMemoryRequest("7Gi").build(),
@@ -143,12 +123,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("48G").
 					build(),
-				policy: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: newAllowedResourcesBuilder().withCount(3).withMemory("5G").build(),
-						MaxAllowed: newAllowedResourcesBuilder().withCount(6).withMemory("8G").build(),
-					},
-				},
+				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: map[string]nodesets.NodeSetResources{
 				"default": newResourcesBuilder("default", 6).withMemoryRequest("8G").build(),

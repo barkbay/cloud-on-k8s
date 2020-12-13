@@ -26,7 +26,8 @@ func nodeResources(
 	resources := esv1.ResourcesSpecification{}
 
 	// Get memory
-	if requiredCapacity.Node.Memory != nil {
+	if requiredCapacity.Node.Memory != nil &&
+		autoscalingSpec.IsMemoryDefined() {
 		resources.Memory = getResourceValue(
 			log,
 			autoscalingSpec.Name,
@@ -35,13 +36,14 @@ func nodeResources(
 			*requiredCapacity.Node.Memory,
 			requiredCapacity.Total.Memory,
 			minNodesCount,
-			*autoscalingSpec.MinAllowed.Memory,
-			*autoscalingSpec.MaxAllowed.Memory,
+			autoscalingSpec.Memory.Min,
+			autoscalingSpec.Memory.Max,
 		)
 	}
 
 	// Get storage
-	if requiredCapacity.Node.Storage != nil {
+	if requiredCapacity.Node.Storage != nil &&
+		autoscalingSpec.IsStorageDefined() {
 		resources.Storage = getResourceValue(
 			log,
 			autoscalingSpec.Name,
@@ -50,8 +52,8 @@ func nodeResources(
 			*requiredCapacity.Node.Storage,
 			requiredCapacity.Total.Storage,
 			minNodesCount,
-			*autoscalingSpec.MinAllowed.Storage,
-			*autoscalingSpec.MaxAllowed.Storage,
+			autoscalingSpec.Storage.Min,
+			autoscalingSpec.Storage.Max,
 		)
 		if resources.Storage.Cmp(currentStorage) < 0 {
 			// Do not decrease storage capacity
@@ -60,7 +62,7 @@ func nodeResources(
 	}
 
 	// Adjust CPU
-	if autoscalingSpec.MaxAllowed.Cpu != nil && autoscalingSpec.MinAllowed.Cpu != nil && resources.Memory != nil {
+	if autoscalingSpec.IsCpuDefined() && autoscalingSpec.IsMemoryDefined() && resources.Memory != nil {
 		resources.Cpu = cpuFromMemory(resources.Memory.Value(), autoscalingSpec)
 	}
 

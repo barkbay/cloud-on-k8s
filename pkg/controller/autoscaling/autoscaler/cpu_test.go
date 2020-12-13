@@ -30,18 +30,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "Memory is at its min value, do not scale up CPU",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("1"),
-							Memory: quantityPtr("2Gi"),
-						},
-						MaxAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("3"),
-							Memory: quantityPtr("2Gi"),
-						},
-					},
-				},
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "3").WithMemory("2Gi", "2Gi").Build(),
 			},
 			wantCpu: resource.NewQuantity(1, resource.DecimalSI), // keep the min. value
 		},
@@ -49,18 +38,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "1/3 of the memory range should be translated to 1/3 of the CPU range",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("1"),
-							Memory: quantityPtr("1Gi"),
-						},
-						MaxAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("4"),
-							Memory: quantityPtr("4Gi"),
-						},
-					},
-				},
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "4").WithMemory("1Gi", "4Gi").Build(),
 			},
 			wantCpu: resource.NewQuantity(2, resource.DecimalSI),
 		},
@@ -68,18 +46,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "half of the memory range should be translated to half of the CPU range",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("1"),
-							Memory: quantityPtr("1Gi"),
-						},
-						MaxAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("4"),
-							Memory: quantityPtr("3Gi"),
-						},
-					},
-				},
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
 			wantCpu: quantityPtr("2500m"),
 		},
@@ -87,18 +54,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "min memory == max memory, do not scale cpu",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("2"),
-							Memory: quantityPtr("2Gi"),
-						},
-						MaxAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("4"),
-							Memory: quantityPtr("2Gi"),
-						},
-					},
-				},
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("2", "4").WithMemory("2Gi", "2Gi").Build(),
 			},
 			wantCpu: quantityPtr("2"),
 		},
@@ -106,18 +62,7 @@ func Test_cpuFromMemory(t *testing.T) {
 			name: "min and max CPU are equal",
 			args: args{
 				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec: esv1.AutoscalingSpec{
-					AllowedResources: esv1.AllowedResources{
-						MinAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("4"),
-							Memory: quantityPtr("1Gi"),
-						},
-						MaxAllowed: esv1.ResourcesSpecification{
-							Cpu:    quantityPtr("4"),
-							Memory: quantityPtr("3Gi"),
-						},
-					},
-				},
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("4", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
 			wantCpu: quantityPtr("4000m"),
 		},

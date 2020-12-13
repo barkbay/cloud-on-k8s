@@ -29,11 +29,11 @@ func getMaxStorage(nodeSets status.NodeSetsStatus) resource.Quantity {
 	return storage
 }
 
-func minStorage(minAllowed *resource.Quantity, nodeSetsStatus status.NodeSetsStatus) resource.Quantity {
+func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSetsStatus) resource.Quantity {
 	// TODO: nodeSet with more than once volume claim is not supported
 	storage := getMaxStorage(nodeSetsStatus)
-	if minAllowed != nil && minAllowed.Cmp(storage) > 0 {
-		storage = minAllowed.DeepCopy()
+	if storageRange != nil && storageRange.Min.Cmp(storage) > 0 {
+		storage = storageRange.Min.DeepCopy()
 	}
 	return storage
 }
@@ -55,14 +55,16 @@ func EnsureResourcePolicies(
 	var totalNodes int32 = 0
 
 	for i, nodeSet := range nodeSets {
-		storage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSetsStatus)
+		storage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
 		nodeSetResources := nodesets.NodeSetResources{
-			Name: nodeSet.Name,
-			ResourcesSpecification: esv1.ResourcesSpecification{
-				Cpu:     autoscalingSpec.MinAllowed.Cpu,
-				Memory:  autoscalingSpec.MinAllowed.Memory,
-				Storage: &storage,
-			},
+			Name:                   nodeSet.Name,
+			ResourcesSpecification: esv1.ResourcesSpecification{Storage: &storage},
+		}
+		if autoscalingSpec.IsCpuDefined() {
+			nodeSetResources.Cpu = &autoscalingSpec.Cpu.Min
+		}
+		if autoscalingSpec.IsMemoryDefined() {
+			nodeSetResources.Memory = &autoscalingSpec.Memory.Min
 		}
 		nodeSetStatus, ok := statusByNodeSet[nodeSet.Name]
 		if !ok {
@@ -74,18 +76,18 @@ func EnsureResourcePolicies(
 		totalNodes += nodeSetResources.Count
 
 		// Ensure memory settings are in the allowed range
-		if nodeSetStatus.Memory != nil && autoscalingSpec.MinAllowed.Memory != nil && autoscalingSpec.MaxAllowed.Memory != nil {
-			nodeSetStatus.Memory = adjustQuantity(*nodeSetStatus.Memory, *autoscalingSpec.MinAllowed.Memory, *autoscalingSpec.MinAllowed.Memory)
+		if nodeSetStatus.Memory != nil && autoscalingSpec.IsMemoryDefined() {
+			nodeSetStatus.Memory = adjustQuantity(*nodeSetStatus.Memory, autoscalingSpec.Memory.Min, autoscalingSpec.Memory.Max)
 		}
 
 		// Ensure CPU settings are in the allowed range
-		if nodeSetStatus.Cpu != nil && autoscalingSpec.MinAllowed.Cpu != nil && autoscalingSpec.MaxAllowed.Cpu != nil {
-			nodeSetStatus.Cpu = adjustQuantity(*nodeSetStatus.Cpu, *autoscalingSpec.MinAllowed.Cpu, *autoscalingSpec.MinAllowed.Cpu)
+		if nodeSetStatus.Cpu != nil && autoscalingSpec.IsCpuDefined() {
+			nodeSetStatus.Cpu = adjustQuantity(*nodeSetStatus.Cpu, autoscalingSpec.Cpu.Min, autoscalingSpec.Cpu.Max)
 		}
 
 		// Ensure Storage settings are in the allowed range but not below the current size
-		if nodeSetStatus.Storage != nil && autoscalingSpec.MinAllowed.Storage != nil && autoscalingSpec.MaxAllowed.Storage != nil {
-			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, *autoscalingSpec.MinAllowed.Storage, *autoscalingSpec.MinAllowed.Storage)
+		if nodeSetStatus.Storage != nil && autoscalingSpec.IsStorageDefined() {
+			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, autoscalingSpec.Storage.Min, autoscalingSpec.Storage.Max)
 			// Do not downscale storage capacity.
 			if currentStorage.Cmp(*nodeSetStatus.Storage) > 0 {
 				nodeSetStatus.Storage = &currentStorage
@@ -98,10 +100,10 @@ func EnsureResourcePolicies(
 	}
 
 	// ensure that the min. number of nodes is set
-	if totalNodes < autoscalingSpec.MinAllowed.Count {
-		totalNodes = autoscalingSpec.MinAllowed.Count
-	} else if totalNodes > autoscalingSpec.MaxAllowed.Count {
-		totalNodes = autoscalingSpec.MaxAllowed.Count
+	if totalNodes < autoscalingSpec.NodeCount.Min {
+		totalNodes = autoscalingSpec.NodeCount.Min
+	} else if totalNodes > autoscalingSpec.NodeCount.Max {
+		totalNodes = autoscalingSpec.NodeCount.Max
 	}
 
 	fnm := NewFairNodesManager(log, nodeSetsResources)
@@ -150,8 +152,8 @@ func scaleVertically(
 	autoscalingSpec esv1.AutoscalingSpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) esv1.ResourcesSpecification {
-	minNodesCount := int64(autoscalingSpec.MinAllowed.Count) * int64(nodeSetsCount)
-	currentStorage := minStorage(autoscalingSpec.MinAllowed.Storage, nodeSetsStatus)
+	minNodesCount := int64(autoscalingSpec.NodeCount.Min) * int64(nodeSetsCount)
+	currentStorage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
 
 	return nodeResources(
 		log,
@@ -171,8 +173,8 @@ func adjustMinMaxCount(
 	autoscalingSpec esv1.AutoscalingSpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) (int, int) {
-	minNodes := int(autoscalingSpec.MinAllowed.Count)
-	maxNodes := int(autoscalingSpec.MaxAllowed.Count)
+	minNodes := int(autoscalingSpec.NodeCount.Min)
+	maxNodes := int(autoscalingSpec.NodeCount.Max)
 	if !(minNodes >= nodeSetCount) {
 		minNodes = nodeSetCount
 		if minNodes >= maxNodes {
@@ -183,9 +185,9 @@ func adjustMinMaxCount(
 			"Adjusting minimum and maximum number of nodes",
 			"policy", autoscalingSpec.Name,
 			"scope", "tier",
-			"min_count", autoscalingSpec.MinAllowed.Count,
+			"min_count", autoscalingSpec.NodeCount.Min,
 			"new_min_count", minNodes,
-			"max_count", autoscalingSpec.MaxAllowed.Count,
+			"max_count", autoscalingSpec.NodeCount.Max,
 			"new_max_count", maxNodes,
 		)
 
@@ -194,7 +196,7 @@ func adjustMinMaxCount(
 			ForPolicy(autoscalingSpec.Name).
 			WithPolicyState(
 				status.InvalidMinimumNodeCount,
-				fmt.Sprintf("At leats 1 node per nodeSet is required, minimum number of nodes has been adjusted from %d to %d", autoscalingSpec.MinAllowed.Count, minNodes),
+				fmt.Sprintf("At leats 1 node per nodeSet is required, minimum number of nodes has been adjusted from %d to %d", autoscalingSpec.NodeCount.Min, minNodes),
 			)
 	}
 	return minNodes, maxNodes
