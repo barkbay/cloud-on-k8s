@@ -35,11 +35,15 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpecs, error)
 type AutoscalingSpec struct {
 	NamedAutoscalingPolicy
 
-	// Resources
+	AutoscalingResources `json:"resources"`
+}
+
+// +kubebuilder:object:generate=false
+type AutoscalingResources struct {
 	Cpu       *QuantityRange `json:"cpu,omitempty"`
 	Memory    *QuantityRange `json:"memory,omitempty"`
 	Storage   *QuantityRange `json:"storage,omitempty"`
-	NodeCount CountRange     `json:"nodeCount,omitempty"`
+	NodeCount CountRange     `json:"nodeCount"`
 }
 
 // +kubebuilder:object:generate=false
@@ -224,45 +228,45 @@ func (as AutoscalingSpecs) Validate() field.ErrorList {
 	// TODO: We need the namedTiers to check if the min count allowed is at least >= than the number of nodeSets managed in a policy
 	// Unfortunately it requires to parse the node configuration to grab the roles which may raise an error.
 
-	for i, resourcePolicy := range as {
+	for i, autoscalingSpec := range as {
 		// Validate the name field.
-		if len(resourcePolicy.Name) == 0 {
+		if len(autoscalingSpec.Name) == 0 {
 			errs = append(errs, field.Required(resourcePolicyIndex(i, "name"), "name is mandatory"))
 		} else {
-			if policyNames.Has(resourcePolicy.Name) {
-				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), resourcePolicy.Name, "policy is duplicated"))
+			if policyNames.Has(autoscalingSpec.Name) {
+				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), autoscalingSpec.Name, "policy is duplicated"))
 			}
-			policyNames.Add(resourcePolicy.Name)
+			policyNames.Add(autoscalingSpec.Name)
 		}
 
 		// Validate the roles.
-		if resourcePolicy.Roles == nil {
+		if autoscalingSpec.Roles == nil {
 			errs = append(errs, field.Required(resourcePolicyIndex(i, "roles"), "roles is mandatory"))
 		} else {
-			sort.Strings(resourcePolicy.Roles)
-			if ContainsStringSlide(rolesSet, resourcePolicy.Roles) {
-				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), strings.Join(resourcePolicy.Roles, ","), "roles set is duplicated"))
+			sort.Strings(autoscalingSpec.Roles)
+			if ContainsStringSlide(rolesSet, autoscalingSpec.Roles) {
+				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), strings.Join(autoscalingSpec.Roles, ","), "roles set is duplicated"))
 			} else {
-				rolesSet = append(rolesSet, resourcePolicy.Roles)
+				rolesSet = append(rolesSet, autoscalingSpec.Roles)
 			}
 		}
 
-		if !(resourcePolicy.NodeCount.Min > 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), resourcePolicy.NodeCount.Min, "count must be a greater than 1"))
+		if !(autoscalingSpec.NodeCount.Min > 0) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be a greater than 1"))
 		}
 
-		if !(resourcePolicy.NodeCount.Max > resourcePolicy.NodeCount.Min) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), resourcePolicy.NodeCount.Max, "max node count must be an integer greater than min node count"))
+		if !(autoscalingSpec.NodeCount.Max > autoscalingSpec.NodeCount.Min) {
+			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), autoscalingSpec.NodeCount.Max, "max node count must be an integer greater than min node count"))
 		}
 
 		// Check CPU
-		errs = validateQuantities(errs, resourcePolicy.Cpu, i, "cpu")
+		errs = validateQuantities(errs, autoscalingSpec.Cpu, i, "cpu")
 
 		// Check Memory
-		errs = validateQuantities(errs, resourcePolicy.Memory, i, "memory")
+		errs = validateQuantities(errs, autoscalingSpec.Memory, i, "memory")
 
 		// Check storage
-		errs = validateQuantities(errs, resourcePolicy.Storage, i, "storage")
+		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage")
 	}
 	return errs
 }
@@ -294,14 +298,14 @@ func Equal(s1, s2 []string) bool {
 func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string) field.ErrorList {
 	var quantityErrs field.ErrorList
 	if quantityRange == nil {
-		return quantityErrs
+		return errs
 	}
 	if !(quantityRange.Min.Value() > 0) {
 		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "min quantity must be greater than 0"))
 	}
 
 	if quantityRange.Min.Cmp(quantityRange.Max) > 0 {
-		errs = append(quantityErrs, field.Invalid(resourcePolicyIndex(index, "maxAllowed", resource), quantityRange.Max.String(), "max quantity must be greater or equal than min quantity"))
+		quantityErrs = append(quantityErrs, field.Invalid(resourcePolicyIndex(index, "maxAllowed", resource), quantityRange.Max.String(), "max quantity must be greater or equal than min quantity"))
 	}
 	return append(errs, quantityErrs...)
 }

@@ -45,12 +45,14 @@ func (asb *AutoscalingSpecsBuilder) WithCpu(min, max string) *AutoscalingSpecsBu
 
 func (asb *AutoscalingSpecsBuilder) Build() AutoscalingSpec {
 	return AutoscalingSpec{
-		Cpu:     asb.cpu,
-		Memory:  asb.memory,
-		Storage: asb.storage,
-		NodeCount: CountRange{
-			Min: asb.nodeCountMin,
-			Max: asb.nodeCountMax,
+		AutoscalingResources: AutoscalingResources{
+			Cpu:     asb.cpu,
+			Memory:  asb.memory,
+			Storage: asb.storage,
+			NodeCount: CountRange{
+				Min: asb.nodeCountMin,
+				Max: asb.nodeCountMax,
+			},
 		},
 	}
 }

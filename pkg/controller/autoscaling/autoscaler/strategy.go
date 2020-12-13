@@ -46,14 +46,13 @@ func EnsureResourcePolicies(
 	nodeSets []esv1.NodeSet,
 	autoscalingSpec esv1.AutoscalingSpec,
 	nodeSetsStatus status.NodeSetsStatus,
+	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {
 	currentStorage := getMaxStorage(nodeSetsStatus)
 	nodeSetsResources := make(nodesets.NodeSetsResources, len(nodeSets))
 	statusByNodeSet := nodeSetsStatus.ByNodeSet()
 
-	// TODO: compute current count and use the fair manager to check that everything is ok
-	var totalNodes int32 = 0
-
+	totalNodes := 0
 	for i, nodeSet := range nodeSets {
 		storage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
 		nodeSetResources := nodesets.NodeSetResources{
@@ -73,7 +72,7 @@ func EnsureResourcePolicies(
 			continue
 		}
 
-		totalNodes += nodeSetResources.Count
+		totalNodes += int(nodeSetResources.Count)
 
 		// Ensure memory settings are in the allowed range
 		if nodeSetStatus.Memory != nil && autoscalingSpec.IsMemoryDefined() {
@@ -99,11 +98,14 @@ func EnsureResourcePolicies(
 		nodeSetsResources[i] = nodeSetResources
 	}
 
+	// Ensure that we have at least 1 node per nodeSet
+	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
+
 	// ensure that the min. number of nodes is set
-	if totalNodes < autoscalingSpec.NodeCount.Min {
-		totalNodes = autoscalingSpec.NodeCount.Min
-	} else if totalNodes > autoscalingSpec.NodeCount.Max {
-		totalNodes = autoscalingSpec.NodeCount.Max
+	if totalNodes < minNodes {
+		totalNodes = minNodes
+	} else if totalNodes > maxNodes {
+		totalNodes = maxNodes
 	}
 
 	fnm := NewFairNodesManager(log, nodeSetsResources)

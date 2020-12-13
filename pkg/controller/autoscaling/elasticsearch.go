@@ -130,6 +130,15 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
+	// Validate autoscaling spec
+	errs := autoscalingSpecifications.Validate()
+	if len(errs) > 0 {
+		for _, err := range errs.ToAggregate().Errors() {
+			log.Error(err, "invalid autoscaling specification")
+		}
+		return reconcile.Result{}, tracing.CaptureError(ctx, fmt.Errorf("autoscaling spec is invalid"))
+	}
+
 	autoscalingStatus, err := status.GetAutoscalingStatus(es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
@@ -271,7 +280,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		switch decision, gotDecision := decisions.Policies[autoscalingSpec.Name]; gotDecision {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
-			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList, autoscalingSpec, nodeSetsStatus)
+			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList, autoscalingSpec, nodeSetsStatus, statusBuilder)
 		case true:
 			// Ensure that the user provides the related resources policies
 			if !canDecide(decision.RequiredCapacity, autoscalingSpec, statusBuilder) {
@@ -306,12 +315,12 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 
 func canDecide(requiredCapacity esclient.RequiredCapacity, spec esv1.AutoscalingSpec, statusBuilder *status.PolicyStatesBuilder) bool {
 	result := true
-	if requiredCapacity.Node.Memory != nil || requiredCapacity.Total.Memory != nil && !spec.IsMemoryDefined() {
+	if (requiredCapacity.Node.Memory != nil || requiredCapacity.Total.Memory != nil) && !spec.IsMemoryDefined() {
 		statusBuilder.ForPolicy(spec.Name).WithPolicyState(status.MemoryRequired, "Min and max memory must be specified")
 		result = false
 	}
-	if requiredCapacity.Node.Storage != nil || requiredCapacity.Total.Storage != nil && !spec.IsStorageDefined() {
-		statusBuilder.ForPolicy(spec.Name).WithPolicyState(status.MemoryRequired, "Min and max memory must be specified")
+	if (requiredCapacity.Node.Storage != nil || requiredCapacity.Total.Storage != nil) && !spec.IsStorageDefined() {
+		statusBuilder.ForPolicy(spec.Name).WithPolicyState(status.StorageRequired, "Min and max storage must be specified")
 		result = false
 	}
 	return result
@@ -338,7 +347,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
-		nodeSetsResources := autoscaler.EnsureResourcePolicies(log, nodeSets, autoscalingSpec, autoscalingStatus)
+		nodeSetsResources := autoscaler.EnsureResourcePolicies(log, nodeSets, autoscalingSpec, autoscalingStatus, statusBuilder)
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
 	// Replace currentNodeSets in the Elasticsearch manifest
