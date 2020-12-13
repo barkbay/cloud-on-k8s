@@ -2,11 +2,13 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package autoscaling
+package autoscaler
 
 import (
 	"sort"
 	"strings"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 
 	"github.com/go-logr/logr"
 )
@@ -14,7 +16,7 @@ import (
 // FairNodesManager helps to distribute nodes among NodeSets whose belong to a same tier.
 type FairNodesManager struct {
 	log               logr.Logger
-	nodeSetsResources NodeSetsResources
+	nodeSetsResources nodesets.NodeSetsResources
 }
 
 func (fnm *FairNodesManager) sort() {
@@ -26,7 +28,7 @@ func (fnm *FairNodesManager) sort() {
 	})
 }
 
-func NewFairNodesManager(log logr.Logger, nodeSetsResources NodeSetsResources) FairNodesManager {
+func NewFairNodesManager(log logr.Logger, nodeSetsResources nodesets.NodeSetsResources) FairNodesManager {
 	fnm := FairNodesManager{
 		log:               log,
 		nodeSetsResources: nodeSetsResources,

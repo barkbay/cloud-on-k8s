@@ -195,6 +195,16 @@ type NodeSet struct {
 	VolumeClaimTemplates []corev1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 }
 
+type NodeSetList []NodeSet
+
+func (nsl NodeSetList) Names() []string {
+	names := make([]string, len(nsl))
+	for i := range nsl {
+		names[i] = nsl[i].Name
+	}
+	return names
+}
+
 // GetESContainerTemplate returns the Elasticsearch container (if set) from the NodeSet's PodTemplate
 func (n NodeSet) GetESContainerTemplate() *corev1.Container {
 	for _, c := range n.PodTemplate.Spec.Containers {

@@ -7,18 +7,18 @@ package autoscaling
 import (
 	"fmt"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func quantityPtr(quantity string) *resource.Quantity {
-	q := resource.MustParse(quantity)
-	return &q
-}
+var logTest = logf.Log.WithName("autoscaling-test")
 
 // - NodeSet builder
 
@@ -122,8 +122,8 @@ func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
 	return nsb
 }
 
-func (nsb *resourcesBuilder) build() NodeSetResources {
-	nodeSetResources := NodeSetResources{
+func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
+	nodeSetResources := nodesets.NodeSetResources{
 		Name: nsb.name,
 		ResourcesSpecification: esv1.ResourcesSpecification{
 			Count:   nsb.count,

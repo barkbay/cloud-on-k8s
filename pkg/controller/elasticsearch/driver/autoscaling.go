@@ -6,7 +6,7 @@ package driver
 
 import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 )
 
 // resourcesAutoscaled checks that the autoscaler controller has updated the resources
@@ -16,19 +16,19 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	if !es.IsAutoscalingDefined() {
 		return true, nil
 	}
-	autoscalingStatus, err := autoscaling.GetAutoscalingStatus(es)
+	autoscalingStatus, err := status.GetAutoscalingStatus(es)
 	if err != nil {
 		return false, err
 	}
 	statusByNodeSet := autoscalingStatus.ByNodeSet()
 	for _, nodeSet := range es.Spec.NodeSets {
-		status, ok := statusByNodeSet[nodeSet.Name]
+		s, ok := statusByNodeSet[nodeSet.Name]
 		if !ok {
 			return false, nil
 		}
 
-		nodeSetHash := autoscaling.ResourcesHash(nodeSet)
-		if status.Hash != nodeSetHash {
+		nodeSetHash := status.ResourcesHash(nodeSet)
+		if s.Hash != nodeSetHash {
 			return false, nil
 		}
 	}

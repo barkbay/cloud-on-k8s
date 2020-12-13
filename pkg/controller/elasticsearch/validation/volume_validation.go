@@ -25,6 +25,15 @@ import (
 // Storage decrease is not supported if the corresponding StatefulSet has been resized already.
 func validPVCModification(current esv1.Elasticsearch, proposed esv1.Elasticsearch, k8sClient k8s.Client, validateStorageClass bool) field.ErrorList {
 	var errs field.ErrorList
+	// TODO: needed if applying an old version, should be discussed
+	if proposed.IsAutoscalingDefined() {
+		log.Info("Autoscaling is enabled in proposed, ignoring PVC modification validation")
+		return errs
+	}
+	if current.IsAutoscalingDefined() {
+		log.Info("Autoscaling is enabled in current, ignoring PVC modification validation")
+		return errs
+	}
 	for i, proposedNodeSet := range proposed.Spec.NodeSets {
 		currentNodeSet := getNodeSet(proposedNodeSet.Name, current)
 		if currentNodeSet == nil {

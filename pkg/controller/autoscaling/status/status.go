@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package autoscaling
+package status
 
 import (
 	"encoding/json"
@@ -10,10 +10,10 @@ import (
 	"hash/adler32"
 	"sort"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 )
 
 const (
@@ -23,6 +23,8 @@ const (
 	HorizontalScalingLimitReached PolicyStateType = "HorizontalScalingLimitReached"
 	OverlappingPolicies           PolicyStateType = "OverlappingPolicies"
 	InvalidMinimumNodeCount       PolicyStateType = "InvalidMinimumNodeCount"
+	MemoryRequired                PolicyStateType = "MemoryRequired"
+	StorageRequired               PolicyStateType = "StorageRequired"
 )
 
 type Status struct {
@@ -129,7 +131,7 @@ func (psb *PolicyStatesBuilder) Build() []PolicyStateItem {
 
 type NodeSetResourcesWithHash struct {
 	Hash string `json:"hash,omitempty"`
-	NodeSetResources
+	nodesets.NodeSetResources
 }
 
 type NodeSetsStatus []NodeSetResourcesWithHash
@@ -156,11 +158,11 @@ func GetAutoscalingStatus(es esv1.Elasticsearch) (NodeSetsStatus, error) {
 	return status.NodeSetResources, err
 }
 
-func UpdateAutoscalingStatus(es *esv1.Elasticsearch, statusBuilder *PolicyStatesBuilder, nodeSetsResources NodeSetsResources) error {
+func UpdateAutoscalingStatus(es *esv1.Elasticsearch, statusBuilder *PolicyStatesBuilder, nodeSetsResources nodesets.NodeSetsResources) error {
 	status := Status{
 		PolicyStates: statusBuilder.Build(),
 	}
-	byNodeSetsResources := nodeSetsResources.byNodeSet()
+	byNodeSetsResources := nodeSetsResources.ByNodeSet()
 	for _, nodeSet := range es.Spec.NodeSets {
 		nodeSetResource, ok := byNodeSetsResources[nodeSet.Name]
 		if !ok {

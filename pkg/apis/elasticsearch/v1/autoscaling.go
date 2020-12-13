@@ -65,6 +65,18 @@ type AllowedResources struct {
 	MaxAllowed ResourcesSpecification `json:"maxAllowed,omitempty"`
 }
 
+func (ar AllowedResources) IsMemoryDefined() bool {
+	return ar.MinAllowed.IsMemoryDefined() && ar.MaxAllowed.IsMemoryDefined()
+}
+
+func (ar AllowedResources) IsCpuDefined() bool {
+	return ar.MinAllowed.IsCpuDefined() && ar.MaxAllowed.IsCpuDefined()
+}
+
+func (ar AllowedResources) IsStorageDefined() bool {
+	return ar.MinAllowed.IsStorageDefined() && ar.MaxAllowed.IsStorageDefined()
+}
+
 // ResourcesSpecification represents a set of resource specifications which can be used to describe
 // either as a lower or an upper limit.
 // +kubebuilder:object:generate=false
@@ -77,6 +89,33 @@ type ResourcesSpecification struct {
 	Memory *resource.Quantity `json:"memory"`
 	// storage represents the storage capacity value
 	Storage *resource.Quantity `json:"storage"`
+}
+
+func (rs ResourcesSpecification) IsMemoryDefined() bool {
+	return rs.Memory != nil
+}
+
+func (rs ResourcesSpecification) IsCpuDefined() bool {
+	return rs.Cpu != nil
+}
+
+func (rs ResourcesSpecification) IsStorageDefined() bool {
+	return rs.Storage != nil
+}
+
+func (rs ResourcesSpecification) Merge(other ResourcesSpecification) {
+	if rs.Count < other.Count {
+		rs.Count = other.Count
+	}
+	if rs.Cpu == nil || (other.Cpu != nil && rs.Cpu.Cmp(*other.Cpu) < 0) {
+		rs.Cpu = other.Cpu
+	}
+	if rs.Memory == nil || (other.Memory != nil && rs.Memory.Cmp(*other.Memory) < 0) {
+		rs.Memory = other.Memory
+	}
+	if rs.Storage == nil || (other.Storage != nil && rs.Storage.Cmp(*other.Storage) < 0) {
+		rs.Storage = other.Storage
+	}
 }
 
 // FindByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
@@ -108,7 +147,7 @@ func (as AutoscalingSpecs) ByNames() map[string]AutoscalingSpec {
 
 // NamedTiers is used to hold the tiers in a manifest, indexed by the resource policy name.
 // +kubebuilder:object:generate=false
-type NamedTiers map[string][]NodeSet
+type NamedTiers map[string]NodeSetList
 
 func (n NamedTiers) String() string {
 	namedTiers := make(map[string][]string, len(n))
