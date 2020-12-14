@@ -97,7 +97,7 @@ func scaleHorizontally(
 			}
 		}
 		totalNodes := nodeToAdd + minNodes
-		log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name, "count", totalNodes)
+		log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name, "scope", "tier", "count", totalNodes)
 		fnm := NewFairNodesManager(log, nodeSetsResources)
 		for totalNodes > 0 {
 			fnm.AddNode()

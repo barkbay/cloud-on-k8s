@@ -110,6 +110,38 @@ type ResourcesSpecification struct {
 	Storage *resource.Quantity `json:"storage"`
 }
 
+// ResourcesSpecificationInt64 is mostly use in logs to print comparable values.
+// +kubebuilder:object:generate=false
+type ResourcesSpecificationInt64 struct {
+	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
+	Count int32 `json:"count"`
+	// Cpu represents the CPU value
+	Cpu *int64 `json:"cpu"`
+	// memory represents the memory value
+	Memory *int64 `json:"memory"`
+	// storage represents the storage capacity value
+	Storage *int64 `json:"storage"`
+}
+
+func (rs ResourcesSpecification) ToInt64() ResourcesSpecificationInt64 {
+	rs64 := ResourcesSpecificationInt64{
+		Count: rs.Count,
+	}
+	if rs.Cpu != nil {
+		cpu := rs.Cpu.MilliValue()
+		rs64.Cpu = &cpu
+	}
+	if rs.Memory != nil {
+		memory := rs.Memory.Value()
+		rs64.Memory = &memory
+	}
+	if rs.Storage != nil {
+		storage := rs.Storage.Value()
+		rs64.Storage = &storage
+	}
+	return rs64
+}
+
 func (rs ResourcesSpecification) IsMemoryDefined() bool {
 	return rs.Memory != nil
 }

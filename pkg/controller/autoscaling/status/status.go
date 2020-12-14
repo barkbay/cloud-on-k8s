@@ -25,6 +25,7 @@ const (
 	InvalidMinimumNodeCount       PolicyStateType = "InvalidMinimumNodeCount"
 	MemoryRequired                PolicyStateType = "MemoryRequired"
 	StorageRequired               PolicyStateType = "StorageRequired"
+	NoNodeSet                     PolicyStateType = "NoNodeSet"
 )
 
 type Status struct {

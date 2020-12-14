@@ -38,95 +38,6 @@ func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSets
 	return storage
 }
 
-// EnsureResourcePolicies ensures that even if no decisions have been returned the nodeSet respect
-// the min. and max. resource requirements.
-// If resources are within the min. and max. boundaries then they are left untouched.
-func EnsureResourcePolicies(
-	log logr.Logger,
-	nodeSets []esv1.NodeSet,
-	autoscalingSpec esv1.AutoscalingSpec,
-	nodeSetsStatus status.NodeSetsStatus,
-	statusBuilder *status.PolicyStatesBuilder,
-) nodesets.NodeSetsResources {
-	currentStorage := getMaxStorage(nodeSetsStatus)
-	nodeSetsResources := make(nodesets.NodeSetsResources, len(nodeSets))
-	statusByNodeSet := nodeSetsStatus.ByNodeSet()
-
-	totalNodes := 0
-	for i, nodeSet := range nodeSets {
-		storage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
-		nodeSetResources := nodesets.NodeSetResources{
-			Name:                   nodeSet.Name,
-			ResourcesSpecification: esv1.ResourcesSpecification{Storage: &storage},
-		}
-		if autoscalingSpec.IsCpuDefined() {
-			nodeSetResources.Cpu = &autoscalingSpec.Cpu.Min
-		}
-		if autoscalingSpec.IsMemoryDefined() {
-			nodeSetResources.Memory = &autoscalingSpec.Memory.Min
-		}
-		nodeSetStatus, ok := statusByNodeSet[nodeSet.Name]
-		if !ok {
-			// No current status for this nodeSet, create a new one with minimums
-			nodeSetsResources[i] = nodeSetResources
-			continue
-		}
-
-		totalNodes += int(nodeSetResources.Count)
-
-		// Ensure memory settings are in the allowed range
-		if nodeSetStatus.Memory != nil && autoscalingSpec.IsMemoryDefined() {
-			nodeSetStatus.Memory = adjustQuantity(*nodeSetStatus.Memory, autoscalingSpec.Memory.Min, autoscalingSpec.Memory.Max)
-		}
-
-		// Ensure CPU settings are in the allowed range
-		if nodeSetStatus.Cpu != nil && autoscalingSpec.IsCpuDefined() {
-			nodeSetStatus.Cpu = adjustQuantity(*nodeSetStatus.Cpu, autoscalingSpec.Cpu.Min, autoscalingSpec.Cpu.Max)
-		}
-
-		// Ensure Storage settings are in the allowed range but not below the current size
-		if nodeSetStatus.Storage != nil && autoscalingSpec.IsStorageDefined() {
-			nodeSetStatus.Storage = adjustQuantity(*nodeSetStatus.Storage, autoscalingSpec.Storage.Min, autoscalingSpec.Storage.Max)
-			// Do not downscale storage capacity.
-			if currentStorage.Cmp(*nodeSetStatus.Storage) > 0 {
-				nodeSetStatus.Storage = &currentStorage
-			}
-		} else {
-			nodeSetStatus.Storage = &currentStorage
-		}
-
-		nodeSetsResources[i] = nodeSetResources
-	}
-
-	// Ensure that we have at least 1 node per nodeSet
-	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
-
-	// ensure that the min. number of nodes is set
-	if totalNodes < minNodes {
-		totalNodes = minNodes
-	} else if totalNodes > maxNodes {
-		totalNodes = maxNodes
-	}
-
-	fnm := NewFairNodesManager(log, nodeSetsResources)
-	for totalNodes > 0 {
-		fnm.AddNode()
-		totalNodes--
-	}
-
-	return nodeSetsResources
-}
-
-// adjustQuantity ensures that a quantity is comprised between a min and a max.
-func adjustQuantity(value, min, max resource.Quantity) *resource.Quantity {
-	if value.Cmp(min) < 0 {
-		return &min
-	} else if value.Cmp(max) > 0 {
-		return &max
-	}
-	return &value
-}
-
 func GetScaleDecision(
 	log logr.Logger,
 	nodeSets []string,
@@ -137,6 +48,15 @@ func GetScaleDecision(
 ) nodesets.NodeSetsResources {
 	// 1. Scale vertically
 	desiredNodeResources := scaleVertically(log, len(nodeSets), nodeSetsStatus, requiredCapacity, autoscalingSpec, statusBuilder)
+	log.Info(
+		"Vertical autoscaler",
+		"state", "online",
+		"policy", autoscalingSpec.Name,
+		"scope", "node",
+		"nodesets", nodeSets,
+		"resources", desiredNodeResources.ToInt64(),
+	)
+
 	// 2. Scale horizontally
 	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec, statusBuilder)
 }
@@ -167,7 +87,7 @@ func scaleVertically(
 	)
 }
 
-// adjustMinMaxCount ensures that the min nodes is at leats the smae than the number of nodeSets managed by a policy.
+// adjustMinMaxCount ensures that the min nodes is at least the same than the number of nodeSets managed by a policy.
 // This is is to avoid nodeSets with count set to 0, which is not supported.
 func adjustMinMaxCount(
 	log logr.Logger,

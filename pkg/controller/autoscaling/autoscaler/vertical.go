@@ -81,8 +81,9 @@ func getResourceValue(
 	// Surface the condition where resource is exhausted.
 	if nodeRequired > max.Value() {
 		// Elasticsearch requested more capacity per node than allowed by the user
-		log.Info(
-			"Node nodeRequired "+resourceType+" is greater than the allowed one",
+		err := fmt.Errorf("node required %s is greater than the maximum one", resourceType)
+		log.Error(
+			err, err.Error(),
 			"scope", "node",
 			"policy", autoscalingPolicyName,
 			"required_"+resourceType, nodeRequired,
