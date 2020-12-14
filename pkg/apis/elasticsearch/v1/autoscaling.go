@@ -223,7 +223,7 @@ func (n NamedTiers) String() string {
 func (as AutoscalingSpec) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 	namedTiersSet := make(NamedTiers)
 	for _, nodeSet := range es.Spec.NodeSets {
-		resourcePolicy, err := as.getAutoscalingSpecFor(es, nodeSet)
+		resourcePolicy, err := as.GetAutoscalingSpecFor(es, nodeSet)
 		if err != nil {
 			return nil, err
 		}
@@ -236,8 +236,8 @@ func (as AutoscalingSpec) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 	return namedTiersSet, nil
 }
 
-// getAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.
-func (as AutoscalingSpec) getAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingPolicySpec, error) {
+// GetAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.
+func (as AutoscalingSpec) GetAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingPolicySpec, error) {
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err

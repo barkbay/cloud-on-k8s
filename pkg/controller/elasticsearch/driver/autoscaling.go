@@ -16,19 +16,42 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	if !es.IsAutoscalingDefined() {
 		return true, nil
 	}
+	autoscalingSpec, err := es.GetAutoscalingSpecifications()
+	if err != nil {
+		return false, err
+	}
 	autoscalingStatus, err := status.GetAutoscalingStatus(es)
 	if err != nil {
 		return false, err
 	}
 	statusByNodeSet := autoscalingStatus.ByNodeSet()
 	for _, nodeSet := range es.Spec.NodeSets {
+
+		nodeSetAutoscalingSpec, err := autoscalingSpec.GetAutoscalingSpecFor(es, nodeSet)
+		if err != nil {
+			return false, err
+		}
+		if nodeSetAutoscalingSpec == nil {
+			// This nodeSet is not managed by an autoscaling configuration
+			log.Info("NodeSet not managed by an autoscaling controller", "nodeset", nodeSet.Name)
+			continue
+		}
+
 		s, ok := statusByNodeSet[nodeSet.Name]
 		if !ok {
+			log.Info("NodeSet managed by the autoscaling controller but not found in status",
+				"nodeset", nodeSet.Name,
+			)
 			return false, nil
 		}
 
 		nodeSetHash := status.ResourcesHash(nodeSet)
 		if s.Hash != nodeSetHash {
+			log.Info("NodeSet managed by the autoscaling controller but not in sync",
+				"nodeset", nodeSet.Name,
+				"expected", s.Hash,
+				"actual", nodeSetHash,
+			)
 			return false, nil
 		}
 	}
