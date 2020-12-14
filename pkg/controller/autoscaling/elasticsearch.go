@@ -245,7 +245,8 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	}
 
 	// Update named policies in Elasticsearch
-	if err := updatePolicies(ctx, autoscalingSpecs, esClient); err != nil {
+	if err := updatePolicies(log, ctx, autoscalingSpecs, esClient); err != nil {
+		log.Error(err, "Error while updating the autoscaling policies")
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -379,11 +380,11 @@ func updateNodeSets(
 		name := es.Spec.NodeSets[i].Name
 		nodeSetResources, ok := resourcesByNodeSet[name]
 		if !ok {
-			log.Info("Skipping nodeset update", "nodeset", name)
+			log.V(1).Info("Skipping nodeset update", "nodeset", name)
 			continue
 		}
 
-		log.Info("Updating nodeset with resources", "nodeset", name, "resources", clusterNodeSetsResources)
+		log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", clusterNodeSetsResources)
 		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
 			container = &corev1.Container{
