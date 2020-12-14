@@ -375,14 +375,15 @@ func updateNodeSets(
 	clusterNodeSetsResources nodesets.NodeSetsResources,
 ) {
 	resourcesByNodeSet := clusterNodeSetsResources.ByNodeSet()
-	for i, nodeSet := range es.Spec.NodeSets {
-		nodeSetResources, ok := resourcesByNodeSet[nodeSet.Name]
+	for i := range es.Spec.NodeSets {
+		name := es.Spec.NodeSets[i].Name
+		nodeSetResources, ok := resourcesByNodeSet[name]
 		if !ok {
-			log.Info("Skipping nodeset update", "nodeset", nodeSet.Name)
+			log.Info("Skipping nodeset update", "nodeset", name)
 			continue
 		}
 
-		log.Info("Updating nodeset with resources", "nodeset", nodeSet.Name, "resources", clusterNodeSetsResources)
+		log.Info("Updating nodeset with resources", "nodeset", name, "resources", clusterNodeSetsResources)
 		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
 			container = &corev1.Container{
@@ -414,7 +415,7 @@ func updateNodeSets(
 		if nodeSetResources.Storage != nil {
 			// Update storage claim
 			if len(es.Spec.NodeSets[i].VolumeClaimTemplates) == 0 {
-				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{volume.DefaultDataVolumeClaim}
+				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*volume.DefaultDataVolumeClaim.DeepCopy()}
 			}
 			for _, claimTemplate := range es.Spec.NodeSets[i].VolumeClaimTemplates {
 				if claimTemplate.Name == volume.ElasticsearchDataVolumeName {
