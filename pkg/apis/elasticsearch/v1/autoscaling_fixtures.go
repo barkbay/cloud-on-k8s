@@ -43,8 +43,8 @@ func (asb *AutoscalingSpecsBuilder) WithCpu(min, max string) *AutoscalingSpecsBu
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) Build() AutoscalingSpec {
-	return AutoscalingSpec{
+func (asb *AutoscalingSpecsBuilder) Build() AutoscalingPolicySpec {
+	return AutoscalingPolicySpec{
 		AutoscalingResources: AutoscalingResources{
 			Cpu:     asb.cpu,
 			Memory:  asb.memory,

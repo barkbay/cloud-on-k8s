@@ -11,7 +11,7 @@ import (
 
 // cpuFromMemory computes a CPU quantity within the specified allowed range by the user proportionally
 // to the amount of memory requested by the autoscaling API.
-func cpuFromMemory(requiredMemoryCapacity int64, autoscalingSpec esv1.AutoscalingSpec) *resource.Quantity {
+func cpuFromMemory(requiredMemoryCapacity int64, autoscalingSpec esv1.AutoscalingPolicySpec) *resource.Quantity {
 	allowedMemoryRange := autoscalingSpec.Memory.Max.Value() - autoscalingSpec.Memory.Min.Value()
 	if allowedMemoryRange == 0 {
 		// Can't scale CPU as min and max for memory are equal

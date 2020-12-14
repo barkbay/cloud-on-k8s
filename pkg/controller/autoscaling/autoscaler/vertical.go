@@ -20,7 +20,7 @@ func nodeResources(
 	minNodesCount int64,
 	currentStorage resource.Quantity,
 	requiredCapacity client.RequiredCapacity,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) esv1.ResourcesSpecification {
 	resources := esv1.ResourcesSpecification{}

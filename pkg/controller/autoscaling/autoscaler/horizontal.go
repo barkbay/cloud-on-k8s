@@ -20,7 +20,7 @@ func scaleHorizontally(
 	nodeSets []string,
 	requestedCapacity client.Capacity,
 	nodeCapacity esv1.ResourcesSpecification,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {
 	// Ensure that we have at least 1 node per nodeSet

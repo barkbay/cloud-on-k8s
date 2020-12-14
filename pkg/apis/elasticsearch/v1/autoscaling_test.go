@@ -14,167 +14,241 @@ import (
 
 func TestResourcePolicies_Validate(t *testing.T) {
 	tests := []struct {
-		name             string
-		resourcePolicies string
-		wantError        bool
-		expectedError    string
+		name            string
+		autoscalingSpec string
+		wantError       bool
+		expectedError   string
 	}{
 		{
 			name:      "Happy path",
 			wantError: false,
-			resourcePolicies: `
-[{
-  "name": "data_policy",
-  "roles": [ "data" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-},
+			autoscalingSpec: `
 {
-  "name": "ml_policy",
-  "roles": [ "ml" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+	 "policies" : [{
+		  "name": "data_policy",
+		  "roles": [ "data" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		},
+		{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
 `,
 		},
 		{
 			name:          "Policy name is duplicated",
 			wantError:     true,
 			expectedError: "[1].name: Invalid value: \"my_policy\": policy is duplicated",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "roles": [ "data" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-},
+			autoscalingSpec: `
 {
-  "name": "my_policy",
-  "roles": [ "ml" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+	 "policies" : [{
+		  "name": "my_policy",
+		  "roles": [ "data" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		},
+		{
+		  "name": "my_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
 `,
 		},
 		{
 			name:          "Duplicated roles sets",
 			wantError:     true,
 			expectedError: "[1].name: Invalid value: \"data, ml\": roles set is duplicated",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-},
+			autoscalingSpec: `
 {
-  "name": "my_policy2",
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+	 "policies" : [{
+		  "name": "my_policy",
+		  "roles": [ "data, ml" ],
+		  "resources" : {
+			  "nodeCount" : { "min" : 1 , "max" : 2 },
+			  "cpu" : { "min" : 1 , "max" : 1 },
+			  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+          }
+		},
+		{
+		  "name": "my_policy2",
+		  "roles": [ "data, ml" ],
+		  "resources" : {
+			  "nodeCount" : { "min" : 1 , "max" : 2 },
+			  "cpu" : { "min" : 1 , "max" : 1 },
+			  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
 `,
 		},
 		{
 			name:          "No name",
 			wantError:     true,
 			expectedError: "name: Required value: name is mandatory",
-			resourcePolicies: `
-[{
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+			autoscalingSpec: `
+{
+	 "policies" : [{
+	  "roles": [ "data, ml" ],
+      "resources" : {
+		  "nodeCount" : { "min" : 1 , "max" : 2 },
+		  "cpu" : { "min" : 1 , "max" : 1 },
+		  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+		  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+      }
+	}]
+}
 `,
 		},
 		{
 			name:          "No roles",
 			wantError:     true,
 			expectedError: "roles: Required value: roles is mandatory",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "nodeCount" : { "min" : 1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+			autoscalingSpec: `
+{
+	 "policies" : [{
+     "name": "my_policy",
+      "resources" : {
+		  "nodeCount" : { "min" : 1 , "max" : 2 },
+		  "cpu" : { "min" : 1 , "max" : 1 },
+		  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+		  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+      }
+      }]
+}
 `,
 		},
 		{
 			name:          "No count",
 			wantError:     true,
 			expectedError: "maxAllowed.count: Invalid value: 0: max node count must be an integer greater than min node count",
-			resourcePolicies: `
-[{
+			autoscalingSpec: `
+{
+	 "policies" : [{
   "name": "my_policy",
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+  "resources" : {
+	  "cpu" : { "min" : 1 , "max" : 1 },
+	  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
+	  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
+  }
 }]
+}
 `,
 		},
 		{
 			name:          "Min. count should be greater than 1",
 			wantError:     true,
 			expectedError: "minAllowed.count: Invalid value: -1: count must be a greater than 1",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : -1 , "max" : 2 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+			autoscalingSpec: `
+{
+	"policies": [{
+		"name": "my_policy",
+		"roles": ["data, ml"],
+		"resources": {
+			"nodeCount": {
+				"min": -1,
+				"max": 2
+			},
+			"cpu": {
+				"min": 1,
+				"max": 1
+			},
+			"memory": {
+				"min": "2Gi",
+				"max": "2Gi"
+			},
+			"storage": {
+				"min": "5Gi",
+				"max": "10Gi"
+			}
+		}
+	}]
+}
 `,
 		},
 		{
 			name:          "Min. count is greater than max",
 			wantError:     true,
 			expectedError: "maxAllowed.count: Invalid value: 4: max node count must be an integer greater than min node count",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : 5 , "max" : 4 },
-  "cpu" : { "min" : 1 , "max" : 1 },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+			autoscalingSpec: `
+{
+	"policies": [{
+		"name": "my_policy",
+		"roles": ["data, ml"],
+		"resources": {
+			"nodeCount": {
+				"min": 5,
+				"max": 4
+			},
+			"cpu": {
+				"min": 1,
+				"max": 1
+			},
+			"memory": {
+				"min": "2Gi",
+				"max": "2Gi"
+			},
+			"storage": {
+				"min": "5Gi",
+				"max": "10Gi"
+			}
+		}
+	}]
+}
 `,
 		},
 		{
 			name:          "Min. CPU is greater than max",
 			wantError:     true,
 			expectedError: "cpu: Invalid value: \"50m\": max quantity must be greater or equal than min quantity",
-			resourcePolicies: `
-[{
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "name": "my_policy",
-  "roles": [ "data, ml" ],
-  "nodeCount" : { "min" : -1 , "max" : 2 },
-  "cpu" : { "min" : "100m" , "max" : "50m" },
-  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
-  "storage" : { "min" : "5Gi" , "max" : "10Gi" }
-}]
+			autoscalingSpec: `
+{
+	"policies": [{
+		"name": "my_policy",
+		"roles": ["data, ml"],
+		"resources": {
+			"nodeCount": {
+				"min": -1,
+				"max": 2
+			},
+			"cpu": {
+				"min": "100m",
+				"max": "50m"
+			},
+			"memory": {
+				"min": "2Gi",
+				"max": "2Gi"
+			},
+			"storage": {
+				"min": "5Gi",
+				"max": "10Gi"
+			}
+		}
+	}]
+}
 `,
 		},
 	}
@@ -183,7 +257,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			es := Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						ElasticsearchAutoscalingSpecAnnotationName: tt.resourcePolicies,
+						ElasticsearchAutoscalingSpecAnnotationName: tt.autoscalingSpec,
 					},
 				},
 			}

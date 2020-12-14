@@ -24,7 +24,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		currentNodeSets  []string
 		nodeSetsStatus   status.NodeSetsStatus
 		requiredCapacity client.RequiredCapacity
-		policy           esv1.AutoscalingSpec
+		policy           esv1.AutoscalingPolicySpec
 	}
 	tests := []struct {
 		name    string

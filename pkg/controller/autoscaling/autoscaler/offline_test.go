@@ -22,7 +22,7 @@ var logTest = logf.Log.WithName("autoscaling-offline-test")
 func TestEnsureResourcePolicies(t *testing.T) {
 	type args struct {
 		nodeSets        []string
-		autoscalingSpec esv1.AutoscalingSpec
+		autoscalingSpec esv1.AutoscalingPolicySpec
 		nodeSetsStatus  status.NodeSetsStatus
 	}
 	tests := []struct {

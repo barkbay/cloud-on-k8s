@@ -19,7 +19,7 @@ func quantityPtr(quantity string) *resource.Quantity {
 func Test_cpuFromMemory(t *testing.T) {
 	type args struct {
 		requiredMemoryCapacity int64
-		autoscalingSpec        esv1.AutoscalingSpec
+		autoscalingSpec        esv1.AutoscalingPolicySpec
 	}
 	tests := []struct {
 		name    string

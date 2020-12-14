@@ -18,21 +18,26 @@ import (
 const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
 // +kubebuilder:object:generate=false
-type AutoscalingSpecs []AutoscalingSpec
+type AutoscalingPolicySpecs []AutoscalingPolicySpec
 
 // GetAutoscalingSpecifications unmarshal autoscaling specifications from an Elasticsearch resource.
-func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpecs, error) {
-	autoscalingSpecs := make(AutoscalingSpecs, 0)
+func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) {
+	autoscalingSpec := AutoscalingSpec{}
 	if len(es.AutoscalingSpec()) == 0 {
-		return autoscalingSpecs, nil
+		return autoscalingSpec, nil
 	}
-	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpecs)
-	return autoscalingSpecs, err
+	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpec)
+	return autoscalingSpec, err
 }
 
 // AutoscalingSpec represents how resources can be scaled by the autoscaler controller.
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
+	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
+}
+
+// +kubebuilder:object:generate=false
+type AutoscalingPolicySpec struct {
 	NamedAutoscalingPolicy
 
 	AutoscalingResources `json:"resources"`
@@ -84,16 +89,16 @@ type CountRange struct {
 	Max int32 `json:"max"`
 }
 
-func (as AutoscalingSpec) IsMemoryDefined() bool {
-	return as.Memory != nil
+func (aps AutoscalingPolicySpec) IsMemoryDefined() bool {
+	return aps.Memory != nil
 }
 
-func (as AutoscalingSpec) IsCpuDefined() bool {
-	return as.Cpu != nil
+func (aps AutoscalingPolicySpec) IsCpuDefined() bool {
+	return aps.Cpu != nil
 }
 
-func (as AutoscalingSpec) IsStorageDefined() bool {
-	return as.Storage != nil
+func (aps AutoscalingPolicySpec) IsStorageDefined() bool {
+	return aps.Storage != nil
 }
 
 // ResourcesSpecification represents a set of resource specifications which can be used to describe
@@ -170,8 +175,8 @@ func (rs ResourcesSpecification) Merge(other ResourcesSpecification) {
 }
 
 // FindByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
-func (as AutoscalingSpecs) FindByRoles(roles []string) *AutoscalingSpec {
-	for _, rp := range as {
+func (as AutoscalingSpec) FindByRoles(roles []string) *AutoscalingPolicySpec {
+	for _, rp := range as.AutoscalingPolicySpecs {
 		if len(rp.Roles) != len(roles) {
 			continue
 		}
@@ -187,9 +192,9 @@ func (as AutoscalingSpecs) FindByRoles(roles []string) *AutoscalingSpec {
 }
 
 // ByNames returns autoscaling specifications indexed by name.
-func (as AutoscalingSpecs) ByNames() map[string]AutoscalingSpec {
-	rpByName := make(map[string]AutoscalingSpec)
-	for _, scalePolicy := range as {
+func (as AutoscalingSpec) ByNames() map[string]AutoscalingPolicySpec {
+	rpByName := make(map[string]AutoscalingPolicySpec)
+	for _, scalePolicy := range as.AutoscalingPolicySpecs {
 		scalePolicy := scalePolicy
 		rpByName[scalePolicy.Name] = scalePolicy
 	}
@@ -215,7 +220,7 @@ func (n NamedTiers) String() string {
 }
 
 // GetNamedTiers retrieves the name of all the tiers in the Elasticsearch manifest.
-func (as AutoscalingSpecs) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
+func (as AutoscalingSpec) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 	namedTiersSet := make(NamedTiers)
 	for _, nodeSet := range es.Spec.NodeSets {
 		resourcePolicy, err := as.getAutoscalingSpecFor(es, nodeSet)
@@ -232,7 +237,7 @@ func (as AutoscalingSpecs) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 }
 
 // getAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.
-func (as AutoscalingSpecs) getAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingSpec, error) {
+func (as AutoscalingSpec) getAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingPolicySpec, error) {
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err
@@ -252,15 +257,15 @@ func resourcePolicyIndex(index int, child string, moreChildren ...string) *field
 }
 
 // Validate validates a set of autoscaling specifications.
-func (as AutoscalingSpecs) Validate() field.ErrorList {
+func (as AutoscalingSpec) Validate() field.ErrorList {
 	policyNames := set.Make()
-	rolesSet := make([][]string, 0, len(as))
+	rolesSet := make([][]string, 0, len(as.AutoscalingPolicySpecs))
 	var errs field.ErrorList
 
 	// TODO: We need the namedTiers to check if the min count allowed is at least >= than the number of nodeSets managed in a policy
 	// Unfortunately it requires to parse the node configuration to grab the roles which may raise an error.
 
-	for i, autoscalingSpec := range as {
+	for i, autoscalingSpec := range as.AutoscalingPolicySpecs {
 		// Validate the name field.
 		if len(autoscalingSpec.Name) == 0 {
 			errs = append(errs, field.Required(resourcePolicyIndex(i, "name"), "name is mandatory"))

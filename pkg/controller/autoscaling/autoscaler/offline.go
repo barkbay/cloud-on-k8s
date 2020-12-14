@@ -18,7 +18,7 @@ import (
 func EnsureResourcePolicies(
 	log logr.Logger,
 	nodeSets []string,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	nodeSetsStatus status.NodeSetsStatus,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {

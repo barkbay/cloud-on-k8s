@@ -43,7 +43,7 @@ func GetScaleDecision(
 	nodeSets []string,
 	nodeSetsStatus status.NodeSetsStatus,
 	requiredCapacity client.RequiredCapacity,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {
 	// 1. Scale vertically
@@ -71,7 +71,7 @@ func scaleVertically(
 	nodeSetsCount int,
 	nodeSetsStatus status.NodeSetsStatus,
 	requiredCapacity client.RequiredCapacity,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) esv1.ResourcesSpecification {
 	minNodesCount := int64(autoscalingSpec.NodeCount.Min) * int64(nodeSetsCount)
@@ -92,7 +92,7 @@ func scaleVertically(
 func adjustMinMaxCount(
 	log logr.Logger,
 	nodeSetCount int,
-	autoscalingSpec esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) (int, int) {
 	minNodes := int(autoscalingSpec.NodeCount.Min)

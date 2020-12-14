@@ -12,7 +12,7 @@ import (
 // updatePolicies updates the autoscaling policies in the Elasticsearch cluster.
 func updatePolicies(
 	ctx context.Context,
-	resourcePolicies esv1.AutoscalingSpecs,
+	autoscalingSpec esv1.AutoscalingSpec,
 	esclient client.AutoScalingClient,
 ) error {
 	span, _ := apm.StartSpan(ctx, "update_autoscaling_policies", tracing.SpanTypeApp)
@@ -22,7 +22,7 @@ func updatePolicies(
 		return err
 	}
 	// Create the expected autoscaling policies
-	for _, rp := range resourcePolicies {
+	for _, rp := range autoscalingSpec.AutoscalingPolicySpecs {
 		if err := esclient.UpsertAutoscalingPolicy(ctx, rp.Name, rp.AutoscalingPolicy); err != nil {
 			return err
 		}
