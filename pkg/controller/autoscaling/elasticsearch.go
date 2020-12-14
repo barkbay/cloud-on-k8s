@@ -374,14 +374,15 @@ func updateNodeSets(
 	es *esv1.Elasticsearch,
 	clusterNodeSetsResources nodesets.NodeSetsResources,
 ) {
-	log.V(1).Info("Updating resources", "resources", clusterNodeSetsResources)
 	resourcesByNodeSet := clusterNodeSetsResources.ByNodeSet()
 	for i, nodeSet := range es.Spec.NodeSets {
 		nodeSetResources, ok := resourcesByNodeSet[nodeSet.Name]
 		if !ok {
+			log.Info("Skipping nodeset update", "nodeset", nodeSet.Name)
 			continue
 		}
 
+		log.Info("Updating nodeset with resources", "nodeset", nodeSet.Name, "resources", clusterNodeSetsResources)
 		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
 			container = &corev1.Container{

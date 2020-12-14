@@ -55,6 +55,7 @@ func GetScaleDecision(
 		"scope", "node",
 		"nodesets", nodeSets,
 		"resources", desiredNodeResources.ToInt64(),
+		"required_capacity", requiredCapacity,
 	)
 
 	// 2. Scale horizontally
