@@ -93,6 +93,7 @@ func EnsureResourcePolicies(
 			"state", "offline",
 			"policy", autoscalingSpec.Name,
 			"nodeset", nodesetResources.Name,
+			"count", nodesetResources.Count,
 			"resources", nodesetResources.ToInt64(),
 		)
 	}
