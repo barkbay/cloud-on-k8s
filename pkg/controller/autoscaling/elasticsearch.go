@@ -276,16 +276,18 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 
 		// Get the decision from the Elasticsearch API
 		var nodeSetsResources nodesets.NodeSetsResources
-		switch decision, gotDecision := decisions.Policies[autoscalingSpec.Name]; gotDecision {
+		switch capacity, gotCapacity := decisions.Policies[autoscalingSpec.Name]; gotCapacity {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
 			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList.Names(), autoscalingSpec, nodeSetsStatus, statusBuilder)
 		case true:
+			// Log decision
+			log.Info("Required capacity for policy", "policy", autoscalingSpec.Name, "required_capacity", capacity.RequiredCapacity)
 			// Ensure that the user provides the related resources policies
-			if !canDecide(log, decision.RequiredCapacity, autoscalingSpec, statusBuilder) {
+			if !canDecide(log, capacity.RequiredCapacity, autoscalingSpec, statusBuilder) {
 				continue
 			}
-			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), nodeSetsStatus, decision.RequiredCapacity, autoscalingSpec, statusBuilder)
+			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), nodeSetsStatus, capacity.RequiredCapacity, autoscalingSpec, statusBuilder)
 		}
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
