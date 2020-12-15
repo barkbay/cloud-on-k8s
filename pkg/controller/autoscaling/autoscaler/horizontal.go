@@ -18,7 +18,7 @@ import (
 func scaleHorizontally(
 	log logr.Logger,
 	nodeSets []string,
-	requestedCapacity client.Capacity,
+	requiredCapacity client.Capacity,
 	nodeCapacity esv1.ResourcesSpecification,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
@@ -27,13 +27,14 @@ func scaleHorizontally(
 	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
 
 	nodeSetsResources := make(nodesets.NodeSetsResources, len(nodeSets))
-	if requestedCapacity.Memory != nil {
+	nodeToAdd := 0
+	if requiredCapacity.Memory != nil {
 		minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed
-		memoryDelta := *requestedCapacity.Memory - minMemory
-		nodeToAdd := getNodeDelta(memoryDelta, nodeCapacity.Memory.Value())
+		memoryDelta := *requiredCapacity.Memory - minMemory
+		nodeToAdd = getNodeDelta(memoryDelta, nodeCapacity.Memory.Value())
 
 		if minNodes+nodeToAdd > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
@@ -43,7 +44,7 @@ func scaleHorizontally(
 				"scope", "tier",
 				"resource", "memory",
 				"node_value", nodeCapacity.Memory.Value(),
-				"requested_value", *requestedCapacity.Memory,
+				"requested_value", *requiredCapacity.Memory,
 				"requested_count", minNodes+nodeToAdd,
 				"max_count", maxNodes,
 			)
@@ -53,61 +54,60 @@ func scaleHorizontally(
 				ForPolicy(autoscalingSpec.Name).
 				WithPolicyState(
 					status.HorizontalScalingLimitReached,
-					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *requestedCapacity.Memory, maxNodes, minNodes+nodeToAdd),
+					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *requiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
 				)
 			nodeToAdd = maxNodes - minNodes
 		}
+	}
 
-		if requestedCapacity.Storage != nil && nodeCapacity.Storage != nil {
-			minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
-			storageDelta := *requestedCapacity.Storage - minStorage
-			nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value())
-			if minNodes+nodeToAddStorage > maxNodes {
-				// Elasticsearch requested more memory per node than allowed
-				log.Info(
-					"Can't provide total required storage",
-					"policy", autoscalingSpec.Name,
-					"scope", "tier",
-					"resource", "storage",
-					"node_value", nodeCapacity.Storage.Value(),
-					"requested_value", *requestedCapacity.Storage,
-					"requested_count", minNodes+nodeToAddStorage,
-					"max_count", maxNodes,
+	if requiredCapacity.Storage != nil && nodeCapacity.Storage != nil {
+		minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
+		storageDelta := *requiredCapacity.Storage - minStorage
+		nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value())
+		if minNodes+nodeToAddStorage > maxNodes {
+			// Elasticsearch requested more memory per node than allowed
+			log.Info(
+				"Can't provide total required storage",
+				"policy", autoscalingSpec.Name,
+				"scope", "tier",
+				"resource", "storage",
+				"node_value", nodeCapacity.Storage.Value(),
+				"requested_value", *requiredCapacity.Storage,
+				"requested_count", minNodes+nodeToAddStorage,
+				"max_count", maxNodes,
+			)
+
+			// Update the autoscaling status accordingly
+			statusBuilder.
+				ForPolicy(autoscalingSpec.Name).
+				WithPolicyState(
+					status.HorizontalScalingLimitReached,
+					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *requiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
 				)
-
-				// Update the autoscaling status accordingly
-				statusBuilder.
-					ForPolicy(autoscalingSpec.Name).
-					WithPolicyState(
-						status.HorizontalScalingLimitReached,
-						fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *requestedCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
-					)
-				nodeToAddStorage = maxNodes - minNodes
-			}
-			if nodeToAddStorage > nodeToAdd {
-				nodeToAdd = nodeToAddStorage
-			}
+			nodeToAddStorage = maxNodes - minNodes
 		}
-
-		// TODO: add a log to explain the computation
-		for i := range nodeSets {
-			nodeSetsResources[i] = nodesets.NodeSetResources{
-				Name:                   nodeSets[i],
-				ResourcesSpecification: nodeCapacity,
-			}
+		if nodeToAddStorage > nodeToAdd {
+			nodeToAdd = nodeToAddStorage
 		}
-		totalNodes := nodeToAdd + minNodes
-		log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name,
-			"scope", "tier",
-			"count", totalNodes,
-			"required_capacity", requestedCapacity,
-		)
-		fnm := NewFairNodesManager(log, nodeSetsResources)
-		for totalNodes > 0 {
-			fnm.AddNode()
-			totalNodes--
-		}
+	}
 
+	// TODO: add a log to explain the computation
+	for i := range nodeSets {
+		nodeSetsResources[i] = nodesets.NodeSetResources{
+			Name:                   nodeSets[i],
+			ResourcesSpecification: nodeCapacity,
+		}
+	}
+	totalNodes := nodeToAdd + minNodes
+	log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name,
+		"scope", "tier",
+		"count", totalNodes,
+		"required_capacity", requiredCapacity,
+	)
+	fnm := NewFairNodesManager(log, nodeSetsResources)
+	for totalNodes > 0 {
+		fnm.AddNode()
+		totalNodes--
 	}
 
 	return nodeSetsResources
