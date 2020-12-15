@@ -69,8 +69,8 @@ func Test_cpuFromMemory(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, tt.args.autoscalingSpec); !got.Equal(*tt.wantCpu) {
-				t.Errorf("cpuFromMemory() = %v, want %v", got, tt.wantCpu)
+			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, *tt.args.autoscalingSpec.Memory, *tt.args.autoscalingSpec.Cpu); !got.Equal(*tt.wantCpu) {
+				t.Errorf("scaleResourceLinearly() = %v, want %v", got, tt.wantCpu)
 			}
 		})
 	}

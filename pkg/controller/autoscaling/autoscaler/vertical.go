@@ -61,9 +61,15 @@ func nodeResources(
 		}
 	}
 
+	// If no memory has been specified by the autoscaling API Memory
+	if resources.Memory == nil &&
+		autoscalingSpec.IsMemoryDefined() && autoscalingSpec.IsStorageDefined() && resources.Storage != nil {
+		resources.Memory = memoryFromStorage(resources.Storage.Value(), *autoscalingSpec.Storage, *autoscalingSpec.Memory)
+	}
+
 	// Adjust CPU
 	if autoscalingSpec.IsCpuDefined() && autoscalingSpec.IsMemoryDefined() && resources.Memory != nil {
-		resources.Cpu = cpuFromMemory(resources.Memory.Value(), autoscalingSpec)
+		resources.Cpu = cpuFromMemory(resources.Memory.Value(), *autoscalingSpec.Memory, *autoscalingSpec.Cpu)
 	}
 
 	return resources
