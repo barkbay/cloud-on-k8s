@@ -27,6 +27,8 @@ func nodeResources(
 
 	// Get memory
 	if requiredCapacity.Node.Memory != nil &&
+		// Elasticsearch API may return 0 as an empty value
+		*requiredCapacity.Node.Memory > 0 &&
 		autoscalingSpec.IsMemoryDefined() {
 		resources.Memory = getResourceValue(
 			log,
@@ -43,6 +45,7 @@ func nodeResources(
 
 	// Get storage
 	if requiredCapacity.Node.Storage != nil &&
+		*requiredCapacity.Node.Storage > 0 &&
 		autoscalingSpec.IsStorageDefined() {
 		resources.Storage = getResourceValue(
 			log,

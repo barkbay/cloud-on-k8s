@@ -6,13 +6,9 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-
-	"github.com/docker/go-units"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/pointer"
 )
 
 type AutoScalingClient interface {
@@ -50,36 +46,6 @@ type RequiredCapacity struct {
 type Capacity struct {
 	Storage *int64 `yaml:"storage" json:"storage,omitempty"`
 	Memory  *int64 `yaml:"memory" json:"memory,omitempty"`
-}
-
-type ElasticsearchCapacity struct {
-	Storage string `json:"storage,omitempty"`
-	Memory  string `json:"memory,omitempty"`
-}
-
-func (c *Capacity) UnmarshalJSON(data []byte) error {
-	var ec ElasticsearchCapacity
-	if err := json.Unmarshal(data, &ec); err != nil {
-		return err
-	}
-
-	if len(ec.Memory) > 0 {
-		memory, err := units.FromHumanSize(ec.Memory)
-		if err != nil {
-			return fmt.Errorf("unable to parse memory quantity %s", ec.Memory)
-		}
-		c.Memory = pointer.Int64(memory)
-	}
-
-	if len(ec.Storage) > 0 {
-		storage, err := units.FromHumanSize(ec.Storage)
-		if err != nil {
-			return fmt.Errorf("unable to parse storage quantity %s", ec.Storage)
-		}
-		c.Storage = pointer.Int64(storage)
-	}
-
-	return nil
 }
 
 func (c *clientV7) GetAutoscalingCapacity(ctx context.Context) (Policies, error) {
