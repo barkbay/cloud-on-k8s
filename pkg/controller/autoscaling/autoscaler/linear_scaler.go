@@ -21,14 +21,30 @@ func cpuFromMemory(requiredMemoryCapacity int64, memoryRange, cpuRange esv1.Quan
 		return &minCpu
 	}
 	memRatio := float64(requiredMemoryCapacity-memoryRange.Min.Value()) / float64(allowedMemoryRange)
+
+	// memory is at its lowest value, return the min value for CPU
+	if memRatio == 0 {
+		requiredCpuCapacity := cpuRange.Min.DeepCopy()
+		return &requiredCpuCapacity
+	}
+	// memory is at its max value, return the max value for CPU
+	if memRatio == 1 {
+		requiredCpuCapacity := cpuRange.Max.DeepCopy()
+		return &requiredCpuCapacity
+	}
+
 	allowedCpuRange := float64(cpuRange.Max.MilliValue() - cpuRange.Min.MilliValue())
 	requiredAdditionalCpuCapacity := int64(allowedCpuRange * memRatio)
-	requiredCpuCapacity := cpuRange.Min.MilliValue() + requiredAdditionalCpuCapacity
+	requiredCpuCapacityAsMilli := cpuRange.Min.MilliValue() + requiredAdditionalCpuCapacity
 
-	if requiredCpuCapacity%1000 == 0 {
-		return resource.NewQuantity(requiredCpuCapacity/1000, resource.DecimalSI)
+	// Round up memory to the next core
+	requiredCpuCapacityAsMilli = roundUp(requiredCpuCapacityAsMilli, 1000)
+	requiredCpuCapacity := resource.NewQuantity(requiredCpuCapacityAsMilli/1000, resource.DecimalSI)
+	if requiredCpuCapacity.Cmp(cpuRange.Max) > 0 {
+		maxCpuQuantity := cpuRange.Max.DeepCopy()
+		requiredCpuCapacity = &maxCpuQuantity
 	}
-	return resource.NewMilliQuantity(requiredCpuCapacity, resource.DecimalSI)
+	return requiredCpuCapacity
 }
 
 // memoryFromStorage computes a memory quantity within the specified allowed range by the user proportionally
@@ -41,17 +57,27 @@ func memoryFromStorage(requiredStorageCapacity int64, storageRange, memoryRange 
 		return &minCpu
 	}
 	storageRatio := float64(requiredStorageCapacity-storageRange.Min.Value()) / float64(allowedStorageRange)
+	// storage is at its lowest value, return the min value for memory
+	if storageRatio == 0 {
+		requiredMemoryCapacity := memoryRange.Min.DeepCopy()
+		return &requiredMemoryCapacity
+	}
+	// storage is at its maximum value, return the max value for memory
+	if storageRatio == 1 {
+		requiredMemoryCapacity := memoryRange.Max.DeepCopy()
+		return &requiredMemoryCapacity
+	}
+
 	allowedMemoryRange := float64(memoryRange.Max.Value() - memoryRange.Min.Value())
 	requiredAdditionalMemoryCapacity := int64(allowedMemoryRange * storageRatio)
 	requiredMemoryCapacity := memoryRange.Min.Value() + requiredAdditionalMemoryCapacity
 
-	var memoryQuantity *resource.Quantity
-	if requiredMemoryCapacity >= giga && requiredMemoryCapacity%giga == 0 {
-		// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
-		resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", requiredMemoryCapacity/giga))
-		memoryQuantity = &resourceMemoryAsGiga
-	} else {
-		memoryQuantity = resource.NewQuantity(requiredMemoryCapacity, resource.DecimalSI)
+	// Round up memory to the next GB
+	requiredMemoryCapacity = roundUp(requiredMemoryCapacity, giga)
+	resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", requiredMemoryCapacity/giga))
+
+	if resourceMemoryAsGiga.Cmp(memoryRange.Max) > 0 {
+		resourceMemoryAsGiga = memoryRange.Max.DeepCopy()
 	}
-	return memoryQuantity
+	return &resourceMemoryAsGiga
 }
