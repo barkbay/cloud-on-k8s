@@ -50,7 +50,7 @@ func nodeResources(
 		resources.Storage = getResourceValue(
 			log,
 			autoscalingSpec.Name,
-			"memory",
+			"storage",
 			statusBuilder,
 			*requiredCapacity.Node.Storage,
 			requiredCapacity.Total.Storage,
