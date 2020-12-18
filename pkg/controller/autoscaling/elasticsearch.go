@@ -68,7 +68,7 @@ type ReconcileElasticsearch struct {
 
 var defaultReconcile = reconcile.Result{
 	Requeue:      true,
-	RequeueAfter: 1 * time.Minute,
+	RequeueAfter: 15 * time.Second,
 }
 
 // Reconcile attempts to update the capacity fields (count and memory request for now) in the currentNodeSets of the Elasticsearch
