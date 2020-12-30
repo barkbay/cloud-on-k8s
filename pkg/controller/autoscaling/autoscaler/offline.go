@@ -19,7 +19,7 @@ func EnsureResourcePolicies(
 	log logr.Logger,
 	nodeSets []string,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
-	nodeSetsStatus status.NodeSetsStatus,
+	nodeSetsStatus status.NodeSetsResourcesWithMeta,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {
 	currentStorage := getMaxStorage(nodeSetsStatus)

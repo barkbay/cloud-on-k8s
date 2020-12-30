@@ -22,7 +22,7 @@ import (
 func Test_applyScaleDecision(t *testing.T) {
 	type args struct {
 		currentNodeSets  []string
-		nodeSetsStatus   status.NodeSetsStatus
+		nodeSetsStatus   status.NodeSetsResourcesWithMeta
 		requiredCapacity client.RequiredCapacity
 		policy           esv1.AutoscalingPolicySpec
 	}
@@ -36,7 +36,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale both horizontally to fulfil storage capacity request",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsStatus{
+				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
 						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
 					},
@@ -55,7 +55,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale existing nodes vertically",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsStatus{
+				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
 						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
 					},
@@ -74,7 +74,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Do not scale down storage capacity",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsStatus{
+				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
 						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("10G")}},
 					},
@@ -95,7 +95,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale existing nodes vertically up to the tier limit",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsStatus{
+				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
 						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
 					},
@@ -114,7 +114,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale both vertically and horizontally",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsStatus{
+				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
 						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
 					},

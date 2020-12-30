@@ -180,7 +180,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
-	autoscalingStatus status.NodeSetsStatus,
+	autoscalingStatus status.NodeSetsResourcesWithMeta,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -229,7 +229,7 @@ func (r *ReconcileElasticsearch) isElasticsearchReachable(ctx context.Context, e
 // attemptOnlineReconciliation attempts an online autoscaling reconciliation with a call the Elasticsearch autoscaling API.
 func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	ctx context.Context,
-	nodeSetsStatus status.NodeSetsStatus,
+	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -257,7 +257,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	}
 
 	statusBuilder := status.NewPolicyStatesBuilder()
-	var clusterNodeSetsResources nodesets.NodeSetsResources
+	var nextNodeSetsResources nodesets.NodeSetsResources
 	// For each resource autoscalingSpec:
 	// 1. Get the associated nodeSets
 	for _, autoscalingSpec := range autoscalingSpecs.AutoscalingPolicySpecs {
@@ -265,6 +265,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		// Get the currentNodeSets
 		nodeSetList, exists := namedTiers[autoscalingSpec.Name]
 		if !exists {
+			// TODO: Remove once validation is implemented, this situation should be caught by validation
 			err := fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)
 			log.Error(err, "no nodeSet for a tier", "policy", autoscalingSpec.Name)
 			results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name))
@@ -279,7 +280,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		switch capacity, gotCapacity := decisions.Policies[autoscalingSpec.Name]; gotCapacity {
 		case false:
 			log.V(1).Info("No decision for tier, ensure min. are set", "tier", autoscalingSpec.Name)
-			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList.Names(), autoscalingSpec, nodeSetsStatus, statusBuilder)
+			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList.Names(), autoscalingSpec, actualNodeSetsResources, statusBuilder)
 		case true:
 			// Log decision
 			log.Info("Required capacity for policy", "policy", autoscalingSpec.Name, "required_capacity", capacity.RequiredCapacity)
@@ -287,14 +288,14 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			if !canDecide(log, capacity.RequiredCapacity, autoscalingSpec, statusBuilder) {
 				continue
 			}
-			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), nodeSetsStatus, capacity.RequiredCapacity, autoscalingSpec, statusBuilder)
+			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), actualNodeSetsResources, capacity.RequiredCapacity, autoscalingSpec, statusBuilder)
 		}
-		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
+		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources...)
 	}
 	// Replace currentNodeSets in the Elasticsearch manifest
-	updateNodeSets(log, &es, clusterNodeSetsResources)
+	updateNodeSets(log, &es, nextNodeSetsResources)
 	// Update autoscaling status
-	if err := status.UpdateAutoscalingStatus(&es, statusBuilder, clusterNodeSetsResources); err != nil {
+	if err := status.UpdateAutoscalingStatus(&es, statusBuilder, nextNodeSetsResources, actualNodeSetsResources); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -333,7 +334,7 @@ func canDecide(log logr.Logger, requiredCapacity esclient.RequiredCapacity, spec
 // doOfflineReconciliation runs an autoscaling reconciliation if the autoscaling API is not ready (yet).
 func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	ctx context.Context,
-	autoscalingStatus status.NodeSetsStatus,
+	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -351,13 +352,13 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
-		nodeSetsResources := autoscaler.EnsureResourcePolicies(log, nodeSets.Names(), autoscalingSpec, autoscalingStatus, statusBuilder)
+		nodeSetsResources := autoscaler.EnsureResourcePolicies(log, nodeSets.Names(), autoscalingSpec, actualNodeSetsResources, statusBuilder)
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
 	}
 	// Replace currentNodeSets in the Elasticsearch manifest
 	updateNodeSets(log, &es, clusterNodeSetsResources)
 	// Update autoscaling status
-	if err := status.UpdateAutoscalingStatus(&es, statusBuilder, clusterNodeSetsResources); err != nil {
+	if err := status.UpdateAutoscalingStatus(&es, statusBuilder, clusterNodeSetsResources, actualNodeSetsResources); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 	// Apply the update Elasticsearch manifest with the minimums
@@ -375,18 +376,18 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 func updateNodeSets(
 	log logr.Logger,
 	es *esv1.Elasticsearch,
-	clusterNodeSetsResources nodesets.NodeSetsResources,
+	nextNodeSetsResources nodesets.NodeSetsResources,
 ) {
-	resourcesByNodeSet := clusterNodeSetsResources.ByNodeSet()
+	nextResourcesByNodeSet := nextNodeSetsResources.ByNodeSet()
 	for i := range es.Spec.NodeSets {
 		name := es.Spec.NodeSets[i].Name
-		nodeSetResources, ok := resourcesByNodeSet[name]
+		nodeSetResources, ok := nextResourcesByNodeSet[name]
 		if !ok {
 			log.V(1).Info("Skipping nodeset update", "nodeset", name)
 			continue
 		}
 
-		log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", clusterNodeSetsResources)
+		log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", nextNodeSetsResources)
 		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
 		if container == nil {
 			container = &corev1.Container{

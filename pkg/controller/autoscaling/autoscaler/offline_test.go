@@ -23,7 +23,7 @@ func TestEnsureResourcePolicies(t *testing.T) {
 	type args struct {
 		nodeSets        []string
 		autoscalingSpec esv1.AutoscalingPolicySpec
-		nodeSetsStatus  status.NodeSetsStatus
+		nodeSetsStatus  status.NodeSetsResourcesWithMeta
 	}
 	tests := []struct {
 		name string
@@ -35,7 +35,7 @@ func TestEnsureResourcePolicies(t *testing.T) {
 			args: args{
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "20Gi").Build(),
-				nodeSetsStatus: []status.NodeSetResourcesWithHash{
+				nodeSetsStatus: []status.NodeSetResourcesWithMeta{
 					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
 					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
 				},
@@ -50,7 +50,7 @@ func TestEnsureResourcePolicies(t *testing.T) {
 			args: args{
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "100Gi").Build(),
-				nodeSetsStatus: []status.NodeSetResourcesWithHash{
+				nodeSetsStatus: []status.NodeSetResourcesWithMeta{
 					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
 					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
 				},

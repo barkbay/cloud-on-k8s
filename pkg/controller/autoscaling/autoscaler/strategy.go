@@ -19,7 +19,7 @@ import (
 // TODO: Create a context struct to embed things like nodeSets, log, autoscalingSpec or statusBuilder
 
 // getMaxStorage extracts the max storage size among a set of nodeSets.
-func getMaxStorage(nodeSets status.NodeSetsStatus) resource.Quantity {
+func getMaxStorage(nodeSets status.NodeSetsResourcesWithMeta) resource.Quantity {
 	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
 	for _, nodeSet := range nodeSets.ByNodeSet() {
 		if nodeSet.Storage != nil && nodeSet.Storage.Cmp(storage) > 0 {
@@ -29,7 +29,7 @@ func getMaxStorage(nodeSets status.NodeSetsStatus) resource.Quantity {
 	return storage
 }
 
-func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSetsStatus) resource.Quantity {
+func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSetsResourcesWithMeta) resource.Quantity {
 	// TODO: nodeSet with more than once volume claim is not supported
 	storage := getMaxStorage(nodeSetsStatus)
 	if storageRange != nil && storageRange.Min.Cmp(storage) > 0 {
@@ -41,7 +41,7 @@ func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSets
 func GetScaleDecision(
 	log logr.Logger,
 	nodeSets []string,
-	nodeSetsStatus status.NodeSetsStatus,
+	nodeSetsStatus status.NodeSetsResourcesWithMeta,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
@@ -70,7 +70,7 @@ var giga = int64(1024 * 1024 * 1024)
 func scaleVertically(
 	log logr.Logger,
 	nodeSetsCount int,
-	nodeSetsStatus status.NodeSetsStatus,
+	nodeSetsStatus status.NodeSetsResourcesWithMeta,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,

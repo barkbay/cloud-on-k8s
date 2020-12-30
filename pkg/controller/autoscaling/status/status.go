@@ -14,6 +14,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -32,8 +33,8 @@ type Status struct {
 	// PolicyStatus is used to expose state messages to user or external system
 	PolicyStates []PolicyStateItem `json:"policies"`
 
-	// NodeSetsStatus is used to expose the last computed resources per nodeSet
-	NodeSetResources NodeSetsStatus `json:"resources"`
+	// NodeSetsResourcesWithMeta is used to expose the last computed resources per nodeSet
+	NodeSetResources NodeSetsResourcesWithMeta `json:"resources"`
 }
 
 type PolicyStateItem struct {
@@ -130,15 +131,16 @@ func (psb *PolicyStatesBuilder) Build() []PolicyStateItem {
 	return policyStates
 }
 
-type NodeSetResourcesWithHash struct {
-	Hash string `json:"hash,omitempty"`
+type NodeSetResourcesWithMeta struct {
+	Hash                 string      `json:"hash,omitempty"`
+	LastModificationTime metav1.Time `json:"lastModificationTime"`
 	nodesets.NodeSetResources
 }
 
-type NodeSetsStatus []NodeSetResourcesWithHash
+type NodeSetsResourcesWithMeta []NodeSetResourcesWithMeta
 
-func (s NodeSetsStatus) ByNodeSet() map[string]NodeSetResourcesWithHash {
-	byNodeSet := make(map[string]NodeSetResourcesWithHash)
+func (s NodeSetsResourcesWithMeta) ByNodeSet() map[string]NodeSetResourcesWithMeta {
+	byNodeSet := make(map[string]NodeSetResourcesWithMeta)
 	for _, nodeSetResources := range s {
 		nodeSetResources := nodeSetResources
 		byNodeSet[nodeSetResources.Name] = nodeSetResources
@@ -146,34 +148,50 @@ func (s NodeSetsStatus) ByNodeSet() map[string]NodeSetResourcesWithHash {
 	return byNodeSet
 }
 
-func GetAutoscalingStatus(es esv1.Elasticsearch) (NodeSetsStatus, error) {
+func GetAutoscalingStatus(es esv1.Elasticsearch) (NodeSetsResourcesWithMeta, error) {
 	status := Status{}
 	if es.Annotations == nil {
 		return status.NodeSetResources, nil
 	}
 	serializedStatus, ok := es.Annotations[ElasticsearchAutoscalingStatusAnnotationName]
 	if !ok {
-		return NodeSetsStatus{}, nil
+		return NodeSetsResourcesWithMeta{}, nil
 	}
 	err := json.Unmarshal([]byte(serializedStatus), &status)
 	return status.NodeSetResources, err
 }
 
-func UpdateAutoscalingStatus(es *esv1.Elasticsearch, statusBuilder *PolicyStatesBuilder, nodeSetsResources nodesets.NodeSetsResources) error {
+func UpdateAutoscalingStatus(
+	es *esv1.Elasticsearch,
+	statusBuilder *PolicyStatesBuilder,
+	nextNodeSetsResources nodesets.NodeSetsResources,
+	actualNodeSetsStatus NodeSetsResourcesWithMeta,
+) error {
 	status := Status{
 		PolicyStates: statusBuilder.Build(),
 	}
-	byNodeSetsResources := nodeSetsResources.ByNodeSet()
+	byNodeSetsNextResources := nextNodeSetsResources.ByNodeSet()
+	byNodeSetsActualResources := actualNodeSetsStatus.ByNodeSet()
+	now := metav1.Now()
 	for _, nodeSet := range es.Spec.NodeSets {
-		nodeSetResource, ok := byNodeSetsResources[nodeSet.Name]
+		nodeSetResource, ok := byNodeSetsNextResources[nodeSet.Name]
 		if !ok {
 			// nodeSet not managed by the autoscaler
 			continue
 		}
+		nextHash := ResourcesHash(nodeSet)
+		if previousResources, exists := byNodeSetsActualResources[nodeSet.Name]; exists &&
+			previousResources.Hash == nextHash {
+			// resources have not been updated, reuse previous resources
+			status.NodeSetResources = append(status.NodeSetResources, previousResources)
+			continue
+		}
+
 		status.NodeSetResources = append(status.NodeSetResources,
-			NodeSetResourcesWithHash{
-				Hash:             ResourcesHash(nodeSet),
-				NodeSetResources: nodeSetResource,
+			NodeSetResourcesWithMeta{
+				Hash:                 ResourcesHash(nodeSet),
+				LastModificationTime: now,
+				NodeSetResources:     nodeSetResource,
 			})
 
 	}
