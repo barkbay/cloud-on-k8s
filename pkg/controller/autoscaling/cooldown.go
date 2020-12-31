@@ -46,6 +46,7 @@ func applyCoolDownFilters(
 	statusBuilder *status.PolicyStatesBuilder,
 ) {
 	sc := stabilizationContext{
+		Clock:         RealClock{},
 		es:            es,
 		policyName:    autoscalingPolicy.Name,
 		log:           log,
