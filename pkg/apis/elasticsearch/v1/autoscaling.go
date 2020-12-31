@@ -6,6 +6,7 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -16,6 +17,12 @@ import (
 )
 
 const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
+
+var (
+	minMemory  = resource.MustParse("2G")
+	minCpu     = resource.MustParse("0")
+	minStorage = resource.MustParse("0")
+)
 
 // +kubebuilder:object:generate=false
 type AutoscalingPolicySpecs []AutoscalingPolicySpec
@@ -263,7 +270,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	var errs field.ErrorList
 
 	// TODO: We need the namedTiers to check if the min count allowed is at least >= than the number of nodeSets managed in a policy
-	// Unfortunately it requires to parse the node configuration to grab the roles which may raise an error.
+	// Unfortunately it requires to parse the node configuration to grab the roles, which may raise an error.
 
 	for i, autoscalingSpec := range as.AutoscalingPolicySpecs {
 		// Validate the name field.
@@ -297,13 +304,13 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		}
 
 		// Check CPU
-		errs = validateQuantities(errs, autoscalingSpec.Cpu, i, "cpu")
+		errs = validateQuantities(errs, autoscalingSpec.Cpu, i, "cpu", minCpu)
 
 		// Check Memory
-		errs = validateQuantities(errs, autoscalingSpec.Memory, i, "memory")
+		errs = validateQuantities(errs, autoscalingSpec.Memory, i, "memory", minMemory)
 
 		// Check storage
-		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage")
+		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage", minStorage)
 	}
 	return errs
 }
@@ -332,12 +339,17 @@ func Equal(s1, s2 []string) bool {
 }
 
 // validateQuantities checks that 2 resources boundaries are valid.
-func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string) field.ErrorList {
+func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string, minQuantity resource.Quantity) field.ErrorList {
 	var quantityErrs field.ErrorList
 	if quantityRange == nil {
 		return errs
 	}
-	if !(quantityRange.Min.Value() > 0) {
+
+	if !minQuantity.IsZero() && !(quantityRange.Min.Cmp(minQuantity) >= 0) {
+		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), fmt.Sprintf("min quantity must be greater than %s", minQuantity.String())))
+	}
+
+	if minQuantity.IsZero() && !(quantityRange.Min.Value() > 0) {
 		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "min quantity must be greater than 0"))
 	}
 

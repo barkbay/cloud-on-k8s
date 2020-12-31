@@ -48,6 +48,35 @@ func TestResourcePolicies_Validate(t *testing.T) {
 `,
 		},
 		{
+			name:          "Min memory is 2G",
+			wantError:     true,
+			expectedError: "min quantity must be greater than 2G",
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "data_policy",
+		  "roles": [ "data" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "1Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		},
+		{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+		},
+		{
 			name:          "Policy name is duplicated",
 			wantError:     true,
 			expectedError: "[1].name: Invalid value: \"my_policy\": policy is duplicated",
