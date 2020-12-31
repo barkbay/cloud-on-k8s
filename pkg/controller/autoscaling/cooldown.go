@@ -84,9 +84,8 @@ func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32, all
 		return next
 	}
 
-	message := fmt.Sprintf(scaleupStabilizationMessage, "node count")
-	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(status.ScaleUpStabilizationWindow, message)
-	sc.log.Info("stabilization window")
+	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(status.ScaleUpStabilizationWindow, fmt.Sprintf(scaleupStabilizationMessage, "node count"))
+	sc.log.Info("stabilization window", "policy", sc.policyName, "required_count", next, "actual_count", actual)
 
 	// We still want to ensure that the next value complies with the limits provided by the user
 	nodeCount := actual
@@ -100,7 +99,7 @@ func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32, all
 }
 
 func (sc *stabilizationContext) filterResourceScaledown(
-	resource string,
+	resourceType string,
 	actual, next *resource.Quantity,
 	allowedRange *esv1.QuantityRange,
 ) *resource.Quantity {
@@ -111,8 +110,9 @@ func (sc *stabilizationContext) filterResourceScaledown(
 
 	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(
 		status.ScaleUpStabilizationWindow,
-		fmt.Sprintf("%s not scaled down because of scale up stabilization window", resource),
+		fmt.Sprintf("%s not scaled down because of scale up stabilization window", resourceType),
 	)
+	sc.log.Info("stabilization window", "policy", sc.policyName, "required_"+resourceType, next, "actual_"+resourceType, actual)
 	q := actual.DeepCopy()
 
 	if allowedRange == nil {
