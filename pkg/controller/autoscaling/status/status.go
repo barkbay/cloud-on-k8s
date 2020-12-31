@@ -25,6 +25,7 @@ const (
 	OverlappingPolicies           PolicyStateType = "OverlappingPolicies"
 	InvalidMinimumNodeCount       PolicyStateType = "InvalidMinimumNodeCount"
 	MemoryRequired                PolicyStateType = "MemoryRequired"
+	ScaleUpStabilizationWindow    PolicyStateType = "ScaleUpStabilizationWindow"
 	StorageRequired               PolicyStateType = "StorageRequired"
 	NoNodeSet                     PolicyStateType = "NoNodeSet"
 )

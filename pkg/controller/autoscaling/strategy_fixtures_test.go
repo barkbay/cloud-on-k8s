@@ -95,10 +95,9 @@ func (nsb *nodeSetBuilder) build() esv1.NodeSet {
 // - NodeSetResources builder
 
 type resourcesBuilder struct {
-	name           string
-	count          int32
-	memoryRequest  *resource.Quantity
-	storageRequest *resource.Quantity
+	name                                      string
+	count                                     int32
+	memoryRequest, storageRequest, cpuRequest *resource.Quantity
 }
 
 func newResourcesBuilder(name string, count int) *resourcesBuilder {
@@ -120,6 +119,12 @@ func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
 	return nsb
 }
 
+func (nsb *resourcesBuilder) withCpuRequest(qs string) *resourcesBuilder {
+	q := resource.MustParse(qs)
+	nsb.cpuRequest = &q
+	return nsb
+}
+
 func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
 	nodeSetResources := nodesets.NodeSetResources{
 		Name: nsb.name,
@@ -127,6 +132,7 @@ func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
 			Count:   nsb.count,
 			Memory:  nsb.memoryRequest,
 			Storage: nsb.storageRequest,
+			Cpu:     nsb.cpuRequest,
 		},
 	}
 	return nodeSetResources
