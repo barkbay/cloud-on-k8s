@@ -11,7 +11,6 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
-	"k8s.io/apimachinery/pkg/api/resource"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -63,28 +62,6 @@ func TestEnsureResourcePolicies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := EnsureResourcePolicies(logTest, tt.args.nodeSets, tt.args.autoscalingSpec, tt.args.nodeSetsStatus, status.NewPolicyStatesBuilder()); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("EnsureResourcePolicies() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_adjustQuantity(t *testing.T) {
-	type args struct {
-		value resource.Quantity
-		min   resource.Quantity
-		max   resource.Quantity
-	}
-	tests := []struct {
-		name string
-		args args
-		want *resource.Quantity
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := adjustQuantity(tt.args.value, tt.args.min, tt.args.max); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("adjustQuantity() = %v, want %v", got, tt.want)
 			}
 		})
 	}
