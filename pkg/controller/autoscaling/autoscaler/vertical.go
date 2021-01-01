@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/go-logr/logr"
@@ -22,8 +23,8 @@ func nodeResources(
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
-) esv1.ResourcesSpecification {
-	resources := esv1.ResourcesSpecification{}
+) nodesets.ResourcesSpecification {
+	resources := nodesets.ResourcesSpecification{}
 
 	// Get memory
 	if requiredCapacity.Node.Memory != nil &&

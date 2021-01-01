@@ -19,7 +19,7 @@ func scaleHorizontally(
 	log logr.Logger,
 	nodeSets []string,
 	requiredCapacity client.Capacity,
-	nodeCapacity esv1.ResourcesSpecification,
+	nodeCapacity nodesets.ResourcesSpecification,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NodeSetsResources {

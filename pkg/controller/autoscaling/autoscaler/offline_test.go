@@ -8,13 +8,11 @@ import (
 	"reflect"
 	"testing"
 
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"k8s.io/apimachinery/pkg/api/resource"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var logTest = logf.Log.WithName("autoscaling-offline-test")
@@ -36,13 +34,13 @@ func TestEnsureResourcePolicies(t *testing.T) {
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "20Gi").Build(),
 				nodeSetsStatus: []status.NodeSetResourcesWithMeta{
-					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
-					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
+					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
+					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}}},
 				},
 			},
 			want: nodesets.NodeSetsResources{
-				{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}},
-				{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}},
+				{Name: "region-a", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}},
+				{Name: "region-b", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("35Gi")}},
 			},
 		},
 		{
@@ -51,13 +49,13 @@ func TestEnsureResourcePolicies(t *testing.T) {
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "100Gi").Build(),
 				nodeSetsStatus: []status.NodeSetResourcesWithMeta{
-					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
-					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
+					{NodeSetResources: nodesets.NodeSetResources{Name: "region-a", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
+					{NodeSetResources: nodesets.NodeSetResources{Name: "region-b", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}}},
 				},
 			},
 			want: nodesets.NodeSetsResources{
-				{Name: "region-a", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}},
-				{Name: "region-b", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}},
+				{Name: "region-a", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}},
+				{Name: "region-b", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3Gi"), Storage: quantityPtr("15Gi")}},
 			},
 		},
 	}

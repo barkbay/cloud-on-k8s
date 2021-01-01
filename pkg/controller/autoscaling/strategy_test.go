@@ -7,16 +7,13 @@ package autoscaling
 import (
 	"testing"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
-
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func Test_applyScaleDecision(t *testing.T) {
@@ -38,7 +35,7 @@ func Test_applyScaleDecision(t *testing.T) {
 				currentNodeSets: []string{"default"},
 				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
+						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
 					},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
@@ -57,7 +54,7 @@ func Test_applyScaleDecision(t *testing.T) {
 				currentNodeSets: []string{"default"},
 				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
+						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
 					},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
@@ -76,7 +73,7 @@ func Test_applyScaleDecision(t *testing.T) {
 				currentNodeSets: []string{"default"},
 				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("10G")}},
+						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("10G")}},
 					},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
@@ -97,7 +94,7 @@ func Test_applyScaleDecision(t *testing.T) {
 				currentNodeSets: []string{"default"},
 				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
+						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
 					},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
@@ -116,7 +113,7 @@ func Test_applyScaleDecision(t *testing.T) {
 				currentNodeSets: []string{"default"},
 				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
 					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: v1.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
+						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
 					},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().

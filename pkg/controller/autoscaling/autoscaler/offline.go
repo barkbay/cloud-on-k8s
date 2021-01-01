@@ -31,7 +31,7 @@ func EnsureResourcePolicies(
 		storage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
 		nodeSetResources := nodesets.NodeSetResources{
 			Name:                   nodeSet,
-			ResourcesSpecification: esv1.ResourcesSpecification{Storage: &storage},
+			ResourcesSpecification: nodesets.ResourcesSpecification{Storage: &storage},
 		}
 		if autoscalingSpec.IsCpuDefined() {
 			nodeSetResources.Cpu = &autoscalingSpec.Cpu.Min

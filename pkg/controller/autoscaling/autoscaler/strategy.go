@@ -74,7 +74,7 @@ func scaleVertically(
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
-) esv1.ResourcesSpecification {
+) nodesets.ResourcesSpecification {
 	minNodesCount, _ := adjustMinMaxCount(log, nodeSetsCount, autoscalingSpec, statusBuilder)
 	currentStorage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
 

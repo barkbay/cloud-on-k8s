@@ -128,7 +128,7 @@ func (nsb *resourcesBuilder) withCpuRequest(qs string) *resourcesBuilder {
 func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
 	nodeSetResources := nodesets.NodeSetResources{
 		Name: nsb.name,
-		ResourcesSpecification: esv1.ResourcesSpecification{
+		ResourcesSpecification: nodesets.ResourcesSpecification{
 			Count:   nsb.count,
 			Memory:  nsb.memoryRequest,
 			Storage: nsb.storageRequest,
