@@ -7,6 +7,7 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -19,10 +20,18 @@ import (
 const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
 var (
-	minMemory  = resource.MustParse("2G")
+	// minMemory is the minimum amount of memory which can be set in the memory limits specification.
+	minMemory = resource.MustParse("2G")
+
 	minCpu     = resource.MustParse("0")
 	minStorage = resource.MustParse("0")
 )
+
+// AutoscalingSpec is the root object of the autoscaling specification in the Elasticsearch resource definition.
+// +kubebuilder:object:generate=false
+type AutoscalingSpec struct {
+	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
+}
 
 // +kubebuilder:object:generate=false
 type AutoscalingPolicySpecs []AutoscalingPolicySpec
@@ -37,12 +46,7 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) 
 	return autoscalingSpec, err
 }
 
-// AutoscalingSpec represents how resources can be scaled by the autoscaler controller.
-// +kubebuilder:object:generate=false
-type AutoscalingSpec struct {
-	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
-}
-
+// AutoscalingPolicySpec holds a named autoscaling policy and the associated resources limits (cpu, memory, storage).
 // +kubebuilder:object:generate=false
 type AutoscalingPolicySpec struct {
 	NamedAutoscalingPolicy
@@ -58,6 +62,8 @@ type AutoscalingResources struct {
 	NodeCount CountRange     `json:"nodeCount"`
 }
 
+// NamedAutoscalingPolicy models an autoscaling policy as expected by the Elasticsearch policy API identified by
+// a unique name provided by the user.
 // +kubebuilder:object:generate=false
 type NamedAutoscalingPolicy struct {
 	// A resource policy must be identified by a unique name, provided by the user.
@@ -70,6 +76,7 @@ type NamedAutoscalingPolicy struct {
 // +kubebuilder:object:generate=false
 type DeciderSettings map[string]string
 
+// AutoscalingPolicy models the Elasticsearch autoscaling API.
 // +kubebuilder:object:generate=false
 type AutoscalingPolicy struct {
 	// A resource policy must target a unique set of roles
@@ -108,8 +115,7 @@ func (aps AutoscalingPolicySpec) IsStorageDefined() bool {
 	return aps.Storage != nil
 }
 
-// ResourcesSpecification represents a set of resource specifications which can be used to describe
-// either as a lower or an upper limit.
+// ResourcesSpecification holds the result of the autoscaling algorithm.
 // +kubebuilder:object:generate=false
 type ResourcesSpecification struct {
 	// Count is a number of replicas which should be used as a limit (either lower or upper) in an autoscaling policy.
@@ -166,23 +172,8 @@ func (rs ResourcesSpecification) IsStorageDefined() bool {
 	return rs.Storage != nil
 }
 
-func (rs ResourcesSpecification) Merge(other ResourcesSpecification) {
-	if rs.Count < other.Count {
-		rs.Count = other.Count
-	}
-	if rs.Cpu == nil || (other.Cpu != nil && rs.Cpu.Cmp(*other.Cpu) < 0) {
-		rs.Cpu = other.Cpu
-	}
-	if rs.Memory == nil || (other.Memory != nil && rs.Memory.Cmp(*other.Memory) < 0) {
-		rs.Memory = other.Memory
-	}
-	if rs.Storage == nil || (other.Storage != nil && rs.Storage.Cmp(*other.Storage) < 0) {
-		rs.Storage = other.Storage
-	}
-}
-
-// FindByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
-func (as AutoscalingSpec) FindByRoles(roles []string) *AutoscalingPolicySpec {
+// findByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
+func (as AutoscalingSpec) findByRoles(roles []string) *AutoscalingPolicySpec {
 	for _, rp := range as.AutoscalingPolicySpecs {
 		if len(rp.Roles) != len(roles) {
 			continue
@@ -198,17 +189,7 @@ func (as AutoscalingSpec) FindByRoles(roles []string) *AutoscalingPolicySpec {
 	return nil
 }
 
-// ByNames returns autoscaling specifications indexed by name.
-func (as AutoscalingSpec) ByNames() map[string]AutoscalingPolicySpec {
-	rpByName := make(map[string]AutoscalingPolicySpec)
-	for _, scalePolicy := range as.AutoscalingPolicySpecs {
-		scalePolicy := scalePolicy
-		rpByName[scalePolicy.Name] = scalePolicy
-	}
-	return rpByName
-}
-
-// NamedTiers is used to hold the tiers in a manifest, indexed by the resource policy name.
+// NamedTiers holds the tiers in a manifest, indexed by the autoscaling policy name.
 // +kubebuilder:object:generate=false
 type NamedTiers map[string]NodeSetList
 
@@ -253,17 +234,18 @@ func (as AutoscalingSpec) GetAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSe
 	if err := UnpackConfig(nodeSet.Config, *v, &cfg); err != nil {
 		return nil, err
 	}
-	return as.FindByRoles(cfg.Node.Roles), nil
+	return as.findByRoles(cfg.Node.Roles), nil
 }
 
-func resourcePolicyIndex(index int, child string, moreChildren ...string) *field.Path {
+// autoscalingSpecPath helps to compute the path used in validation error fields.
+func autoscalingSpecPath(index int, child string, moreChildren ...string) *field.Path {
 	return field.NewPath("metadata").
 		Child("annotations", `"`+ElasticsearchAutoscalingSpecAnnotationName+`"`).
 		Index(index).
 		Child(child, moreChildren...)
 }
 
-// Validate validates a set of autoscaling specifications.
+// Validate validates the autoscaling specification submitted by the user.
 func (as AutoscalingSpec) Validate() field.ErrorList {
 	policyNames := set.Make()
 	rolesSet := make([][]string, 0, len(as.AutoscalingPolicySpecs))
@@ -275,70 +257,57 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	for i, autoscalingSpec := range as.AutoscalingPolicySpecs {
 		// Validate the name field.
 		if len(autoscalingSpec.Name) == 0 {
-			errs = append(errs, field.Required(resourcePolicyIndex(i, "name"), "name is mandatory"))
+			errs = append(errs, field.Required(autoscalingSpecPath(i, "name"), "name is mandatory"))
 		} else {
 			if policyNames.Has(autoscalingSpec.Name) {
-				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), autoscalingSpec.Name, "policy is duplicated"))
+				errs = append(errs, field.Invalid(autoscalingSpecPath(i, "name"), autoscalingSpec.Name, "policy is duplicated"))
 			}
 			policyNames.Add(autoscalingSpec.Name)
 		}
 
 		// Validate the roles.
 		if autoscalingSpec.Roles == nil {
-			errs = append(errs, field.Required(resourcePolicyIndex(i, "roles"), "roles is mandatory"))
+			errs = append(errs, field.Required(autoscalingSpecPath(i, "roles"), "roles is mandatory"))
 		} else {
 			sort.Strings(autoscalingSpec.Roles)
-			if ContainsStringSlide(rolesSet, autoscalingSpec.Roles) {
-				errs = append(errs, field.Invalid(resourcePolicyIndex(i, "name"), strings.Join(autoscalingSpec.Roles, ","), "roles set is duplicated"))
+			if containsStringSlice(rolesSet, autoscalingSpec.Roles) {
+				errs = append(errs, field.Invalid(autoscalingSpecPath(i, "name"), strings.Join(autoscalingSpec.Roles, ","), "roles set is duplicated"))
 			} else {
 				rolesSet = append(rolesSet, autoscalingSpec.Roles)
 			}
 		}
 
 		if !(autoscalingSpec.NodeCount.Min > 0) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be a greater than 1"))
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be a greater than 1"))
 		}
 
 		if !(autoscalingSpec.NodeCount.Max > autoscalingSpec.NodeCount.Min) {
-			errs = append(errs, field.Invalid(resourcePolicyIndex(i, "maxAllowed", "count"), autoscalingSpec.NodeCount.Max, "max node count must be an integer greater than min node count"))
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "maxAllowed", "count"), autoscalingSpec.NodeCount.Max, "max node count must be an integer greater than min node count"))
 		}
 
-		// Check CPU
+		// Validate CPU
 		errs = validateQuantities(errs, autoscalingSpec.Cpu, i, "cpu", minCpu)
 
-		// Check Memory
+		// Validate Memory
 		errs = validateQuantities(errs, autoscalingSpec.Memory, i, "memory", minMemory)
 
-		// Check storage
+		// Validate storage
 		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage", minStorage)
 	}
 	return errs
 }
 
-// ContainsStringSlide returns true if a slice is included in a slice of slice.
-func ContainsStringSlide(slices [][]string, slice []string) bool {
+// containsStringSlice returns true if an ordered slice is included in a slice of slice.
+func containsStringSlice(slices [][]string, slice []string) bool {
 	for _, s := range slices {
-		if Equal(s, slice) {
+		if reflect.DeepEqual(s, slice) {
 			return true
 		}
 	}
 	return false
 }
 
-// Equal returns true if both string slices contains the same ordered elements.
-func Equal(s1, s2 []string) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-	for i := range s1 {
-		if s1[i] != s2[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// validateQuantities checks that 2 resources boundaries are valid.
+// validateQuantities ensures that a quantity range is valid.
 func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string, minQuantity resource.Quantity) field.ErrorList {
 	var quantityErrs field.ErrorList
 	if quantityRange == nil {
@@ -346,15 +315,15 @@ func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, inde
 	}
 
 	if !minQuantity.IsZero() && !(quantityRange.Min.Cmp(minQuantity) >= 0) {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), fmt.Sprintf("min quantity must be greater than %s", minQuantity.String())))
+		quantityErrs = append(quantityErrs, field.Required(autoscalingSpecPath(index, "minAllowed", resource), fmt.Sprintf("min quantity must be greater than %s", minQuantity.String())))
 	}
 
 	if minQuantity.IsZero() && !(quantityRange.Min.Value() > 0) {
-		quantityErrs = append(quantityErrs, field.Required(resourcePolicyIndex(index, "minAllowed", resource), "min quantity must be greater than 0"))
+		quantityErrs = append(quantityErrs, field.Required(autoscalingSpecPath(index, "minAllowed", resource), "min quantity must be greater than 0"))
 	}
 
 	if quantityRange.Min.Cmp(quantityRange.Max) > 0 {
-		quantityErrs = append(quantityErrs, field.Invalid(resourcePolicyIndex(index, "maxAllowed", resource), quantityRange.Max.String(), "max quantity must be greater or equal than min quantity"))
+		quantityErrs = append(quantityErrs, field.Invalid(autoscalingSpecPath(index, "maxAllowed", resource), quantityRange.Max.String(), "max quantity must be greater or equal than min quantity"))
 	}
 	return append(errs, quantityErrs...)
 }
