@@ -28,7 +28,7 @@ func scaleHorizontally(
 
 	nodeSetsResources := make(nodesets.NodeSetsResources, len(nodeSets))
 	nodeToAdd := 0
-	if requiredCapacity.Memory != nil {
+	if requiredCapacity.Memory != nil && nodeCapacity.Memory != nil {
 		minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
