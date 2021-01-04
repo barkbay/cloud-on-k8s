@@ -72,9 +72,13 @@ func (sc *stabilizationContext) applyScaledownFilter(
 			continue
 		}
 		// Memory
-		nextNodeSetsResources[i].Memory = sc.filterResourceScaledown("memory", actualNodeSetResources.Memory, nextNodeSetsResources[i].Memory, autoscalingPolicy.Memory)
+		if nextNodeSetsResources[i].Memory != nil && autoscalingPolicy.IsMemoryDefined() {
+			nextNodeSetsResources[i].Memory = sc.filterResourceScaledown("memory", actualNodeSetResources.Memory, nextNodeSetsResources[i].Memory, autoscalingPolicy.Memory)
+		}
 		// CPU
-		nextNodeSetsResources[i].Cpu = sc.filterResourceScaledown("cpu", actualNodeSetResources.Cpu, nextNodeSetsResources[i].Cpu, autoscalingPolicy.Cpu)
+		if nextNodeSetsResources[i].Cpu != nil && autoscalingPolicy.IsCpuDefined() {
+			nextNodeSetsResources[i].Cpu = sc.filterResourceScaledown("cpu", actualNodeSetResources.Cpu, nextNodeSetsResources[i].Cpu, autoscalingPolicy.Cpu)
+		}
 		// Node count
 		nextNodeSetsResources[i].Count = sc.filterNodeCountScaledown(actualNodeSetResources.Count, nextNodeSetsResources[i].Count, autoscalingPolicy.NodeCount)
 	}
