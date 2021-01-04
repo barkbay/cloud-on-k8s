@@ -448,37 +448,6 @@ func updateElasticsearch(
 	return status.UpdateAutoscalingStatus(es, statusBuilder, nextNodeSetsResources, actualNodeSetsResources)
 }
 
-func (r *ReconcileElasticsearch) internalReconcile(
-	ctx context.Context,
-	es esv1.Elasticsearch,
-) *reconciler.Results {
-	results := reconciler.NewResult(ctx)
-
-	if es.IsMarkedForDeletion() {
-		r.dynamicWatches.Secrets.RemoveHandlerForKey(nodesConfigurationWatchName(k8s.ExtractNamespacedName(&es)))
-		return results
-	}
-
-	// Set watches on config Secrets
-	configSecrets := make([]string, len(es.Spec.NodeSets))
-	for i, nodeSet := range es.Spec.NodeSets {
-		sset := esv1.StatefulSet(es.Name, nodeSet.Name)
-		configSecrets[i] = esv1.ConfigSecret(sset)
-	}
-	namespacedName := k8s.ExtractNamespacedName(&es)
-	if err := watches.WatchUserProvidedSecrets(namespacedName, r.dynamicWatches, nodesConfigurationWatchName(namespacedName), configSecrets); err != nil {
-		return results.WithError(err)
-	}
-
-	return results
-}
-
-// nodesConfigurationWatchName returns the watch name according to the deployment name.
-// It is unique per APM or Kibana deployment.
-func nodesConfigurationWatchName(namespacedName types.NamespacedName) string {
-	return fmt.Sprintf("%s-%s-config", namespacedName.Namespace, namespacedName.Name)
-}
-
 func (r *ReconcileElasticsearch) fetchElasticsearch(
 	ctx context.Context,
 	request reconcile.Request,
@@ -490,7 +459,6 @@ func (r *ReconcileElasticsearch) fetchElasticsearch(
 	err := r.Get(request.NamespacedName, es)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			r.dynamicWatches.Secrets.RemoveHandlerForKey(nodesConfigurationWatchName(request.NamespacedName))
 			return true, nil
 		}
 		// Error reading the object - requeue the request.
