@@ -43,6 +43,11 @@ type RequiredCapacity struct {
 	Total Capacity `yaml:"total" json:"total,omitempty"`
 }
 
+func (rc RequiredCapacity) IsEmpty() bool {
+	return rc.Node.Memory == nil && rc.Node.Storage == nil &&
+		rc.Total.Memory == nil && rc.Total.Storage == nil
+}
+
 type Capacity struct {
 	Storage *int64 `yaml:"storage" json:"storage,omitempty"`
 	Memory  *int64 `yaml:"memory" json:"memory,omitempty"`
