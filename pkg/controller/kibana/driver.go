@@ -9,14 +9,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	pkgerrors "github.com/pkg/errors"
-	"go.elastic.co/apm"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	kbv1 "github.com/elastic/cloud-on-k8s/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/association"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
@@ -34,6 +26,12 @@ import (
 	commonvolume "github.com/elastic/cloud-on-k8s/pkg/controller/common/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	pkgerrors "github.com/pkg/errors"
+	"go.elastic.co/apm"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 )
 
 // minSupportedVersion is the minimum version of Kibana supported by ECK. Currently this is set to version 6.8.0.
@@ -164,23 +162,7 @@ func (d *driver) Reconcile(
 // upgrade is in progress. Kibana does not support a smooth rolling upgrade from one version to another:
 // running multiple versions simultaneously may lead to concurrency bugs and data corruption.
 func (d *driver) getStrategyType(kb *kbv1.Kibana) (appsv1.DeploymentStrategyType, error) {
-	var pods corev1.PodList
-	var labels client.MatchingLabels = map[string]string{KibanaNameLabelName: kb.Name}
-	if err := d.client.List(&pods, client.InNamespace(kb.Namespace), labels); err != nil {
-		return "", err
-	}
-
-	for _, pod := range pods.Items {
-		ver, ok := pod.Labels[KibanaVersionLabelName]
-		// if label is missing we assume that the last reconciliation was done by previous version of the operator
-		// to be safe, we assume the Kibana version has changed when operator was offline and use Recreate,
-		// otherwise we may run into data corruption/data loss.
-		if !ok || ver != kb.Spec.Version {
-			return appsv1.RecreateDeploymentStrategyType, nil
-		}
-	}
-
-	return appsv1.RollingUpdateDeploymentStrategyType, nil
+	return appsv1.RecreateDeploymentStrategyType, nil
 }
 
 func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {
