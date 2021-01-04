@@ -118,18 +118,25 @@ func (aps AutoscalingPolicySpec) IsStorageDefined() bool {
 // findByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
 func (as AutoscalingSpec) findByRoles(roles []string) *AutoscalingPolicySpec {
 	for _, rp := range as.AutoscalingPolicySpecs {
-		if len(rp.Roles) != len(roles) {
+		if !rolesMatch(rp.Roles, roles) {
 			continue
-		}
-		rolesInPolicy := set.Make(rp.Roles...)
-		for _, role := range roles {
-			if !rolesInPolicy.Has(role) {
-				continue
-			}
 		}
 		return &rp
 	}
 	return nil
+}
+
+func rolesMatch(roles1, roles2 []string) bool {
+	if len(roles1) != len(roles2) {
+		return false
+	}
+	rolesInPolicy := set.Make(roles1...)
+	for _, role := range roles2 {
+		if !rolesInPolicy.Has(role) {
+			return false
+		}
+	}
+	return true
 }
 
 // NamedTiers holds the tiers in a manifest, indexed by the autoscaling policy name.
