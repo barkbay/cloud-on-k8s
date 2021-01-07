@@ -23,27 +23,49 @@ var (
 	// minMemory is the minimum amount of memory which can be set in the memory limits specification.
 	minMemory = resource.MustParse("2G")
 
+	// No minimum values are expected for CPU and Storage.
+	// But, if provided, then the validation function must ensure that the value is strictly greater than 0.
 	minCpu     = resource.MustParse("0")
 	minStorage = resource.MustParse("0")
 )
+
+// -- Elasticsearch Autoscaling API structures
+
+// DeciderSettings allows the user to tweak autoscaling deciders.
+// The map data structure complies with the <key,value> format expected by Elasticsearch.
+// +kubebuilder:object:generate=false
+type DeciderSettings map[string]string
+
+// AutoscalingPolicy models the Elasticsearch autoscaling API.
+// +kubebuilder:object:generate=false
+type AutoscalingPolicy struct {
+	// A resource policy must target a unique set of roles.
+	Roles []string `json:"roles,omitempty"`
+	// Deciders allows the user to override default settings for autoscaling deciders.
+	Deciders map[string]DeciderSettings `json:"deciders,omitempty"`
+}
+
+// -- Elastic Cloud on K8S specific structures
 
 // AutoscalingSpec is the root object of the autoscaling specification in the Elasticsearch resource definition.
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
 	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
+	// NodeSetList is stored in the autoscaling spec for convenience. It allows validation functions
+	NodeSetList NodeSetList `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
 type AutoscalingPolicySpecs []AutoscalingPolicySpec
 
-// GetAutoscalingSpecifications unmarshal autoscaling specifications from an Elasticsearch resource.
-func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) {
-	autoscalingSpec := AutoscalingSpec{}
-	if len(es.AutoscalingSpec()) == 0 {
-		return autoscalingSpec, nil
-	}
-	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpec)
-	return autoscalingSpec, err
+// NamedAutoscalingPolicy models an autoscaling policy as expected by the Elasticsearch policy API identified by
+// a unique name provided by the user.
+// +kubebuilder:object:generate=false
+type NamedAutoscalingPolicy struct {
+	// Name identifies the autoscaling policy in the autoscaling specification.
+	Name string `json:"name,omitempty"`
+	// AutoscalingPolicy is the autoscaling policy as expected by the Elasticsearch API.
+	AutoscalingPolicy
 }
 
 // AutoscalingPolicySpec holds a named autoscaling policy and the associated resources limits (cpu, memory, storage).
@@ -55,6 +77,11 @@ type AutoscalingPolicySpec struct {
 }
 
 // +kubebuilder:object:generate=false
+// AutoscalingResources models the limits, submitted by the user, for the supported resources.
+// Only the node count range is mandatory. For other resources a limit range is required only
+// if the Elasticsearch autoscaling API returns a requirement a resource.
+// For example, the memory limit range is only required if the autoscaling API answer holds a memory requirement.
+// If there is no limit range then the resource specification in the nodeSet specification is left untouched.
 type AutoscalingResources struct {
 	Cpu       *QuantityRange `json:"cpu,omitempty"`
 	Memory    *QuantityRange `json:"memory,omitempty"`
@@ -62,45 +89,36 @@ type AutoscalingResources struct {
 	NodeCount CountRange     `json:"nodeCount"`
 }
 
-// NamedAutoscalingPolicy models an autoscaling policy as expected by the Elasticsearch policy API identified by
-// a unique name provided by the user.
-// +kubebuilder:object:generate=false
-type NamedAutoscalingPolicy struct {
-	// A resource policy must be identified by a unique name, provided by the user.
-	Name string `json:"name,omitempty"`
-
-	AutoscalingPolicy
-}
-
-// DeciderSettings allows the user to tweak autoscaling deciders.
-// +kubebuilder:object:generate=false
-type DeciderSettings map[string]string
-
-// AutoscalingPolicy models the Elasticsearch autoscaling API.
-// +kubebuilder:object:generate=false
-type AutoscalingPolicy struct {
-	// A resource policy must target a unique set of roles
-	Roles []string `json:"roles,omitempty"`
-	// Deciders allows the user to override default settings for autoscaling deciders.
-	Deciders map[string]DeciderSettings `json:"deciders,omitempty"`
-}
-
+// QuantityRange models a resource limit range for resources which can be expressed with resource.Quantity.
 // +kubebuilder:object:generate=false
 type QuantityRange struct {
 	// Min represents the lower limit for the resources managed by the autoscaler.
 	Min resource.Quantity `json:"min"`
 	// Max represents the upper limit for the resources managed by the autoscaler.
 	Max resource.Quantity `json:"max"`
-	// RequestsToLimitsRatio allows to customize Kubernetes resource limit based on the requirement.
+	// RequestsToLimitsRatio allows to customize Kubernetes resource Limit based on the Request.
 	RequestsToLimitsRatio *float64 `json:"requestsToLimitsRatio"`
 }
 
+// CountRange is used to model the limit range for node deployed in
 // +kubebuilder:object:generate=false
 type CountRange struct {
 	// Min represents the minimum number of nodes in a tier.
 	Min int32 `json:"min"`
 	// Max represents the minimum number of nodes in a tier.
 	Max int32 `json:"max"`
+}
+
+// GetAutoscalingSpecifications unmarshal autoscaling specifications from an Elasticsearch resource.
+func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) {
+	autoscalingSpec := AutoscalingSpec{}
+	if len(es.AutoscalingSpec()) == 0 {
+		return autoscalingSpec, nil
+	}
+	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpec)
+	// Add a reference to the nodeSets in the Elasticsearch spec.
+	autoscalingSpec.NodeSetList = es.Spec.NodeSets
+	return autoscalingSpec, err
 }
 
 func (aps AutoscalingPolicySpec) IsMemoryDefined() bool {
@@ -126,6 +144,7 @@ func (as AutoscalingSpec) findByRoles(roles []string) *AutoscalingPolicySpec {
 	return nil
 }
 
+// rolesMatch compares two set of roles and returns true if both sets contains the exact same roles.
 func rolesMatch(roles1, roles2 []string) bool {
 	if len(roles1) != len(roles2) {
 		return false
@@ -139,7 +158,8 @@ func rolesMatch(roles1, roles2 []string) bool {
 	return true
 }
 
-// NamedTiers holds the tiers in a manifest, indexed by the autoscaling policy name.
+// NamedTiers holds the nodeSets which are managed by a same autoscaling policy.
+// The structure is indexed by the autoscaling policy name.
 // +kubebuilder:object:generate=false
 type NamedTiers map[string]NodeSetList
 
