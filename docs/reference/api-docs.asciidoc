@@ -842,6 +842,10 @@ ChangeBudget defines the constraints to consider when applying changes to the El
 
 
 
+
+
+
+
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-elasticsearch"]
 === Elasticsearch 
 
@@ -907,6 +911,8 @@ ElasticsearchSpec holds the specification of an Elasticsearch cluster.
 
 
 
+
+
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-nodeset"]
 === NodeSet 
 
@@ -926,6 +932,8 @@ ElasticsearchSpec holds the specification of an Elasticsearch cluster.
 | *`podTemplate`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#podtemplatespec-v1-core[$$PodTemplateSpec$$]__ | PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the Pods belonging to this NodeSet.
 | *`volumeClaimTemplates`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#persistentvolumeclaim-v1-core[$$PersistentVolumeClaim$$] array__ | VolumeClaimTemplates is a list of persistent volume claims to be used by each Pod in this NodeSet. Every claim in this list must have a matching volumeMount in one of the containers defined in the PodTemplate. Items defined here take precedence over any default claims added by the operator with the same name.
 |===
+
+
 
 
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-remotecluster"]
