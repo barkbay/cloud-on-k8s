@@ -17,33 +17,30 @@ func cpuFromMemory(requiredMemoryCapacity resource.Quantity, memoryRange, cpuRan
 	allowedMemoryRange := memoryRange.Max.Value() - memoryRange.Min.Value()
 	if allowedMemoryRange == 0 {
 		// Can't scale CPU as min and max for memory are equal
-		minCpu := cpuRange.Min.DeepCopy()
-		return minCpu
+		return cpuRange.Min.DeepCopy()
 	}
 	memRatio := float64(requiredMemoryCapacity.Value()-memoryRange.Min.Value()) / float64(allowedMemoryRange)
 
 	// memory is at its lowest value, return the min value for CPU
 	if memRatio == 0 {
-		requiredCpuCapacity := cpuRange.Min.DeepCopy()
-		return requiredCpuCapacity
+		return cpuRange.Min.DeepCopy()
 	}
 	// memory is at its max value, return the max value for CPU
 	if memRatio == 1 {
-		requiredCpuCapacity := cpuRange.Max.DeepCopy()
-		return requiredCpuCapacity
+		return cpuRange.Max.DeepCopy()
 	}
 
-	allowedCpuRange := float64(cpuRange.Max.MilliValue() - cpuRange.Min.MilliValue())
-	requiredAdditionalCpuCapacity := int64(allowedCpuRange * memRatio)
-	requiredCpuCapacityAsMilli := cpuRange.Min.MilliValue() + requiredAdditionalCpuCapacity
+	allowedCPURange := float64(cpuRange.Max.MilliValue() - cpuRange.Min.MilliValue())
+	requiredAdditionalCPUCapacity := int64(allowedCPURange * memRatio)
+	requiredCPUCapacityAsMilli := cpuRange.Min.MilliValue() + requiredAdditionalCPUCapacity
 
 	// Round up memory to the next core
-	requiredCpuCapacityAsMilli = roundUp(requiredCpuCapacityAsMilli, 1000)
-	requiredCpuCapacity := resource.NewQuantity(requiredCpuCapacityAsMilli/1000, resource.DecimalSI).DeepCopy()
-	if requiredCpuCapacity.Cmp(cpuRange.Max) > 0 {
-		requiredCpuCapacity = cpuRange.Max.DeepCopy()
+	requiredCPUCapacityAsMilli = roundUp(requiredCPUCapacityAsMilli, 1000)
+	requiredCPUCapacity := resource.NewQuantity(requiredCPUCapacityAsMilli/1000, resource.DecimalSI).DeepCopy()
+	if requiredCPUCapacity.Cmp(cpuRange.Max) > 0 {
+		requiredCPUCapacity = cpuRange.Max.DeepCopy()
 	}
-	return requiredCpuCapacity
+	return requiredCPUCapacity
 }
 
 // memoryFromStorage computes a memory quantity within the specified allowed range by the user proportionally
@@ -51,20 +48,17 @@ func cpuFromMemory(requiredMemoryCapacity resource.Quantity, memoryRange, cpuRan
 func memoryFromStorage(requiredStorageCapacity resource.Quantity, storageRange, memoryRange esv1.QuantityRange) resource.Quantity {
 	allowedStorageRange := storageRange.Max.Value() - storageRange.Min.Value()
 	if allowedStorageRange == 0 {
-		// Can't scale CPU as min and max for memory are equal
-		minCpu := memoryRange.Min.DeepCopy()
-		return minCpu
+		// Can't scale memory as min and max for storage are equal
+		return memoryRange.Min.DeepCopy()
 	}
 	storageRatio := float64(requiredStorageCapacity.Value()-storageRange.Min.Value()) / float64(allowedStorageRange)
 	// storage is at its lowest value, return the min value for memory
 	if storageRatio == 0 {
-		requiredMemoryCapacity := memoryRange.Min.DeepCopy()
-		return requiredMemoryCapacity
+		return memoryRange.Min.DeepCopy()
 	}
 	// storage is at its maximum value, return the max value for memory
 	if storageRatio == 1 {
-		requiredMemoryCapacity := memoryRange.Max.DeepCopy()
-		return requiredMemoryCapacity
+		return memoryRange.Max.DeepCopy()
 	}
 
 	allowedMemoryRange := float64(memoryRange.Max.Value() - memoryRange.Min.Value())

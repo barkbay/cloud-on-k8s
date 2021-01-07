@@ -83,11 +83,11 @@ func nodeSetResourcesFromStatus(
 	}
 
 	// Ensure CPU settings are in the allowed range
-	if autoscalingSpec.IsCpuDefined() {
+	if autoscalingSpec.IsCPUDefined() {
 		if actualNamedTierResources.HasRequest(corev1.ResourceCPU) {
-			namedTierResources.SetRequest(corev1.ResourceCPU, adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceCPU), autoscalingSpec.Cpu.Min, autoscalingSpec.Cpu.Max))
+			namedTierResources.SetRequest(corev1.ResourceCPU, adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceCPU), autoscalingSpec.CPU.Min, autoscalingSpec.CPU.Max))
 		} else {
-			namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.Cpu.Min.DeepCopy())
+			namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.CPU.Min.DeepCopy())
 		}
 	}
 
@@ -100,8 +100,8 @@ func nodeSetResourcesFromStatus(
 // newMinNodeSetResources returns a NodeSetResources with minimums values
 func newMinNodeSetResources(autoscalingSpec esv1.AutoscalingPolicySpec, nodeSets []string) nodesets.NamedTierResources {
 	namedTierResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
-	if autoscalingSpec.IsCpuDefined() {
-		namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.Cpu.Min.DeepCopy())
+	if autoscalingSpec.IsCPUDefined() {
+		namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.CPU.Min.DeepCopy())
 	}
 	if autoscalingSpec.IsMemoryDefined() {
 		namedTierResources.SetRequest(corev1.ResourceMemory, autoscalingSpec.Memory.Min.DeepCopy())

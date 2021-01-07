@@ -59,8 +59,8 @@ func Test_scaledownFilter(t *testing.T) {
 				policyName:    "my_policy",
 			},
 			args: args{
-				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1" /* scale down request to */, 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
-				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
+				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1" /* scale down request to */, 2).withMemoryRequest("6Gi").withCPURequest("2000").build(),
+				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCPU("1000", "8000").Build(),
 				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
 					Name:                   "my-autoscaling-policy",
 					LastModificationTime:   metav1.NewTime(defaultNow.Add(-2 * time.Minute)),
@@ -79,11 +79,11 @@ func Test_scaledownFilter(t *testing.T) {
 				currentMemory := nextNodeSetsResources.GetRequest(corev1.ResourceMemory)
 				expectedMemory := resource.MustParse("8Gi")
 				assert.True(t, currentMemory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), currentMemory.String())
-				// Cpu should be left intact
+				// CPU should be left intact
 				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceCPU))
-				currentCpu := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
-				expectedCpu := resource.MustParse("4000")
-				assert.True(t, currentCpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), currentCpu.String())
+				currentCPU := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
+				expectedCPU := resource.MustParse("4000")
+				assert.True(t, currentCPU.Equal(expectedCPU), "expected cpu: %s, got %s", expectedCPU.String(), currentCPU.String())
 			},
 		},
 		{
@@ -95,8 +95,8 @@ func Test_scaledownFilter(t *testing.T) {
 				policyName:    "my_policy",
 			},
 			args: args{
-				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1", 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
-				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
+				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1", 2).withMemoryRequest("6Gi").withCPURequest("2000").build(),
+				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCPU("1000", "8000").Build(),
 				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
 					Name:                   "my-autoscaling-policy",
 					LastModificationTime:   metav1.NewTime(defaultNow.Add(-11 * time.Minute)),
@@ -115,11 +115,11 @@ func Test_scaledownFilter(t *testing.T) {
 				currentMemory := nextNodeSetsResources.GetRequest(corev1.ResourceMemory)
 				expectedMemory := resource.MustParse("6Gi")
 				assert.True(t, currentMemory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), currentMemory.String())
-				// Cpu should have been downscaled
+				// CPU should have been downscaled
 				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceCPU))
-				currentCpu := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
-				expectedCpu := resource.MustParse("2000")
-				assert.True(t, currentCpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), currentCpu.String())
+				currentCPU := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
+				expectedCPU := resource.MustParse("2000")
+				assert.True(t, currentCPU.Equal(expectedCPU), "expected cpu: %s, got %s", expectedCPU.String(), currentCPU.String())
 			},
 		},
 	}

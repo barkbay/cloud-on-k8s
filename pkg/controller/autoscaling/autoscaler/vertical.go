@@ -70,8 +70,8 @@ func nodeResources(
 	}
 
 	// Adjust CPU request according to the memory request
-	if autoscalingSpec.IsCpuDefined() && autoscalingSpec.IsMemoryDefined() && resources.HasRequest(corev1.ResourceMemory) {
-		resources.SetRequest(corev1.ResourceCPU, cpuFromMemory(resources.GetRequest(corev1.ResourceMemory), *autoscalingSpec.Memory, *autoscalingSpec.Cpu))
+	if autoscalingSpec.IsCPUDefined() && autoscalingSpec.IsMemoryDefined() && resources.HasRequest(corev1.ResourceMemory) {
+		resources.SetRequest(corev1.ResourceCPU, cpuFromMemory(resources.GetRequest(corev1.ResourceMemory), *autoscalingSpec.Memory, *autoscalingSpec.CPU))
 	}
 
 	return resources

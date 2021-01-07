@@ -125,7 +125,7 @@ func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
 	return nsb
 }
 
-func (nsb *resourcesBuilder) withCpuRequest(qs string) *resourcesBuilder {
+func (nsb *resourcesBuilder) withCPURequest(qs string) *resourcesBuilder {
 	nsb.requests[corev1.ResourceCPU] = resource.MustParse(qs)
 	return nsb
 }

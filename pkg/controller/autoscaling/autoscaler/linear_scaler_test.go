@@ -72,45 +72,45 @@ func Test_cpuFromMemory(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		wantCpu *resource.Quantity
+		wantCPU *resource.Quantity
 	}{
 		{
 			name: "Memory is at its min value, do not scale up CPU",
 			args: args{
 				requiredMemoryCapacity: q("2Gi"),
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "3").WithMemory("2Gi", "2Gi").Build(),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCPU("1", "3").WithMemory("2Gi", "2Gi").Build(),
 			},
-			wantCpu: resource.NewQuantity(1, resource.DecimalSI), // keep the min. value
+			wantCPU: resource.NewQuantity(1, resource.DecimalSI), // keep the min. value
 		},
 		{
 			name: "1/3 of the memory range should be translated to 1/3 of the CPU range",
 			args: args{
 				requiredMemoryCapacity: q("2Gi"),
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "4").WithMemory("1Gi", "4Gi").Build(),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCPU("1", "4").WithMemory("1Gi", "4Gi").Build(),
 			},
-			wantCpu: resource.NewQuantity(2, resource.DecimalSI),
+			wantCPU: resource.NewQuantity(2, resource.DecimalSI),
 		},
 		{
 			name: "half of the memory range should be translated to rounded value of half of the CPU range",
 			args: args{
 				requiredMemoryCapacity: q("2Gi"),
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "4").WithMemory("1Gi", "3Gi").Build(),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCPU("1", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
-			wantCpu: quantityPtr("3"), // 2500 rounded to 3000
+			wantCPU: quantityPtr("3"), // 2500 rounded to 3000
 		},
 		{
 			name: "min and max CPU are equal",
 			args: args{
 				requiredMemoryCapacity: q("2Gi"),
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("4", "4").WithMemory("1Gi", "3Gi").Build(),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCPU("4", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
-			wantCpu: quantityPtr("4000m"),
+			wantCPU: quantityPtr("4000m"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, *tt.args.autoscalingSpec.Memory, *tt.args.autoscalingSpec.Cpu); !got.Equal(*tt.wantCpu) {
-				t.Errorf("scaleResourceLinearly() = %v, want %v", got, tt.wantCpu)
+			if got := cpuFromMemory(tt.args.requiredMemoryCapacity, *tt.args.autoscalingSpec.Memory, *tt.args.autoscalingSpec.CPU); !got.Equal(*tt.wantCPU) {
+				t.Errorf("scaleResourceLinearly() = %v, want %v", got, tt.wantCPU)
 			}
 		})
 	}

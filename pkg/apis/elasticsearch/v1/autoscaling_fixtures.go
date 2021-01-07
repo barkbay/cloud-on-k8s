@@ -37,7 +37,7 @@ func (asb *AutoscalingSpecsBuilder) WithStorage(min, max string) *AutoscalingSpe
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) WithCpu(min, max string) *AutoscalingSpecsBuilder {
+func (asb *AutoscalingSpecsBuilder) WithCPU(min, max string) *AutoscalingSpecsBuilder {
 	asb.cpu = &QuantityRange{
 		Min: resource.MustParse(min),
 		Max: resource.MustParse(max),
@@ -51,7 +51,7 @@ func (asb *AutoscalingSpecsBuilder) Build() AutoscalingPolicySpec {
 			Name: asb.name,
 		},
 		AutoscalingResources: AutoscalingResources{
-			Cpu:     asb.cpu,
+			CPU:     asb.cpu,
 			Memory:  asb.memory,
 			Storage: asb.storage,
 			NodeCount: CountRange{

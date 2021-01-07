@@ -25,7 +25,7 @@ var (
 
 	// No minimum values are expected for CPU and Storage.
 	// If provided the validation function must ensure that the value is strictly greater than 0.
-	minCpu     = resource.MustParse("0")
+	minCPU     = resource.MustParse("0")
 	minStorage = resource.MustParse("0")
 )
 
@@ -84,7 +84,7 @@ type AutoscalingPolicySpec struct {
 // For example, the memory limit range is only required if the autoscaling API answer returns a memory requirement.
 // If there is no limit range then the resource specification in the nodeSet specification is left untouched.
 type AutoscalingResources struct {
-	Cpu       *QuantityRange `json:"cpu,omitempty"`
+	CPU       *QuantityRange `json:"cpu,omitempty"`
 	Memory    *QuantityRange `json:"memory,omitempty"`
 	Storage   *QuantityRange `json:"storage,omitempty"`
 	NodeCount CountRange     `json:"nodeCount"`
@@ -126,9 +126,9 @@ func (aps AutoscalingPolicySpec) IsMemoryDefined() bool {
 	return aps.Memory != nil
 }
 
-// IsCpuDefined returns true if the user specified cpu limits.
-func (aps AutoscalingPolicySpec) IsCpuDefined() bool {
-	return aps.Cpu != nil
+// IsCPUDefined returns true if the user specified cpu limits.
+func (aps AutoscalingPolicySpec) IsCPUDefined() bool {
+	return aps.CPU != nil
 }
 
 // IsStorageDefined returns true if the user specified storage limits.
@@ -298,7 +298,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		}
 
 		// Validate CPU
-		errs = validateQuantities(errs, autoscalingSpec.Cpu, i, "cpu", minCpu)
+		errs = validateQuantities(errs, autoscalingSpec.CPU, i, "cpu", minCPU)
 
 		// Validate Memory
 		errs = validateQuantities(errs, autoscalingSpec.Memory, i, "memory", minMemory)
