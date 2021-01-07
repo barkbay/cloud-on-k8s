@@ -161,7 +161,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Compute named tiers
-	namedTiers, err := autoscalingSpecifications.GetNamedTiers(es)
+	namedTiers, err := autoscalingSpecifications.GetNamedTiers()
 	// Configuration does not exist yet, retry later.
 	if apierrors.IsNotFound(err) {
 		return defaultReconcile, nil

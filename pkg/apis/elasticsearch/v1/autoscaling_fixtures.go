@@ -4,6 +4,7 @@ import "k8s.io/apimachinery/pkg/api/resource"
 
 // - AutoscalingSpec builder
 
+// +kubebuilder:object:generate=false
 type AutoscalingSpecsBuilder struct {
 	name                       string
 	nodeCountMin, nodeCountMax int32

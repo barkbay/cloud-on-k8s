@@ -51,8 +51,9 @@ type AutoscalingPolicy struct {
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
 	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
-	// NodeSetList is stored in the autoscaling spec for convenience. It allows validation functions
-	NodeSetList NodeSetList `json:"-"`
+	// Elasticsearch is stored in the autoscaling spec for convenience. It should be removed once the autoscaling spec is
+	// fully part of the Elasticsearch specification.
+	Elasticsearch Elasticsearch `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
@@ -116,8 +117,7 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) 
 		return autoscalingSpec, nil
 	}
 	err := json.Unmarshal([]byte(es.AutoscalingSpec()), &autoscalingSpec)
-	// Add a reference to the nodeSets in the Elasticsearch spec.
-	autoscalingSpec.NodeSetList = es.Spec.NodeSets
+	autoscalingSpec.Elasticsearch = es
 	return autoscalingSpec, err
 }
 
@@ -163,6 +163,15 @@ func rolesMatch(roles1, roles2 []string) bool {
 // +kubebuilder:object:generate=false
 type NamedTiers map[string]NodeSetList
 
+// Policies returns the list of autoscaling policies from the named tiers.
+func (n NamedTiers) Policies() set.StringSet {
+	autoscalingPolicies := set.Make()
+	for autoscalingPolicy := range n {
+		autoscalingPolicies.Add(autoscalingPolicy)
+	}
+	return autoscalingPolicies
+}
+
 func (n NamedTiers) String() string {
 	namedTiers := make(map[string][]string, len(n))
 	for namedTier, nodeSets := range n {
@@ -177,13 +186,24 @@ func (n NamedTiers) String() string {
 	return string(namedTiersAsString)
 }
 
+// +kubebuilder:object:generate=false
+type NodeSetConfigError struct {
+	error
+	NodeSet
+	Index int
+}
+
 // GetNamedTiers retrieves the name of all the tiers in the Elasticsearch manifest.
-func (as AutoscalingSpec) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
+func (as AutoscalingSpec) GetNamedTiers() (NamedTiers, *NodeSetConfigError) {
 	namedTiersSet := make(NamedTiers)
-	for _, nodeSet := range es.Spec.NodeSets {
-		resourcePolicy, err := as.GetAutoscalingSpecFor(es, nodeSet)
+	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {
+		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
 		if err != nil {
-			return nil, err
+			return nil, &NodeSetConfigError{
+				error:   err,
+				NodeSet: nodeSet,
+				Index:   i,
+			}
 		}
 		if resourcePolicy == nil {
 			// This nodeSet is not managed by an autoscaling policy
@@ -195,7 +215,16 @@ func (as AutoscalingSpec) GetNamedTiers(es Elasticsearch) (NamedTiers, error) {
 }
 
 // GetAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.
-func (as AutoscalingSpec) GetAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSet) (*AutoscalingPolicySpec, error) {
+func (as AutoscalingSpec) GetAutoscalingSpecFor(nodeSet NodeSet) (*AutoscalingPolicySpec, error) {
+	roles, err := getNodeSetRoles(as.Elasticsearch, nodeSet)
+	if err != nil {
+		return nil, err
+	}
+	return as.findByRoles(roles), nil
+}
+
+// getNodeSetRoles attempts to parse the roles specified in the configuration of a given nodeSet.
+func getNodeSetRoles(es Elasticsearch, nodeSet NodeSet) ([]string, error) {
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err
@@ -204,7 +233,10 @@ func (as AutoscalingSpec) GetAutoscalingSpecFor(es Elasticsearch, nodeSet NodeSe
 	if err := UnpackConfig(nodeSet.Config, *v, &cfg); err != nil {
 		return nil, err
 	}
-	return as.findByRoles(cfg.Node.Roles), nil
+	if cfg.Node == nil {
+		return nil, fmt.Errorf("node.roles must be set")
+	}
+	return cfg.Node.Roles, nil
 }
 
 // autoscalingSpecPath helps to compute the path used in validation error fields.
@@ -220,9 +252,6 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	policyNames := set.Make()
 	rolesSet := make([][]string, 0, len(as.AutoscalingPolicySpecs))
 	var errs field.ErrorList
-
-	// TODO: We need the namedTiers to check if the min count allowed is at least >= than the number of nodeSets managed in a policy
-	// Unfortunately it requires to parse the node configuration to grab the roles, which may raise an error.
 
 	for i, autoscalingSpec := range as.AutoscalingPolicySpecs {
 		// Validate the name field.
@@ -264,6 +293,23 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		// Validate storage
 		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage", minStorage)
 	}
+
+	namedTiers, err := as.GetNamedTiers()
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(err.Index).Child("config"), err.NodeSet.Config, fmt.Sprintf("cannot parse nodeSet configuration: %s", err.Error())))
+		// We stop the validation here as the named tiers are required to go further
+		return errs
+	}
+
+	// We want to ensure that an autoscaling policy is at least managing one nodeSet
+	policiesWithNodeSets := namedTiers.Policies()
+	for i, policy := range as.AutoscalingPolicySpecs {
+		if !policiesWithNodeSets.Has(policy.Name) {
+			// No nodeSet matches this autoscaling policy
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "roles"), policy.Roles, "roles must be set in at least one nodeSet"))
+		}
+	}
+
 	return errs
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -17,12 +18,74 @@ func TestResourcePolicies_Validate(t *testing.T) {
 	tests := []struct {
 		name            string
 		autoscalingSpec string
+		nodeSets        map[string][]string
 		wantError       bool
 		expectedError   string
 	}{
 		{
 			name:      "Happy path",
 			wantError: false,
+			nodeSets:  map[string][]string{"nodeset-data-1": {"data"}, "nodeset-data-2": {"data"}, "nodeset-ml": {"ml"}},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "data_policy",
+		  "roles": [ "data" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		},
+		{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+		},
+		{
+			name:          "Autoscaling policy with no NodeSet",
+			wantError:     true,
+			expectedError: "Invalid value: []string{\"ml\"}: roles must be set in at least one nodeSet",
+			nodeSets:      map[string][]string{"nodeset-data-1": {"data"}, "nodeset-data-2": {"data"}},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "data_policy",
+		  "roles": [ "data" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		},
+		{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+		},
+		{
+			name:          "nodeSet with no roles",
+			wantError:     true,
+			expectedError: "cannot parse nodeSet configuration: node.roles must be set",
+			nodeSets:      map[string][]string{"nodeset-data-1": nil, "nodeset-data-2": {"data"}},
 			autoscalingSpec: `
 {
 	 "policies" : [{
@@ -290,6 +353,20 @@ func TestResourcePolicies_Validate(t *testing.T) {
 						ElasticsearchAutoscalingSpecAnnotationName: tt.autoscalingSpec,
 					},
 				},
+				Spec: ElasticsearchSpec{
+					Version: "7.11.0",
+				},
+			}
+			for nodeSetName, roles := range tt.nodeSets {
+				cfg := commonv1.NewConfig(map[string]interface{}{})
+				if roles != nil {
+					cfg = commonv1.NewConfig(map[string]interface{}{"node.roles": roles})
+				}
+				nodeSet := NodeSet{
+					Name:   nodeSetName,
+					Config: &cfg,
+				}
+				es.Spec.NodeSets = append(es.Spec.NodeSets, nodeSet)
 			}
 			rp, err := es.GetAutoscalingSpecifications()
 			assert.NoError(t, err)

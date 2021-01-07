@@ -26,7 +26,7 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	}
 
 	for _, nodeSet := range es.Spec.NodeSets {
-		nodeSetAutoscalingSpec, err := autoscalingSpec.GetAutoscalingSpecFor(es, nodeSet)
+		nodeSetAutoscalingSpec, err := autoscalingSpec.GetAutoscalingSpecFor(nodeSet)
 		if err != nil {
 			return false, err
 		}
