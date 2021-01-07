@@ -368,7 +368,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 				}
 				es.Spec.NodeSets = append(es.Spec.NodeSets, nodeSet)
 			}
-			rp, err := es.GetAutoscalingSpecifications()
+			rp, err := es.GetAutoscalingSpecification()
 			assert.NoError(t, err)
 			got := rp.Validate()
 			assert.Equal(t, tt.wantError, got != nil)

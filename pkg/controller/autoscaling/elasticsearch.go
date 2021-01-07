@@ -127,7 +127,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Get resource policies from the Elasticsearch spec
-	autoscalingSpecifications, err := es.GetAutoscalingSpecifications()
+	autoscalingSpecifications, err := es.GetAutoscalingSpecification()
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

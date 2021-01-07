@@ -16,7 +16,7 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	if !es.IsAutoscalingDefined() {
 		return true, nil
 	}
-	autoscalingSpec, err := es.GetAutoscalingSpecifications()
+	autoscalingSpec, err := es.GetAutoscalingSpecification()
 	if err != nil {
 		return false, err
 	}

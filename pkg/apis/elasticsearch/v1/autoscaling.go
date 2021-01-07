@@ -110,8 +110,8 @@ type CountRange struct {
 	Max int32 `json:"max"`
 }
 
-// GetAutoscalingSpecifications unmarshal autoscaling specifications from an Elasticsearch resource.
-func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) {
+// GetAutoscalingSpecification unmarshal autoscaling specifications from an Elasticsearch resource.
+func (es Elasticsearch) GetAutoscalingSpecification() (AutoscalingSpec, error) {
 	autoscalingSpec := AutoscalingSpec{}
 	if len(es.AutoscalingSpec()) == 0 {
 		return autoscalingSpec, nil
@@ -170,6 +170,17 @@ func (n AutoscaledNodeSets) AutoscalingPolicies() set.StringSet {
 	autoscalingPolicies := set.Make()
 	for autoscalingPolicy := range n {
 		autoscalingPolicies.Add(autoscalingPolicy)
+	}
+	return autoscalingPolicies
+}
+
+// NodeSets returns the list of nodeSets managed by an autoscaling policy.
+func (n AutoscaledNodeSets) NodeSets() set.StringSet {
+	autoscalingPolicies := set.Make()
+	for _, nodeSets := range n {
+		for _, nodeSet := range nodeSets {
+			autoscalingPolicies.Add(nodeSet.Name)
+		}
 	}
 	return autoscalingPolicies
 }

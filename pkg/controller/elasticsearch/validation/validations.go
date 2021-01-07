@@ -51,6 +51,7 @@ var validations = []validation{
 	supportedVersion,
 	validSanIP,
 	autoscalingValidation,
+	validNodeCount,
 }
 
 type updateValidation func(esv1.Elasticsearch, esv1.Elasticsearch) field.ErrorList
@@ -271,6 +272,37 @@ func validUpgradePath(current, proposed esv1.Elasticsearch) field.ErrorList {
 	return errs
 }
 
+// validNodeCount checks if Count is greater than 0 on nodeSets which are not managed by an autoscaling policy.
+func validNodeCount(es esv1.Elasticsearch) field.ErrorList {
+	var errs field.ErrorList
+
+	autoscalingSpec, err := es.GetAutoscalingSpecification()
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName), es.Spec.Version, autoscalingVersionMsg))
+		return errs
+	}
+
+	autoscaledNodeSets, nodeSetConfigError := autoscalingSpec.GetAutoscaledNodeSets()
+	if nodeSetConfigError != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(nodeSetConfigError.Index).Child("config"), nodeSetConfigError.NodeSet.Config, fmt.Sprintf("cannot parse nodeSet configuration: %s", nodeSetConfigError.Error())))
+		// We stop the validation here as the named tiers are required to go further
+		return errs
+	}
+
+	autoscaledNodeSetSet := autoscaledNodeSets.NodeSets()
+	for i, nodeSet := range es.Spec.NodeSets {
+		if autoscaledNodeSetSet.Has(nodeSet.Name) {
+			// nodeSet is managed by an autoscaling policy, ignore
+			continue
+		}
+		if !(nodeSet.Count > 0) {
+			errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(i).Child("count"), nodeSet.Count, "nodeSet count must be greater than 0"))
+		}
+	}
+
+	return errs
+}
+
 func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 	if !es.IsAutoscalingDefined() {
 		return nil
@@ -287,7 +319,7 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 	}
 
 	// Attempt to unmarshall the proposed autoscaling spec.
-	rp, err := es.GetAutoscalingSpecifications()
+	autoscalingSpecification, err := es.GetAutoscalingSpecification()
 	if err != nil {
 		errs = append(errs, field.Invalid(
 			field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName),
@@ -296,5 +328,5 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 		))
 		return errs
 	}
-	return rp.Validate()
+	return autoscalingSpecification.Validate()
 }
