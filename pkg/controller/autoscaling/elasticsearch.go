@@ -161,7 +161,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Compute named tiers
-	namedTiers, err := autoscalingSpecifications.GetNamedTiers()
+	namedTiers, err := autoscalingSpecifications.GetAutoscaledNodeSets()
 	// Configuration does not exist yet, retry later.
 	if apierrors.IsNotFound(err) {
 		return defaultReconcile, nil
@@ -183,7 +183,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
 	autoscalingStatus status.Status,
-	namedTiers esv1.NamedTiers,
+	namedTiers esv1.AutoscaledNodeSets,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 ) (reconcile.Result, error) {
@@ -232,7 +232,7 @@ func (r *ReconcileElasticsearch) isElasticsearchReachable(ctx context.Context, e
 func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	ctx context.Context,
 	actualAutoscalingStatus status.Status,
-	namedTiers esv1.NamedTiers,
+	namedTiers esv1.AutoscaledNodeSets,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 	results *reconciler.Results,
@@ -342,7 +342,7 @@ func canDecide(log logr.Logger, requiredCapacity esclient.RequiredCapacity, spec
 func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	ctx context.Context,
 	actualAutoscalingStatus status.Status,
-	namedTiers esv1.NamedTiers,
+	namedTiers esv1.AutoscaledNodeSets,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 	results *reconciler.Results,

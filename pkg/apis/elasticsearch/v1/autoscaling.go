@@ -24,7 +24,7 @@ var (
 	minMemory = resource.MustParse("2G")
 
 	// No minimum values are expected for CPU and Storage.
-	// But, if provided, then the validation function must ensure that the value is strictly greater than 0.
+	// If provided the validation function must ensure that the value is strictly greater than 0.
 	minCpu     = resource.MustParse("0")
 	minStorage = resource.MustParse("0")
 )
@@ -79,9 +79,9 @@ type AutoscalingPolicySpec struct {
 
 // +kubebuilder:object:generate=false
 // AutoscalingResources models the limits, submitted by the user, for the supported resources.
-// Only the node count range is mandatory. For other resources a limit range is required only
-// if the Elasticsearch autoscaling API returns a requirement a resource.
-// For example, the memory limit range is only required if the autoscaling API answer holds a memory requirement.
+// Only the node count range is mandatory. For other resources, a limit range is required only
+// if the Elasticsearch autoscaling capacity API returns a requirement for a given resource.
+// For example, the memory limit range is only required if the autoscaling API answer returns a memory requirement.
 // If there is no limit range then the resource specification in the nodeSet specification is left untouched.
 type AutoscalingResources struct {
 	Cpu       *QuantityRange `json:"cpu,omitempty"`
@@ -121,14 +121,17 @@ func (es Elasticsearch) GetAutoscalingSpecifications() (AutoscalingSpec, error) 
 	return autoscalingSpec, err
 }
 
+// IsMemoryDefined returns true if the user specified memory limits.
 func (aps AutoscalingPolicySpec) IsMemoryDefined() bool {
 	return aps.Memory != nil
 }
 
+// IsCpuDefined returns true if the user specified cpu limits.
 func (aps AutoscalingPolicySpec) IsCpuDefined() bool {
 	return aps.Cpu != nil
 }
 
+// IsStorageDefined returns true if the user specified storage limits.
 func (aps AutoscalingPolicySpec) IsStorageDefined() bool {
 	return aps.Storage != nil
 }
@@ -144,7 +147,7 @@ func (as AutoscalingSpec) findByRoles(roles []string) *AutoscalingPolicySpec {
 	return nil
 }
 
-// rolesMatch compares two set of roles and returns true if both sets contains the exact same roles.
+// rolesMatch compares two set of roles and returns true if both sets contain the exact same roles.
 func rolesMatch(roles1, roles2 []string) bool {
 	if len(roles1) != len(roles2) {
 		return false
@@ -158,13 +161,12 @@ func rolesMatch(roles1, roles2 []string) bool {
 	return true
 }
 
-// NamedTiers holds the nodeSets which are managed by a same autoscaling policy.
-// The structure is indexed by the autoscaling policy name.
+// AutoscaledNodeSets holds the nodeSets managed by an autoscaling policy, indexed by the autoscaling policy name.
 // +kubebuilder:object:generate=false
-type NamedTiers map[string]NodeSetList
+type AutoscaledNodeSets map[string]NodeSetList
 
-// Policies returns the list of autoscaling policies from the named tiers.
-func (n NamedTiers) Policies() set.StringSet {
+// AutoscalingPolicies returns the list of autoscaling policies from the named tiers.
+func (n AutoscaledNodeSets) AutoscalingPolicies() set.StringSet {
 	autoscalingPolicies := set.Make()
 	for autoscalingPolicy := range n {
 		autoscalingPolicies.Add(autoscalingPolicy)
@@ -172,7 +174,7 @@ func (n NamedTiers) Policies() set.StringSet {
 	return autoscalingPolicies
 }
 
-func (n NamedTiers) String() string {
+func (n AutoscaledNodeSets) String() string {
 	namedTiers := make(map[string][]string, len(n))
 	for namedTier, nodeSets := range n {
 		for _, nodeSet := range nodeSets {
@@ -193,9 +195,9 @@ type NodeSetConfigError struct {
 	Index int
 }
 
-// GetNamedTiers retrieves the name of all the tiers in the Elasticsearch manifest.
-func (as AutoscalingSpec) GetNamedTiers() (NamedTiers, *NodeSetConfigError) {
-	namedTiersSet := make(NamedTiers)
+// GetAutoscaledNodeSets retrieves the name of all the tiers in the Elasticsearch manifest.
+func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetConfigError) {
+	namedTiersSet := make(AutoscaledNodeSets)
 	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {
 		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
 		if err != nil {
@@ -294,7 +296,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		errs = validateQuantities(errs, autoscalingSpec.Storage, i, "storage", minStorage)
 	}
 
-	namedTiers, err := as.GetNamedTiers()
+	autoscaledNodeSets, err := as.GetAutoscaledNodeSets()
 	if err != nil {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(err.Index).Child("config"), err.NodeSet.Config, fmt.Sprintf("cannot parse nodeSet configuration: %s", err.Error())))
 		// We stop the validation here as the named tiers are required to go further
@@ -302,7 +304,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	}
 
 	// We want to ensure that an autoscaling policy is at least managing one nodeSet
-	policiesWithNodeSets := namedTiers.Policies()
+	policiesWithNodeSets := autoscaledNodeSets.AutoscalingPolicies()
 	for i, policy := range as.AutoscalingPolicySpecs {
 		if !policiesWithNodeSets.Has(policy.Name) {
 			// No nodeSet matches this autoscaling policy
