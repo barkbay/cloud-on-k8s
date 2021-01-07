@@ -20,6 +20,8 @@ import (
 const (
 	// ClusterNameLabelName used to represent a cluster in k8s resources
 	ClusterNameLabelName = "elasticsearch.k8s.elastic.co/cluster-name"
+	// ClusterNamespaceLabelName used to represent a cluster in k8s resources
+	ClusterNamespaceLabelName = "elasticsearch.k8s.elastic.co/cluster-namespace"
 	// VersionLabelName used to store the Elasticsearch version of the resource
 	VersionLabelName = "elasticsearch.k8s.elastic.co/version"
 	// PodNameLabelName used to store the name of the pod on other objects
@@ -42,6 +44,10 @@ const (
 	NodeTypesMLLabelName common.TrueFalseLabel = "elasticsearch.k8s.elastic.co/node-ml"
 	// NodeTypesTransformLabelName is a label set to true on nodes with the transform role
 	NodeTypesTransformLabelName common.TrueFalseLabel = "elasticsearch.k8s.elastic.co/node-transform"
+	// NodeTypesRemoteClusterClientLabelName is a label set to true on nodes with the remote_cluster_client role
+	NodeTypesRemoteClusterClientLabelName common.TrueFalseLabel = "elasticsearch.k8s.elastic.co/node-remote_cluster_client"
+	// NodeTypesVotingOnlyLabelName is a label set to true on nodes with voting_only master-eligible node
+	NodeTypesVotingOnlyLabelName common.TrueFalseLabel = "elasticsearch.k8s.elastic.co/node-voting_only"
 
 	HTTPSchemeLabelName = "elasticsearch.k8s.elastic.co/http-scheme"
 
@@ -116,9 +122,14 @@ func NewPodLabels(
 	NodeTypesDataLabelName.Set(nodeRoles.HasDataRole(), labels)
 	NodeTypesIngestLabelName.Set(nodeRoles.HasIngestRole(), labels)
 	NodeTypesMLLabelName.Set(nodeRoles.HasMLRole(), labels)
-	// transform nodes were only added in 7.7.0 so we should not annotate previous versions with them
+	// transform and remote_cluster_client roles were only added in 7.7.0 so we should not annotate previous versions with them
 	if ver.IsSameOrAfter(version.From(7, 7, 0)) {
 		NodeTypesTransformLabelName.Set(nodeRoles.HasTransformRole(), labels)
+		NodeTypesRemoteClusterClientLabelName.Set(nodeRoles.HasRemoteClusterClientRole(), labels)
+	}
+	// voting_only master eligible nodes were added only in 7.3.0 so we don't want to label prior versions with it
+	if ver.IsSameOrAfter(version.From(7, 3, 0)) {
+		NodeTypesVotingOnlyLabelName.Set(nodeRoles.HasVotingOnlyRole(), labels)
 	}
 
 	// config hash label, to rotate pods on config changes

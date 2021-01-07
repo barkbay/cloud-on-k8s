@@ -392,7 +392,7 @@ switch-registry-dev: # just use the default values of variables
 E2E_REGISTRY_NAMESPACE     ?= eck-dev
 E2E_IMG                    ?= $(REGISTRY)/$(E2E_REGISTRY_NAMESPACE)/eck-e2e-tests:$(TAG)
 TESTS_MATCH                ?= "^Test" # can be overriden to eg. TESTS_MATCH=TestMutationMoreNodes to match a single test
-E2E_STACK_VERSION          ?= 7.9.2
+E2E_STACK_VERSION          ?= 7.10.1
 E2E_JSON                   ?= false
 TEST_TIMEOUT               ?= 30m
 E2E_SKIP_CLEANUP           ?= false
@@ -430,7 +430,6 @@ e2e-run:
 		--build-number=$(BUILD_NUMBER) \
 		--provider=$(E2E_PROVIDER) \
 		--clusterName=$(CLUSTER_NAME) \
-		--kubernetes-version=$(KUBERNETES_VERSION) \
 		--monitoring-secrets=$(MONITORING_SECRETS) \
 		--skip-cleanup=$(E2E_SKIP_CLEANUP) \
 		--deploy-chaos-job=$(E2E_DEPLOY_CHAOS_JOB)
@@ -467,7 +466,7 @@ ci-check: check-license-header lint shellcheck generate check-local-changes
 
 ci: unit-xml integration-xml docker-build reattach-pv
 
-setup-e2e: e2e-compile run-deployer install-crds apply-psp e2e-docker-build e2e-docker-push
+setup-e2e: e2e-compile run-deployer install-crds apply-psp e2e-docker-multiarch-build
 
 ci-e2e: E2E_JSON := true
 ci-e2e: setup-e2e e2e-run
