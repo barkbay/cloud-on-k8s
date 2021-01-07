@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -27,11 +28,8 @@ func nodeResources(
 	resources := nodesets.ResourcesSpecification{}
 
 	// Get memory
-	if requiredCapacity.Node.Memory != nil &&
-		// Elasticsearch API may return 0 as an empty value
-		*requiredCapacity.Node.Memory > 0 &&
-		autoscalingSpec.IsMemoryDefined() {
-		resources.Memory = getResourceValue(
+	if requiredCapacity.Node.Memory != nil && autoscalingSpec.IsMemoryDefined() {
+		memoryRequest := getResourceValue(
 			log,
 			autoscalingSpec.Name,
 			"memory",
@@ -42,13 +40,12 @@ func nodeResources(
 			autoscalingSpec.Memory.Min,
 			autoscalingSpec.Memory.Max,
 		)
+		resources.SetRequest(corev1.ResourceMemory, memoryRequest)
 	}
 
 	// Get storage
-	if requiredCapacity.Node.Storage != nil &&
-		*requiredCapacity.Node.Storage > 0 &&
-		autoscalingSpec.IsStorageDefined() {
-		resources.Storage = getResourceValue(
+	if requiredCapacity.Node.Storage != nil && autoscalingSpec.IsStorageDefined() {
+		storageRequest := getResourceValue(
 			log,
 			autoscalingSpec.Name,
 			"storage",
@@ -59,21 +56,22 @@ func nodeResources(
 			autoscalingSpec.Storage.Min,
 			autoscalingSpec.Storage.Max,
 		)
-		if resources.Storage.Cmp(currentStorage) < 0 {
+		if storageRequest.Cmp(currentStorage) < 0 {
 			// Do not decrease storage capacity
-			resources.Storage = &currentStorage
+			storageRequest = currentStorage
 		}
+		resources.SetRequest(corev1.ResourceStorage, storageRequest)
 	}
 
 	// If no memory has been specified by the autoscaling API Memory
-	if resources.Memory == nil &&
-		autoscalingSpec.IsMemoryDefined() && autoscalingSpec.IsStorageDefined() && resources.Storage != nil {
-		resources.Memory = memoryFromStorage(resources.Storage.Value(), *autoscalingSpec.Storage, *autoscalingSpec.Memory)
+	if !resources.HasRequest(corev1.ResourceMemory) &&
+		autoscalingSpec.IsMemoryDefined() && autoscalingSpec.IsStorageDefined() && resources.HasRequest(corev1.ResourceStorage) {
+		resources.SetRequest(corev1.ResourceMemory, memoryFromStorage(resources.GetRequest(corev1.ResourceStorage), *autoscalingSpec.Storage, *autoscalingSpec.Memory))
 	}
 
-	// Adjust CPU
-	if autoscalingSpec.IsCpuDefined() && autoscalingSpec.IsMemoryDefined() && resources.Memory != nil {
-		resources.Cpu = cpuFromMemory(resources.Memory.Value(), *autoscalingSpec.Memory, *autoscalingSpec.Cpu)
+	// Adjust CPU request according to the memory request
+	if autoscalingSpec.IsCpuDefined() && autoscalingSpec.IsMemoryDefined() && resources.HasRequest(corev1.ResourceMemory) {
+		resources.SetRequest(corev1.ResourceCPU, cpuFromMemory(resources.GetRequest(corev1.ResourceMemory), *autoscalingSpec.Memory, *autoscalingSpec.Cpu))
 	}
 
 	return resources
@@ -87,7 +85,7 @@ func getResourceValue(
 	totalRequired *int64, // tier required capacity as returned by the Elasticsearch API, considered as optional
 	minNodesCount int64,
 	min, max resource.Quantity, // as expressed by the user
-) *resource.Quantity {
+) resource.Quantity {
 	// Surface the condition where resource is exhausted.
 	if nodeRequired > max.Value() {
 		// Elasticsearch requested more capacity per node than allowed by the user
@@ -125,13 +123,12 @@ func getResourceValue(
 		nodeResource = max.Value()
 	}
 
-	var nodeQuantity *resource.Quantity
+	var nodeQuantity resource.Quantity
 	if nodeResource >= giga && nodeResource%giga == 0 {
 		// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
-		resourceMemoryAsGiga := resource.MustParse(fmt.Sprintf("%dGi", nodeResource/giga))
-		nodeQuantity = &resourceMemoryAsGiga
+		nodeQuantity = resource.MustParse(fmt.Sprintf("%dGi", nodeResource/giga))
 	} else {
-		nodeQuantity = resource.NewQuantity(nodeResource, resource.DecimalSI)
+		nodeQuantity = resource.NewQuantity(nodeResource, resource.DecimalSI).DeepCopy()
 	}
 
 	return nodeQuantity

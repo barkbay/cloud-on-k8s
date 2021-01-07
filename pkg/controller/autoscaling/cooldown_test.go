@@ -5,14 +5,14 @@
 package autoscaling
 
 import (
-	"reflect"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
-	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,11 +39,11 @@ func Test_scaledownFilter(t *testing.T) {
 		statusBuilder *status.PolicyStatesBuilder
 	}
 	type args struct {
-		nextNodeSetsResources   nodesets.NodeSetsResources
+		nextNodeSetsResources   nodesets.NamedTierResources
 		autoscalingPolicy       esv1.AutoscalingPolicySpec
-		actualNodeSetsResources status.NodeSetsResourcesWithMeta
+		actualNodeSetsResources status.Status
 	}
-	type assertFunc func(t *testing.T, nextNodeSetsResources nodesets.NodeSetsResources)
+	type assertFunc func(t *testing.T, nextNodeSetsResources nodesets.NamedTierResources)
 	tests := []struct {
 		name       string
 		ctx        ctx
@@ -59,30 +59,31 @@ func Test_scaledownFilter(t *testing.T) {
 				policyName:    "my_policy",
 			},
 			args: args{
-				nextNodeSetsResources: []nodesets.NodeSetResources{
-					newResourcesBuilder("nodeset-1", 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
-				},
-				autoscalingPolicy: esv1.NewAutoscalingSpecsBuilder().
-					WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
-				actualNodeSetsResources: []status.NodeSetResourcesWithMeta{
-					{
-						LastModificationTime: metav1.NewTime(defaultNow.Add(-2 * time.Minute)),
-						NodeSetResources:     newResourcesBuilder("nodeset-1", 3).withMemoryRequest("8Gi").withCpuRequest("4000").build(),
-					},
+				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1" /* scale down request to */, 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
+				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
+				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					LastModificationTime:   metav1.NewTime(defaultNow.Add(-2 * time.Minute)),
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: /* actual node count */ 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("8Gi"), corev1.ResourceCPU: q("4000")}}}},
 				},
 			},
-			assertFunc: func(t *testing.T, nextNodeSetsResources nodesets.NodeSetsResources) {
-				assert.Equal(t, 1, len(nextNodeSetsResources))
-				nextNodeSetResources := nextNodeSetsResources[0]
+			assertFunc: func(t *testing.T, nextNodeSetsResources nodesets.NamedTierResources) {
+				assert.Equal(t, 1, len(nextNodeSetsResources.NodeSetNodeCount))
+				nextNodeSetNodCount := nextNodeSetsResources.NodeSetNodeCount[0]
 				// Node count should be the same
 				expectedNodeCount := int32(3)
-				assert.Equal(t, expectedNodeCount, nextNodeSetResources.Count, "expected node count: %d, got %d", expectedNodeCount, nextNodeSetResources.Count)
+				assert.Equal(t, expectedNodeCount, nextNodeSetNodCount.NodeCount, "expected node count: %d, got %d", expectedNodeCount, nextNodeSetNodCount.NodeCount)
 				// Memory should be left intact
+				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceMemory))
+				currentMemory := nextNodeSetsResources.GetRequest(corev1.ResourceMemory)
 				expectedMemory := resource.MustParse("8Gi")
-				assert.True(t, nextNodeSetResources.Memory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), nextNodeSetResources.Memory.String())
+				assert.True(t, currentMemory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), currentMemory.String())
 				// Cpu should be left intact
+				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceCPU))
+				currentCpu := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
 				expectedCpu := resource.MustParse("4000")
-				assert.True(t, nextNodeSetResources.Cpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), nextNodeSetResources.Cpu.String())
+				assert.True(t, currentCpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), currentCpu.String())
 			},
 		},
 		{
@@ -94,30 +95,31 @@ func Test_scaledownFilter(t *testing.T) {
 				policyName:    "my_policy",
 			},
 			args: args{
-				nextNodeSetsResources: []nodesets.NodeSetResources{
-					newResourcesBuilder("nodeset-1", 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
-				},
-				autoscalingPolicy: esv1.NewAutoscalingSpecsBuilder().
-					WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
-				actualNodeSetsResources: []status.NodeSetResourcesWithMeta{
-					{
-						LastModificationTime: metav1.NewTime(defaultNow.Add(-11 * time.Minute)),
-						NodeSetResources:     newResourcesBuilder("nodeset-1", 3).withMemoryRequest("8Gi").withCpuRequest("4000").build(),
-					},
+				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1", 2).withMemoryRequest("6Gi").withCpuRequest("2000").build(),
+				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCpu("1000", "8000").Build(),
+				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					LastModificationTime:   metav1.NewTime(defaultNow.Add(-11 * time.Minute)),
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("8Gi"), corev1.ResourceCPU: q("4000")}}}},
 				},
 			},
-			assertFunc: func(t *testing.T, nextNodeSetsResources nodesets.NodeSetsResources) {
-				assert.Equal(t, 1, len(nextNodeSetsResources))
-				nextNodeSetResources := nextNodeSetsResources[0]
-				// Node count should be the same
+			assertFunc: func(t *testing.T, nextNodeSetsResources nodesets.NamedTierResources) {
+				assert.Equal(t, 1, len(nextNodeSetsResources.NodeSetNodeCount))
+				nextNodeSetNodCount := nextNodeSetsResources.NodeSetNodeCount[0]
+				// Node count should have been downscaled
 				expectedNodeCount := int32(2)
-				assert.Equal(t, expectedNodeCount, nextNodeSetResources.Count, "expected node count: %d, got %d", expectedNodeCount, nextNodeSetResources.Count)
-				// Memory should be left intact
+				assert.Equal(t, expectedNodeCount, nextNodeSetNodCount.NodeCount, "expected node count: %d, got %d", expectedNodeCount, nextNodeSetNodCount.NodeCount)
+				// Memory should have been downscaled
+				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceMemory))
+				currentMemory := nextNodeSetsResources.GetRequest(corev1.ResourceMemory)
 				expectedMemory := resource.MustParse("6Gi")
-				assert.True(t, nextNodeSetResources.Memory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), nextNodeSetResources.Memory.String())
-				// Cpu should be left intact
+				assert.True(t, currentMemory.Equal(expectedMemory), "expected memory: %s, got %s", expectedMemory.String(), currentMemory.String())
+				// Cpu should have been downscaled
+				assert.True(t, nextNodeSetsResources.HasRequest(corev1.ResourceCPU))
+				currentCpu := nextNodeSetsResources.GetRequest(corev1.ResourceCPU)
 				expectedCpu := resource.MustParse("2000")
-				assert.True(t, nextNodeSetResources.Cpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), nextNodeSetResources.Cpu.String())
+				assert.True(t, currentCpu.Equal(expectedCpu), "expected cpu: %s, got %s", expectedCpu.String(), currentCpu.String())
 			},
 		},
 	}
@@ -130,79 +132,8 @@ func Test_scaledownFilter(t *testing.T) {
 				log:           logTest,
 				statusBuilder: tt.ctx.statusBuilder,
 			}
-			sc.applyScaledownFilter(tt.args.nextNodeSetsResources, tt.args.autoscalingPolicy, tt.args.actualNodeSetsResources)
+			sc.applyScaledownFilter(tt.args.nextNodeSetsResources, tt.args.actualNodeSetsResources)
 			tt.assertFunc(t, tt.args.nextNodeSetsResources)
-		})
-	}
-}
-
-func Test_stabilizationContext_filterNodeCountScaledown(t *testing.T) {
-	type fields struct {
-		es            esv1.Elasticsearch
-		policyName    string
-		log           logr.Logger
-		statusBuilder *status.PolicyStatesBuilder
-	}
-	type args struct {
-		actual       int32
-		next         int32
-		allowedRange esv1.CountRange
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   int32
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sc := &stabilizationContext{
-				es:            tt.fields.es,
-				policyName:    tt.fields.policyName,
-				log:           tt.fields.log,
-				statusBuilder: tt.fields.statusBuilder,
-			}
-			if got := sc.filterNodeCountScaledown(tt.args.actual, tt.args.next, tt.args.allowedRange); got != tt.want {
-				t.Errorf("stabilizationContext.filterNodeCountScaledown() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_stabilizationContext_filterResourceScaledown(t *testing.T) {
-	type fields struct {
-		es            esv1.Elasticsearch
-		policyName    string
-		log           logr.Logger
-		statusBuilder *status.PolicyStatesBuilder
-	}
-	type args struct {
-		resource     string
-		actual       *resource.Quantity
-		next         *resource.Quantity
-		allowedRange *esv1.QuantityRange
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   *resource.Quantity
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sc := &stabilizationContext{
-				es:            tt.fields.es,
-				policyName:    tt.fields.policyName,
-				log:           tt.fields.log,
-				statusBuilder: tt.fields.statusBuilder,
-			}
-			if got := sc.filterResourceScaledown(tt.args.resource, tt.args.actual, tt.args.next, tt.args.allowedRange); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("stabilizationContext.filterResourceScaledown() = %v, want %v", got, tt.want)
-			}
 		})
 	}
 }

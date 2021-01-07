@@ -7,6 +7,8 @@ package autoscaler
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
@@ -22,19 +24,18 @@ func scaleHorizontally(
 	nodeCapacity nodesets.ResourcesSpecification,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
-) nodesets.NodeSetsResources {
+) nodesets.NamedTierResources {
 	// Ensure that we have at least 1 node per nodeSet
 	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
-
-	nodeSetsResources := make(nodesets.NodeSetsResources, len(nodeSets))
 	nodeToAdd := 0
-	if requiredCapacity.Memory != nil && nodeCapacity.Memory != nil {
-		minMemory := int64(minNodes) * (nodeCapacity.Memory.Value())
+	if requiredCapacity.Memory != nil && nodeCapacity.HasRequest(corev1.ResourceMemory) {
+		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
+		minMemory := int64(minNodes) * (nodeMemory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed
 		memoryDelta := *requiredCapacity.Memory - minMemory
-		nodeToAdd = getNodeDelta(memoryDelta, nodeCapacity.Memory.Value())
+		nodeToAdd = getNodeDelta(memoryDelta, nodeMemory.Value())
 
 		if minNodes+nodeToAdd > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
@@ -43,7 +44,7 @@ func scaleHorizontally(
 				"policy", autoscalingSpec.Name,
 				"scope", "tier",
 				"resource", "memory",
-				"node_value", nodeCapacity.Memory.Value(),
+				"node_value", nodeMemory.Value(),
 				"requested_value", *requiredCapacity.Memory,
 				"requested_count", minNodes+nodeToAdd,
 				"max_count", maxNodes,
@@ -60,10 +61,11 @@ func scaleHorizontally(
 		}
 	}
 
-	if requiredCapacity.Storage != nil && nodeCapacity.Storage != nil {
-		minStorage := int64(minNodes) * (nodeCapacity.Storage.Value())
+	if requiredCapacity.Storage != nil && nodeCapacity.HasRequest(corev1.ResourceStorage) {
+		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
+		minStorage := int64(minNodes) * (nodeStorage.Value())
 		storageDelta := *requiredCapacity.Storage - minStorage
-		nodeToAddStorage := getNodeDelta(storageDelta, nodeCapacity.Storage.Value())
+		nodeToAddStorage := getNodeDelta(storageDelta, nodeStorage.Value())
 		if minNodes+nodeToAddStorage > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
 			log.Info(
@@ -71,7 +73,7 @@ func scaleHorizontally(
 				"policy", autoscalingSpec.Name,
 				"scope", "tier",
 				"resource", "storage",
-				"node_value", nodeCapacity.Storage.Value(),
+				"node_value", nodeStorage.Value(),
 				"requested_value", *requiredCapacity.Storage,
 				"requested_count", minNodes+nodeToAddStorage,
 				"max_count", maxNodes,
@@ -91,20 +93,16 @@ func scaleHorizontally(
 		}
 	}
 
-	// TODO: add a log to explain the computation
-	for i := range nodeSets {
-		nodeSetsResources[i] = nodesets.NodeSetResources{
-			Name:                   nodeSets[i],
-			ResourcesSpecification: nodeCapacity,
-		}
-	}
 	totalNodes := nodeToAdd + minNodes
 	log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name,
 		"scope", "tier",
 		"count", totalNodes,
 		"required_capacity", requiredCapacity,
 	)
-	fnm := NewFairNodesManager(log, nodeSetsResources)
+
+	nodeSetsResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+	nodeSetsResources.ResourcesSpecification = nodeCapacity
+	fnm := NewFairNodesManager(log, nodeSetsResources.NodeSetNodeCount)
 	for totalNodes > 0 {
 		fnm.AddNode()
 		totalNodes--

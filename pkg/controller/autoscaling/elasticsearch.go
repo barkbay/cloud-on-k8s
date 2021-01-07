@@ -141,12 +141,12 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, tracing.CaptureError(ctx, fmt.Errorf("autoscaling spec is invalid"))
 	}
 
-	autoscalingStatus, err := status.GetAutoscalingStatus(es)
+	autoscalingStatus, err := status.GetStatus(es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	if len(autoscalingSpecifications.AutoscalingPolicySpecs) == 0 && len(autoscalingStatus) == 0 {
+	if len(autoscalingSpecifications.AutoscalingPolicySpecs) == 0 && len(autoscalingStatus.PolicyStates) == 0 {
 		// This cluster is not managed by the autoscaler
 		return reconcile.Result{}, nil
 	}
@@ -182,7 +182,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 
 func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
-	autoscalingStatus status.NodeSetsResourcesWithMeta,
+	autoscalingStatus status.Status,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -231,7 +231,7 @@ func (r *ReconcileElasticsearch) isElasticsearchReachable(ctx context.Context, e
 // attemptOnlineReconciliation attempts an online autoscaling reconciliation with a call the Elasticsearch autoscaling API.
 func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	ctx context.Context,
-	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
+	actualAutoscalingStatus status.Status,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -261,7 +261,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	statusBuilder := status.NewPolicyStatesBuilder()
 
 	// nextNodeSetsResources holds the resources computed by the autoscaling algorithm for each nodeSet.
-	var nextNodeSetsResources nodesets.NodeSetsResources
+	var nextNodeSetsResources nodesets.ClusterResources
 
 	// For each autoscaling policy we compute the resources to be applied to the related nodeSets.
 	for _, autoscalingPolicy := range autoscalingSpecs.AutoscalingPolicySpecs {
@@ -275,37 +275,32 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			statusBuilder.ForPolicy(autoscalingPolicy.Name).WithPolicyState(status.NoNodeSet, err.Error())
 			continue
 		}
-		// Save the nodeSets in the status
-		statusBuilder.ForPolicy(autoscalingPolicy.Name).SetNodeSets(nodeSetList)
 
 		// Get the decision from the Elasticsearch API
-		var nodeSetsResources nodesets.NodeSetsResources
-		switch capacity, hasCapacity := decisions.Policies[autoscalingPolicy.Name]; hasCapacity {
+		var nodeSetsResources nodesets.NamedTierResources
+		switch capacity, hasCapacity := decisions.Policies[autoscalingPolicy.Name]; hasCapacity && !capacity.RequiredCapacity.IsEmpty() {
 		case false:
-			// We didn't receive a decision for this tier, we can only ensure that resources are within the allowed ranges.
+			// We didn't receive a decision for this tier, or the decision is empty. We can only ensure that resources are within the allowed ranges.
 			log.V(1).Info("No decision for tier, ensure min. are set", "policy", autoscalingPolicy.Name)
-			nodeSetsResources = autoscaler.EnsureResourcePolicies(log, nodeSetList.Names(), autoscalingPolicy, actualNodeSetsResources, statusBuilder)
+			statusBuilder.ForPolicy(autoscalingPolicy.Name).WithPolicyState(status.EmptyResponse, "No required capacity from Elasticsearch")
+			nodeSetsResources = autoscaler.GetOfflineNodeSetsResources(log, nodeSetList.Names(), autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
 		case true:
 			// We received a capacity decision from Elasticsearch for this policy.
-			if capacity.RequiredCapacity.IsEmpty() {
-				log.Info("No required capacity for policy", "policy", autoscalingPolicy.Name)
-				statusBuilder.ForPolicy(autoscalingPolicy.Name).WithPolicyState(status.EmptyResponse, "No required capacity from Elasticsearch")
-			} else {
-				log.Info("Required capacity for policy", "policy", autoscalingPolicy.Name, "required_capacity", capacity.RequiredCapacity)
-			}
+			log.Info("Required capacity for policy", "policy", autoscalingPolicy.Name, "required_capacity", capacity.RequiredCapacity)
 			// Ensure that the user provides the related resources policies
 			if !canDecide(log, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder) {
 				continue
 			}
-			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), actualNodeSetsResources, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder)
+			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), actualAutoscalingStatus, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder)
 			// Apply cooldown filter
-			applyCoolDownFilters(log, es, nodeSetsResources, autoscalingPolicy, actualNodeSetsResources, statusBuilder)
+			applyCoolDownFilters(log, es, nodeSetsResources, autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
 		}
-		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources...)
+		// Add the result to the list of the next resources
+		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources)
 	}
 
 	// Replace currentNodeSets in the Elasticsearch manifest
-	if err := updateElasticsearch(log, &es, statusBuilder, nextNodeSetsResources, actualNodeSetsResources); err != nil {
+	if err := updateElasticsearch(log, &es, statusBuilder, nextNodeSetsResources, actualAutoscalingStatus); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -346,7 +341,7 @@ func canDecide(log logr.Logger, requiredCapacity esclient.RequiredCapacity, spec
 // doOfflineReconciliation runs an autoscaling reconciliation if the autoscaling API is not ready (yet).
 func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	ctx context.Context,
-	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
+	actualAutoscalingStatus status.Status,
 	namedTiers esv1.NamedTiers,
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
@@ -357,18 +352,18 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	log := logf.FromContext(ctx)
 	log.V(1).Info("Starting offline autoscaling reconciliation")
 	statusBuilder := status.NewPolicyStatesBuilder()
-	var clusterNodeSetsResources nodesets.NodeSetsResources
+	var clusterNodeSetsResources nodesets.ClusterResources
 	// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
 	for _, autoscalingSpec := range autoscalingSpecs.AutoscalingPolicySpecs {
 		nodeSets, exists := namedTiers[autoscalingSpec.Name]
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
-		nodeSetsResources := autoscaler.EnsureResourcePolicies(log, nodeSets.Names(), autoscalingSpec, actualNodeSetsResources, statusBuilder)
-		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources...)
+		nodeSetsResources := autoscaler.GetOfflineNodeSetsResources(log, nodeSets.Names(), autoscalingSpec, actualAutoscalingStatus, statusBuilder)
+		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources)
 	}
 	// Update the Elasticsearch manifest
-	if err := updateElasticsearch(log, &es, statusBuilder, clusterNodeSetsResources, actualNodeSetsResources); err != nil {
+	if err := updateElasticsearch(log, &es, statusBuilder, clusterNodeSetsResources, actualAutoscalingStatus); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
@@ -382,14 +377,14 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	return results.WithResult(defaultReconcile).Aggregate()
 }
 
-// updateElasticsearch updates the resources in the NodeSets of an Elasticsearch spec according to the NodeSetsResources
+// updateElasticsearch updates the resources in the NodeSets of an Elasticsearch spec according to the NamedTierResources
 // computed by the autoscaling algorithm. It also updates the autoscaling status annotation.
 func updateElasticsearch(
 	log logr.Logger,
 	es *esv1.Elasticsearch,
 	statusBuilder *status.PolicyStatesBuilder,
-	nextNodeSetsResources nodesets.NodeSetsResources,
-	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
+	nextNodeSetsResources nodesets.ClusterResources,
+	actualAutoscalingStatus status.Status,
 ) error {
 	nextResourcesByNodeSet := nextNodeSetsResources.ByNodeSet()
 	for i := range es.Spec.NodeSets {
@@ -410,7 +405,7 @@ func updateElasticsearch(
 		}
 
 		// Update desired count
-		es.Spec.NodeSets[i].Count = nodeSetResources.Count
+		es.Spec.NodeSets[i].Count = nodeSetResources.NodeCount
 
 		if container.Resources.Requests == nil {
 			container.Resources.Requests = corev1.ResourceList{}
@@ -420,24 +415,31 @@ func updateElasticsearch(
 		}
 
 		// Update memory requests and limits
-		if nodeSetResources.Memory != nil {
-			container.Resources.Requests[corev1.ResourceMemory] = *nodeSetResources.Memory
+		if nodeSetResources.HasRequest(corev1.ResourceMemory) {
+			container.Resources.Requests[corev1.ResourceMemory] = nodeSetResources.GetRequest(corev1.ResourceMemory)
 			//TODO: apply request/memory ratio
-			container.Resources.Limits[corev1.ResourceMemory] = *nodeSetResources.Memory
+			container.Resources.Limits[corev1.ResourceMemory] = nodeSetResources.GetRequest(corev1.ResourceMemory)
 		}
-		if nodeSetResources.Cpu != nil {
-			container.Resources.Requests[corev1.ResourceCPU] = *nodeSetResources.Cpu
+		if nodeSetResources.HasRequest(corev1.ResourceCPU) {
+			container.Resources.Requests[corev1.ResourceCPU] = nodeSetResources.GetRequest(corev1.ResourceCPU)
 			//TODO: apply request/memory ratio
 		}
 
-		if nodeSetResources.Storage != nil {
+		if nodeSetResources.HasRequest(corev1.ResourceStorage) {
 			// Update storage claim
 			if len(es.Spec.NodeSets[i].VolumeClaimTemplates) == 0 {
 				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*volume.DefaultDataVolumeClaim.DeepCopy()}
 			}
 			for _, claimTemplate := range es.Spec.NodeSets[i].VolumeClaimTemplates {
 				if claimTemplate.Name == volume.ElasticsearchDataVolumeName {
-					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = *nodeSetResources.Storage
+					// Storage may have been managed outside of the scope of the autoscaler, we still want to ensure here that
+					// we are not scaling down the storage capacity.
+					nextStorage := nodeSetResources.GetRequest(corev1.ResourceStorage)
+					actualStorage, hasStorage := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
+					if hasStorage && actualStorage.Cmp(nextStorage) > 0 {
+						continue
+					}
+					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = nextStorage
 				}
 			}
 		}
@@ -450,7 +452,7 @@ func updateElasticsearch(
 	}
 
 	// Update autoscaling status
-	return status.UpdateAutoscalingStatus(es, statusBuilder, nextNodeSetsResources, actualNodeSetsResources)
+	return status.UpdateAutoscalingStatus(es, statusBuilder, nextNodeSetsResources, actualAutoscalingStatus)
 }
 
 func (r *ReconcileElasticsearch) fetchElasticsearch(

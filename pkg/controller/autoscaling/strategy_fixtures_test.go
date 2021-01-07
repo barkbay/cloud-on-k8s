@@ -95,44 +95,47 @@ func (nsb *nodeSetBuilder) build() esv1.NodeSet {
 // - NodeSetResources builder
 
 type resourcesBuilder struct {
-	name                                      string
-	count                                     int32
-	memoryRequest, storageRequest, cpuRequest *resource.Quantity
+	name     string
+	count    nodesets.NodeSetNodeCountList
+	requests corev1.ResourceList
 }
 
-func newResourcesBuilder(name string, count int) *resourcesBuilder {
+func newResourcesBuilder(name string) *resourcesBuilder {
 	return &resourcesBuilder{
-		name:  name,
-		count: int32(count),
+		name:     name,
+		requests: make(corev1.ResourceList),
 	}
 }
 
+func (nsb *resourcesBuilder) withNodeSet(name string, count int) *resourcesBuilder {
+	nsb.count = append(nsb.count, nodesets.NodeSetNodeCount{
+		Name:      name,
+		NodeCount: int32(count),
+	})
+	return nsb
+}
+
 func (nsb *resourcesBuilder) withMemoryRequest(qs string) *resourcesBuilder {
-	q := resource.MustParse(qs)
-	nsb.memoryRequest = &q
+	nsb.requests[corev1.ResourceMemory] = resource.MustParse(qs)
 	return nsb
 }
 
 func (nsb *resourcesBuilder) withStorageRequest(qs string) *resourcesBuilder {
-	q := resource.MustParse(qs)
-	nsb.storageRequest = &q
+	nsb.requests[corev1.ResourceStorage] = resource.MustParse(qs)
 	return nsb
 }
 
 func (nsb *resourcesBuilder) withCpuRequest(qs string) *resourcesBuilder {
-	q := resource.MustParse(qs)
-	nsb.cpuRequest = &q
+	nsb.requests[corev1.ResourceCPU] = resource.MustParse(qs)
 	return nsb
 }
 
-func (nsb *resourcesBuilder) build() nodesets.NodeSetResources {
-	nodeSetResources := nodesets.NodeSetResources{
-		Name: nsb.name,
+func (nsb *resourcesBuilder) build() nodesets.NamedTierResources {
+	nodeSetResources := nodesets.NamedTierResources{
+		Name:             nsb.name,
+		NodeSetNodeCount: nsb.count,
 		ResourcesSpecification: nodesets.ResourcesSpecification{
-			Count:   nsb.count,
-			Memory:  nsb.memoryRequest,
-			Storage: nsb.storageRequest,
-			Cpu:     nsb.cpuRequest,
+			Requests: nsb.requests,
 		},
 	}
 	return nodeSetResources

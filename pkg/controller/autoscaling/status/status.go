@@ -6,14 +6,9 @@ package status
 
 import (
 	"encoding/json"
-	"fmt"
-	"hash/adler32"
-	"sort"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,21 +29,49 @@ const (
 type Status struct {
 	// PolicyStatus is used to expose state messages to user or external system
 	PolicyStates []PolicyStateItem `json:"policies"`
-
-	// NodeSetsResourcesWithMeta is used to expose the last computed resources per nodeSet
-	NodeSetResources NodeSetsResourcesWithMeta `json:"resources"`
 }
 
 type PolicyStateItem struct {
-	Name         string        `json:"name"`
-	NodeSets     []string      `json:"nodeSets"`
+	// Name is the name of the autoscaling policy
+	Name string `json:"name"`
+	// NodeSetNodeCount holds the number of nodes for each nodeSet.
+	NodeSetNodeCount nodesets.NodeSetNodeCountList `json:"nodeSets"`
+	// ResourcesSpecification holds the resource values common to all the nodeSet managed by a same autoscaling policy.
+	ResourcesSpecification nodesets.ResourcesSpecification `json:"resources"`
+	// PolicyStates may contain various messages regarding the current state of this autoscaling policy.
 	PolicyStates []PolicyState `json:"state"`
+	// LastModificationTime is the last time the resources have been updated, used by the cooldown algorithm.
+	LastModificationTime metav1.Time `json:"lastModificationTime"`
+}
+
+func (s *Status) GetNamedTierResources(policyName string) (nodesets.NamedTierResources, bool) {
+	for _, policyState := range s.PolicyStates {
+		if policyState.Name == policyName {
+			return nodesets.NamedTierResources{
+				Name:                   policyState.Name,
+				NodeSetNodeCount:       policyState.NodeSetNodeCount,
+				ResourcesSpecification: policyState.ResourcesSpecification,
+			}, true
+		}
+	}
+	return nodesets.NamedTierResources{}, false
+}
+
+func (s *Status) GetLastModificationTime(policyName string) (metav1.Time, bool) {
+	for _, policyState := range s.PolicyStates {
+		if policyState.Name == policyName {
+			return policyState.LastModificationTime, true
+		}
+	}
+	return metav1.Time{}, false
 }
 
 type PolicyStateBuilder struct {
-	policyName string
-	nodeSets   []string
-	states     map[PolicyStateType]PolicyState
+	policyName           string
+	namedTierResources   nodesets.NamedTierResources
+	nodeSets             []string
+	lastModificationTime metav1.Time
+	states               map[PolicyStateType]PolicyState
 }
 
 func NewPolicyStateBuilder(name string) *PolicyStateBuilder {
@@ -69,10 +92,22 @@ func (psb *PolicyStateBuilder) Build() PolicyStateItem {
 		i++
 	}
 	return PolicyStateItem{
-		Name:         psb.policyName,
-		NodeSets:     psb.nodeSets,
-		PolicyStates: policyStates,
+		Name:                   psb.policyName,
+		NodeSetNodeCount:       psb.namedTierResources.NodeSetNodeCount,
+		ResourcesSpecification: psb.namedTierResources.ResourcesSpecification,
+		LastModificationTime:   psb.lastModificationTime,
+		PolicyStates:           policyStates,
 	}
+}
+
+func (psb *PolicyStateBuilder) SetNamedTierResources(namedTierResources nodesets.NamedTierResources) *PolicyStateBuilder {
+	psb.namedTierResources = namedTierResources
+	return psb
+}
+
+func (psb *PolicyStateBuilder) SetLastModificationTime(lastModificationTime metav1.Time) *PolicyStateBuilder {
+	psb.lastModificationTime = lastModificationTime
+	return psb
 }
 
 func (psb *PolicyStateBuilder) WithPolicyState(stateType PolicyStateType, message string) *PolicyStateBuilder {
@@ -84,14 +119,6 @@ func (psb *PolicyStateBuilder) WithPolicyState(stateType PolicyStateType, messag
 	psb.states[stateType] = PolicyState{
 		Type:     stateType,
 		Messages: []string{message},
-	}
-	return psb
-}
-
-func (psb *PolicyStateBuilder) SetNodeSets(nodeSets []esv1.NodeSet) *PolicyStateBuilder {
-	psb.nodeSets = make([]string, len(nodeSets))
-	for i := range nodeSets {
-		psb.nodeSets[i] = nodeSets[i].Name
 	}
 	return psb
 }
@@ -133,72 +160,49 @@ func (psb *PolicyStatesBuilder) Build() []PolicyStateItem {
 	return policyStates
 }
 
-type NodeSetResourcesWithMeta struct {
-	Hash                 string      `json:"hash,omitempty"`
-	LastModificationTime metav1.Time `json:"lastModificationTime"`
-	nodesets.NodeSetResources
-}
-
-type NodeSetsResourcesWithMeta []NodeSetResourcesWithMeta
-
-func (s NodeSetsResourcesWithMeta) ByNodeSet() map[string]NodeSetResourcesWithMeta {
-	byNodeSet := make(map[string]NodeSetResourcesWithMeta)
-	for _, nodeSetResources := range s {
-		nodeSetResources := nodeSetResources
-		byNodeSet[nodeSetResources.Name] = nodeSetResources
-	}
-	return byNodeSet
-}
-
-func GetAutoscalingStatus(es esv1.Elasticsearch) (NodeSetsResourcesWithMeta, error) {
+func GetStatus(es esv1.Elasticsearch) (Status, error) {
 	status := Status{}
 	if es.Annotations == nil {
-		return status.NodeSetResources, nil
+		return status, nil
 	}
 	serializedStatus, ok := es.Annotations[ElasticsearchAutoscalingStatusAnnotationName]
 	if !ok {
-		return NodeSetsResourcesWithMeta{}, nil
+		return status, nil
 	}
 	err := json.Unmarshal([]byte(serializedStatus), &status)
-	return status.NodeSetResources, err
+	return status, err
 }
 
 func UpdateAutoscalingStatus(
 	es *esv1.Elasticsearch,
 	statusBuilder *PolicyStatesBuilder,
-	nextNodeSetsResources nodesets.NodeSetsResources,
-	actualNodeSetsStatus NodeSetsResourcesWithMeta,
+	nextClusterResources nodesets.ClusterResources,
+	actualAutoscalingStatus Status,
 ) error {
-	status := Status{
-		PolicyStates: statusBuilder.Build(),
-	}
-	byNodeSetsNextResources := nextNodeSetsResources.ByNodeSet()
-	byNodeSetsActualResources := actualNodeSetsStatus.ByNodeSet()
+	// Update the timestamp on tiers resources
 	now := metav1.Now()
-	for _, nodeSet := range es.Spec.NodeSets {
-		nodeSetResource, ok := byNodeSetsNextResources[nodeSet.Name]
-		if !ok {
-			// nodeSet not managed by the autoscaler
-			continue
-		}
-		nextHash := ResourcesHash(nodeSet)
-		if previousResources, exists := byNodeSetsActualResources[nodeSet.Name]; exists &&
-			previousResources.Hash == nextHash {
-			// resources have not been updated, reuse previous resources
-			status.NodeSetResources = append(status.NodeSetResources, previousResources)
-			continue
+	for _, nextNodeSetResource := range nextClusterResources {
+		// Save the resources in the status
+		statusBuilder.ForPolicy(nextNodeSetResource.Name).SetNamedTierResources(nextNodeSetResource)
+
+		// Restore the previous timestamp
+		previousTimestamp, ok := actualAutoscalingStatus.GetLastModificationTime(nextNodeSetResource.Name)
+		if ok {
+			statusBuilder.ForPolicy(nextNodeSetResource.Name).SetLastModificationTime(previousTimestamp)
 		}
 
-		status.NodeSetResources = append(status.NodeSetResources,
-			NodeSetResourcesWithMeta{
-				Hash:                 ResourcesHash(nodeSet),
-				LastModificationTime: now,
-				NodeSetResources:     nodeSetResource,
-			})
-
+		actualNodeSetResource, ok := actualAutoscalingStatus.GetNamedTierResources(nextNodeSetResource.Name)
+		if !ok || !actualNodeSetResource.SameResources(nextNodeSetResource) {
+			statusBuilder.ForPolicy(nextNodeSetResource.Name).SetLastModificationTime(now)
+		}
 	}
+
+	// Create the annotation
 	if es.Annotations == nil {
 		es.Annotations = make(map[string]string)
+	}
+	status := Status{
+		PolicyStates: statusBuilder.Build(),
 	}
 	serializedStatus, err := json.Marshal(&status)
 	if err != nil {
@@ -206,58 +210,4 @@ func UpdateAutoscalingStatus(
 	}
 	es.Annotations[ElasticsearchAutoscalingStatusAnnotationName] = string(serializedStatus)
 	return nil
-}
-
-// ResourcesHash computes a reliable hash of the resources spec in a nodeSet.
-// The lack of reliability may come from the fact that Quantity.String() has a side effect on the
-// struct, and hence any hash computation must ensure that Quantity.String() is called in a consistent
-// when the hash is computed.
-func ResourcesHash(nodeSet esv1.NodeSet) string {
-	configChecksum := adler32.New()
-	_, _ = configChecksum.Write([]byte{byte(nodeSet.Count)})
-	for _, container := range nodeSet.PodTemplate.Spec.Containers {
-		if container.Name != esv1.ElasticsearchContainerName {
-			continue
-		}
-		for _, resourceName := range orderedResourceNames(container.Resources.Requests) {
-			_, _ = configChecksum.Write([]byte(resourceName))
-			resourceQuantity := container.Resources.Requests[resourceName]
-			_, _ = configChecksum.Write([]byte(resourceQuantity.String()))
-		}
-		for _, resourceName := range orderedResourceNames(container.Resources.Limits) {
-			_, _ = configChecksum.Write([]byte(resourceName))
-			resourceQuantity := container.Resources.Requests[resourceName]
-			_, _ = configChecksum.Write([]byte(resourceQuantity.String()))
-		}
-	}
-	for _, volumeClaim := range orderVolumeClaimTemplates(nodeSet.VolumeClaimTemplates) {
-		_, _ = configChecksum.Write([]byte(volumeClaim.Name))
-		for _, storageResourceName := range orderedResourceNames(volumeClaim.Spec.Resources.Requests) {
-			_, _ = configChecksum.Write([]byte(storageResourceName))
-			resourceQuantity := volumeClaim.Spec.Resources.Requests[storageResourceName]
-			_, _ = configChecksum.Write([]byte(resourceQuantity.String()))
-		}
-
-	}
-	return fmt.Sprintf("%x", configChecksum.Sum(nil))
-}
-
-func orderVolumeClaimTemplates(pvc []corev1.PersistentVolumeClaim) []corev1.PersistentVolumeClaim {
-	sort.Slice(pvc, func(i, j int) bool {
-		return pvc[i].String() < pvc[j].String()
-	})
-	return pvc
-}
-
-func orderedResourceNames(m v1.ResourceList) []v1.ResourceName {
-	keys := make([]v1.ResourceName, len(m))
-	i := 0
-	for k := range m {
-		keys[i] = k
-		i++
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].String() < keys[j].String()
-	})
-	return keys
 }

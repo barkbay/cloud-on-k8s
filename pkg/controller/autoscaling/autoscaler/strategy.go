@@ -13,27 +13,26 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // TODO: Create a context struct to embed things like nodeSets, log, autoscalingSpec or statusBuilder
 
-// getMaxStorage extracts the max storage size among a set of nodeSets.
-func getMaxStorage(nodeSets status.NodeSetsResourcesWithMeta) resource.Quantity {
+// getStorage returns the storage capacity for the provided autoscaling policy.The storage capacityis always at least the
+func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingStatus status.Status) resource.Quantity {
+	// If no storage spec is defined in the autoscaling status we return the default volume size.
 	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
-	for _, nodeSet := range nodeSets.ByNodeSet() {
-		if nodeSet.Storage != nil && nodeSet.Storage.Cmp(storage) > 0 {
-			storage = *nodeSet.Storage
-		}
+	// Always adjust to the min value specified by the user in the limits.
+	if autoscalingSpec.IsStorageDefined() {
+		storage = autoscalingSpec.Storage.Min
 	}
-	return storage
-}
-
-func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSetsResourcesWithMeta) resource.Quantity {
-	// TODO: nodeSet with more than once volume claim is not supported
-	storage := getMaxStorage(nodeSetsStatus)
-	if storageRange != nil && storageRange.Min.Cmp(storage) > 0 {
-		storage = storageRange.Min.DeepCopy()
+	if actualResources, exists := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name); exists && actualResources.HasRequest(corev1.ResourceStorage) {
+		storageInStatus := actualResources.GetRequest(corev1.ResourceStorage)
+		// There is a resources definition for this autoscaling policy
+		if storageInStatus.Cmp(storage) > 0 {
+			storage = storageInStatus
+		}
 	}
 	return storage
 }
@@ -41,13 +40,13 @@ func minStorage(storageRange *esv1.QuantityRange, nodeSetsStatus status.NodeSets
 func GetScaleDecision(
 	log logr.Logger,
 	nodeSets []string,
-	nodeSetsStatus status.NodeSetsResourcesWithMeta,
+	actualAutoscalingStatus status.Status,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
-) nodesets.NodeSetsResources {
+) nodesets.NamedTierResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(log, len(nodeSets), nodeSetsStatus, requiredCapacity, autoscalingSpec, statusBuilder)
+	desiredNodeResources := scaleVertically(log, len(nodeSets), actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
 	log.Info(
 		"Vertical autoscaler",
 		"state", "online",
@@ -70,13 +69,13 @@ var giga = int64(1024 * 1024 * 1024)
 func scaleVertically(
 	log logr.Logger,
 	nodeSetsCount int,
-	nodeSetsStatus status.NodeSetsResourcesWithMeta,
+	actualAutoscalingStatus status.Status,
 	requiredCapacity client.RequiredCapacity,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.ResourcesSpecification {
 	minNodesCount, _ := adjustMinMaxCount(log, nodeSetsCount, autoscalingSpec, statusBuilder)
-	currentStorage := minStorage(autoscalingSpec.Storage, nodeSetsStatus)
+	currentStorage := getStorage(autoscalingSpec, actualAutoscalingStatus)
 
 	return nodeResources(
 		log,

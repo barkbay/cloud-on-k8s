@@ -15,25 +15,25 @@ import (
 
 // FairNodesManager helps to distribute nodes among several NodeSets whose belong to a same tier.
 type FairNodesManager struct {
-	log               logr.Logger
-	nodeSetsResources nodesets.NodeSetsResources
+	log                  logr.Logger
+	nodeSetNodeCountList nodesets.NodeSetNodeCountList
 }
 
 // sort sorts nodeSets by the value of the Count field, giving priority to nodeSets with less nodes.
 // If several nodeSets have the same number of nodes they are sorted alphabetically.
 func (fnm *FairNodesManager) sort() {
-	sort.SliceStable(fnm.nodeSetsResources, func(i, j int) bool {
-		if fnm.nodeSetsResources[i].Count == fnm.nodeSetsResources[j].Count {
-			return strings.Compare(fnm.nodeSetsResources[i].Name, fnm.nodeSetsResources[j].Name) < 0
+	sort.SliceStable(fnm.nodeSetNodeCountList, func(i, j int) bool {
+		if fnm.nodeSetNodeCountList[i].NodeCount == fnm.nodeSetNodeCountList[j].NodeCount {
+			return strings.Compare(fnm.nodeSetNodeCountList[i].Name, fnm.nodeSetNodeCountList[j].Name) < 0
 		}
-		return fnm.nodeSetsResources[i].Count < fnm.nodeSetsResources[j].Count
+		return fnm.nodeSetNodeCountList[i].NodeCount < fnm.nodeSetNodeCountList[j].NodeCount
 	})
 }
 
-func NewFairNodesManager(log logr.Logger, nodeSetsResources nodesets.NodeSetsResources) FairNodesManager {
+func NewFairNodesManager(log logr.Logger, nodeSetNodeCount []nodesets.NodeSetNodeCount) FairNodesManager {
 	fnm := FairNodesManager{
-		log:               log,
-		nodeSetsResources: nodeSetsResources,
+		log:                  log,
+		nodeSetNodeCountList: nodeSetNodeCount,
 	}
 	fnm.sort()
 	return fnm
@@ -44,7 +44,7 @@ func NewFairNodesManager(log logr.Logger, nodeSetsResources nodesets.NodeSetsRes
 // several nodeSets have the same Count value.
 func (fnm *FairNodesManager) AddNode() {
 	// Peak the first element, this is the one with the less nodes
-	fnm.nodeSetsResources[0].Count++
+	fnm.nodeSetNodeCountList[0].NodeCount++
 	// Ensure the set is sorted
 	fnm.sort()
 }

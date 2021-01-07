@@ -13,7 +13,7 @@ import (
 
 func TestFairNodesManager_AddNode(t *testing.T) {
 	type fields struct {
-		nodeSetsResources nodesets.NodeSetsResources
+		nodeSetNodeCountList []nodesets.NodeSetNodeCount
 	}
 	tests := []struct {
 		name       string
@@ -23,44 +23,44 @@ func TestFairNodesManager_AddNode(t *testing.T) {
 		{
 			name: "One nodeSet",
 			fields: fields{
-				nodeSetsResources: []nodesets.NodeSetResources{{Name: "nodeset-1"}},
+				nodeSetNodeCountList: []nodesets.NodeSetNodeCount{{Name: "nodeset-1"}},
 			},
 			assertFunc: func(t *testing.T, fnm FairNodesManager) {
-				assert.Equal(t, 1, len(fnm.nodeSetsResources))
-				assert.Equal(t, int32(0), fnm.nodeSetsResources[0].Count)
+				assert.Equal(t, 1, len(fnm.nodeSetNodeCountList))
+				assert.Equal(t, int32(0), fnm.nodeSetNodeCountList[0].NodeCount)
 				fnm.AddNode()
-				assert.Equal(t, int32(1), fnm.nodeSetsResources[0].Count)
+				assert.Equal(t, int32(1), fnm.nodeSetNodeCountList[0].NodeCount)
 				fnm.AddNode()
-				assert.Equal(t, int32(2), fnm.nodeSetsResources[0].Count)
+				assert.Equal(t, int32(2), fnm.nodeSetNodeCountList[0].NodeCount)
 			},
 		},
 		{
 			name: "Several nodeSets",
 			fields: fields{
-				nodeSetsResources: []nodesets.NodeSetResources{{Name: "nodeset-1"}, {Name: "nodeset-2"}},
+				nodeSetNodeCountList: []nodesets.NodeSetNodeCount{{Name: "nodeset-1"}, {Name: "nodeset-2"}},
 			},
 			assertFunc: func(t *testing.T, fnm FairNodesManager) {
-				assert.Equal(t, 2, len(fnm.nodeSetsResources))
-				assert.Equal(t, int32(0), fnm.nodeSetsResources.ByNodeSet()["nodeset-1"].Count)
-				assert.Equal(t, int32(0), fnm.nodeSetsResources.ByNodeSet()["nodeset-2"].Count)
+				assert.Equal(t, 2, len(fnm.nodeSetNodeCountList))
+				assert.Equal(t, int32(0), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-1"])
+				assert.Equal(t, int32(0), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-2"])
 
 				fnm.AddNode()
-				assert.Equal(t, int32(1), fnm.nodeSetsResources.ByNodeSet()["nodeset-1"].Count)
-				assert.Equal(t, int32(0), fnm.nodeSetsResources.ByNodeSet()["nodeset-2"].Count)
+				assert.Equal(t, int32(1), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-1"])
+				assert.Equal(t, int32(0), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-2"])
 
 				fnm.AddNode()
-				assert.Equal(t, int32(1), fnm.nodeSetsResources.ByNodeSet()["nodeset-1"].Count)
-				assert.Equal(t, int32(1), fnm.nodeSetsResources.ByNodeSet()["nodeset-2"].Count)
+				assert.Equal(t, int32(1), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-1"])
+				assert.Equal(t, int32(1), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-2"])
 
 				fnm.AddNode()
-				assert.Equal(t, int32(2), fnm.nodeSetsResources.ByNodeSet()["nodeset-1"].Count)
-				assert.Equal(t, int32(1), fnm.nodeSetsResources.ByNodeSet()["nodeset-2"].Count)
+				assert.Equal(t, int32(2), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-1"])
+				assert.Equal(t, int32(1), fnm.nodeSetNodeCountList.ByNodeSet()["nodeset-2"])
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fnm := NewFairNodesManager(logTest, tt.fields.nodeSetsResources)
+			fnm := NewFairNodesManager(logTest, tt.fields.nodeSetNodeCountList)
 			tt.assertFunc(t, fnm)
 		})
 	}

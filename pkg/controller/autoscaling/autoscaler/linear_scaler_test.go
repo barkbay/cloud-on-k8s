@@ -16,9 +16,13 @@ func quantityPtr(quantity string) *resource.Quantity {
 	return &q
 }
 
+func q(quantity string) resource.Quantity {
+	return resource.MustParse(quantity)
+}
+
 func Test_memoryFromStorage(t *testing.T) {
 	type args struct {
-		requiredStorageCapacity int64
+		requiredStorageCapacity resource.Quantity
 		autoscalingSpec         esv1.AutoscalingPolicySpec
 	}
 	tests := []struct {
@@ -29,24 +33,24 @@ func Test_memoryFromStorage(t *testing.T) {
 		{
 			name: "Storage is at its min value, do not scale up memory",
 			args: args{
-				requiredStorageCapacity: 2147483648,
-				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder().WithMemory("1Gi", "3Gi").WithStorage("2Gi", "2Gi").Build(),
+				requiredStorageCapacity: q("2Gi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "3Gi").WithStorage("2Gi", "2Gi").Build(),
 			},
 			wantMemory: quantityPtr("1Gi"), // keep the min. value
 		},
 		{
 			name: "Do not allocate more memory than max allowed",
 			args: args{
-				requiredStorageCapacity: 2147483648,
-				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder().WithMemory("1Gi", "1500Mi").WithStorage("1Gi", "2Gi").Build(),
+				requiredStorageCapacity: q("2Gi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "1500Mi").WithStorage("1Gi", "2Gi").Build(),
 			},
 			wantMemory: quantityPtr("1500Mi"), // keep the min. value
 		},
 		{
 			name: "Allocate max of memory when it's possible",
 			args: args{
-				requiredStorageCapacity: 2147483648,
-				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder().WithMemory("1Gi", "2256Mi").WithStorage("1Gi", "2Gi").Build(),
+				requiredStorageCapacity: q("2Gi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "2256Mi").WithStorage("1Gi", "2Gi").Build(),
 			},
 			wantMemory: quantityPtr("2256Mi"), // keep the min. value
 		},
@@ -62,7 +66,7 @@ func Test_memoryFromStorage(t *testing.T) {
 
 func Test_cpuFromMemory(t *testing.T) {
 	type args struct {
-		requiredMemoryCapacity int64
+		requiredMemoryCapacity resource.Quantity
 		autoscalingSpec        esv1.AutoscalingPolicySpec
 	}
 	tests := []struct {
@@ -73,40 +77,32 @@ func Test_cpuFromMemory(t *testing.T) {
 		{
 			name: "Memory is at its min value, do not scale up CPU",
 			args: args{
-				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "3").WithMemory("2Gi", "2Gi").Build(),
+				requiredMemoryCapacity: q("2Gi"),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "3").WithMemory("2Gi", "2Gi").Build(),
 			},
 			wantCpu: resource.NewQuantity(1, resource.DecimalSI), // keep the min. value
 		},
 		{
 			name: "1/3 of the memory range should be translated to 1/3 of the CPU range",
 			args: args{
-				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "4").WithMemory("1Gi", "4Gi").Build(),
+				requiredMemoryCapacity: q("2Gi"),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "4").WithMemory("1Gi", "4Gi").Build(),
 			},
 			wantCpu: resource.NewQuantity(2, resource.DecimalSI),
 		},
 		{
 			name: "half of the memory range should be translated to rounded value of half of the CPU range",
 			args: args{
-				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("1", "4").WithMemory("1Gi", "3Gi").Build(),
+				requiredMemoryCapacity: q("2Gi"),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("1", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
 			wantCpu: quantityPtr("3"), // 2500 rounded to 3000
 		},
 		{
-			name: "min memory == max memory, do not scale cpu",
-			args: args{
-				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("2", "4").WithMemory("2Gi", "2Gi").Build(),
-			},
-			wantCpu: quantityPtr("2"),
-		},
-		{
 			name: "min and max CPU are equal",
 			args: args{
-				requiredMemoryCapacity: 2147483648,
-				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder().WithCpu("4", "4").WithMemory("1Gi", "3Gi").Build(),
+				requiredMemoryCapacity: q("2Gi"),
+				autoscalingSpec:        esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithCpu("4", "4").WithMemory("1Gi", "3Gi").Build(),
 			},
 			wantCpu: quantityPtr("4000m"),
 		},

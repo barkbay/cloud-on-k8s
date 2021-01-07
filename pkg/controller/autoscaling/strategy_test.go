@@ -12,69 +12,74 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func Test_applyScaleDecision(t *testing.T) {
 	type args struct {
 		currentNodeSets  []string
-		nodeSetsStatus   status.NodeSetsResourcesWithMeta
+		nodeSetsStatus   status.Status
 		requiredCapacity client.RequiredCapacity
 		policy           esv1.AutoscalingPolicySpec
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    map[string]nodesets.NodeSetResources
+		want    nodesets.NamedTierResources
 		wantErr bool
 	}{
 		{
 			name: "Scale both horizontally to fulfil storage capacity request",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
-					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
-					},
+				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3G"), corev1.ResourceStorage: q("1Gi")}}}},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
 					nodeMemory("3Gi").nodeStorage("8Gi").
 					tierMemory("9Gi").tierStorage("50Gi").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("3Gi", "4Gi").WithStorage("5Gi", "10Gi").Build(),
+				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("3Gi", "4Gi").WithStorage("5Gi", "10Gi").Build(),
 			},
-			want: map[string]nodesets.NodeSetResources{
-				"default": newResourcesBuilder("default", 5).withMemoryRequest("3Gi").withStorageRequest("10Gi").build(),
+			want: nodesets.NamedTierResources{
+				Name:                   "my-autoscaling-policy",
+				NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 5}},
+				ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("10Gi")}},
 			},
 		},
 		{
 			name: "Scale existing nodes vertically",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
-					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("3G"), Storage: quantityPtr("1Gi")}},
-					},
+				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3G"), corev1.ResourceStorage: q("1Gi")}}}},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
 					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
-			want: map[string]nodesets.NodeSetResources{
-				"default": newResourcesBuilder("default", 3).withMemoryRequest("6G").build(),
+			want: nodesets.NamedTierResources{
+				Name:                   "my-autoscaling-policy",
+				NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+				ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6G")}},
 			},
 		},
 		{
 			name: "Do not scale down storage capacity",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
-					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("10G")}},
-					},
+				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("10G")}}}},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
 					nodeMemory("6G").
@@ -82,85 +87,73 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeStorage("1Gi").
 					tierStorage("3Gi").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").WithStorage("1G", "20G").Build(),
+				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").WithStorage("1G", "20G").Build(),
 			},
-			want: map[string]nodesets.NodeSetResources{
-				"default": newResourcesBuilder("default", 3).withMemoryRequest("6G").withStorageRequest("10G").build(),
+			want: nodesets.NamedTierResources{
+				Name:                   "my-autoscaling-policy",
+				NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+				ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6G"), corev1.ResourceStorage: q("10G")}},
 			},
 		},
 		{
 			name: "Scale existing nodes vertically up to the tier limit",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
-					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
-					},
+				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("1Gi")}}}},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
 					nodeMemory("6G").
 					tierMemory("21G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
-			want: map[string]nodesets.NodeSetResources{
-				"default": newResourcesBuilder("default", 3).withMemoryRequest("7Gi").build(),
+			want: nodesets.NamedTierResources{
+				Name:                   "my-autoscaling-policy",
+				NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+				ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("7Gi")}},
 			},
 		},
 		{
 			name: "Scale both vertically and horizontally",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.NodeSetsResourcesWithMeta{
-					{
-						NodeSetResources: nodesets.NodeSetResources{Name: "default", ResourcesSpecification: nodesets.ResourcesSpecification{Count: 3, Memory: quantityPtr("4G"), Storage: quantityPtr("1Gi")}},
-					},
+				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+					Name:                   "my-autoscaling-policy",
+					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
+					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("1Gi")}}}},
 				},
 				requiredCapacity: newRequiredCapacityBuilder().
 					nodeMemory("6G").
 					tierMemory("48G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder().WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
-			want: map[string]nodesets.NodeSetResources{
-				"default": newResourcesBuilder("default", 6).withMemoryRequest("8G").build(),
+			want: nodesets.NamedTierResources{
+				Name:                   "my-autoscaling-policy",
+				NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 6}},
+				ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("8G")}},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusBuilder := status.NewPolicyStatesBuilder()
-			got := autoscaler.GetScaleDecision(logTest, tt.args.currentNodeSets, tt.args.nodeSetsStatus, tt.args.requiredCapacity, tt.args.policy, statusBuilder)
-			assert.Equal(t, len(tt.want), len(got))
-			for nodeSetName, nodeSetResources := range got.ByNodeSet() {
-				wantResources, exists := tt.want[nodeSetName]
-				assert.True(t, exists)
-				assert.Equal(t, wantResources.Count, nodeSetResources.Count)
-				if wantResources.Cpu != nil {
-					assert.NotNil(t, nodeSetResources.Cpu, "cpu resource expected but got nil")
-					if nodeSetResources.Cpu != nil {
-						assert.True(t, nodeSetResources.Cpu.Cmp(*wantResources.Cpu) == 0, "Expected CPU %#v, got %#v", wantResources.Cpu, nodeSetResources.Cpu)
-					}
-				}
-				if wantResources.Memory != nil {
-					assert.NotNil(t, nodeSetResources.Memory, "memory resource expected but got nil")
-					if nodeSetResources.Memory != nil {
-						assert.True(t, nodeSetResources.Memory.Cmp(*wantResources.Memory) == 0, "Expected memory %#v, got %#v", wantResources.Memory, nodeSetResources.Memory)
-					}
-				}
-
-				if wantResources.Storage != nil {
-					assert.NotNil(t, nodeSetResources.Storage, "storage resource expected but got nil")
-					if nodeSetResources.Storage != nil {
-						assert.True(t, nodeSetResources.Storage.Cmp(*wantResources.Storage) == 0, "Expected storage %#v, got %#v", wantResources.Storage, nodeSetResources.Storage)
-					}
-				}
+			if got := autoscaler.GetScaleDecision(
+				logTest,
+				tt.args.currentNodeSets,
+				tt.args.nodeSetsStatus,
+				tt.args.requiredCapacity,
+				tt.args.policy, statusBuilder,
+			); !equality.Semantic.DeepEqual(got, tt.want) {
+				t.Errorf("autoscaler.GetScaleDecision() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func quantityPtr(quantity string) *resource.Quantity {
-	q := resource.MustParse(quantity)
-	return &q
+func q(quantity string) resource.Quantity {
+	return resource.MustParse(quantity)
 }

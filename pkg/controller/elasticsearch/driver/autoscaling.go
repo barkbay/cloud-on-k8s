@@ -20,13 +20,12 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	autoscalingStatus, err := status.GetAutoscalingStatus(es)
+	autoscalingStatus, err := status.GetStatus(es)
 	if err != nil {
 		return false, err
 	}
-	statusByNodeSet := autoscalingStatus.ByNodeSet()
-	for _, nodeSet := range es.Spec.NodeSets {
 
+	for _, nodeSet := range es.Spec.NodeSets {
 		nodeSetAutoscalingSpec, err := autoscalingSpec.GetAutoscalingSpecFor(es, nodeSet)
 		if err != nil {
 			return false, err
@@ -37,20 +36,17 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 			continue
 		}
 
-		s, ok := statusByNodeSet[nodeSet.Name]
+		s, ok := autoscalingStatus.GetNamedTierResources(nodeSetAutoscalingSpec.Name)
 		if !ok {
 			log.Info("NodeSet managed by the autoscaling controller but not found in status",
 				"nodeset", nodeSet.Name,
 			)
 			return false, nil
 		}
-
-		nodeSetHash := status.ResourcesHash(nodeSet)
-		if s.Hash != nodeSetHash {
+		if s.IsUsedBy(nodeSet) {
 			log.Info("NodeSet managed by the autoscaling controller but not in sync",
 				"nodeset", nodeSet.Name,
-				"expected", s.Hash,
-				"actual", nodeSetHash,
+				"expected", s.ResourcesSpecification,
 			)
 			return false, nil
 		}

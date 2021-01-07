@@ -5,12 +5,13 @@ import "k8s.io/apimachinery/pkg/api/resource"
 // - AutoscalingSpec builder
 
 type AutoscalingSpecsBuilder struct {
+	name                       string
 	nodeCountMin, nodeCountMax int32
 	cpu, memory, storage       *QuantityRange
 }
 
-func NewAutoscalingSpecsBuilder() *AutoscalingSpecsBuilder {
-	return &AutoscalingSpecsBuilder{}
+func NewAutoscalingSpecsBuilder(name string) *AutoscalingSpecsBuilder {
+	return &AutoscalingSpecsBuilder{name: name}
 }
 
 func (asb *AutoscalingSpecsBuilder) WithNodeCounts(min, max int) *AutoscalingSpecsBuilder {
@@ -45,6 +46,9 @@ func (asb *AutoscalingSpecsBuilder) WithCpu(min, max string) *AutoscalingSpecsBu
 
 func (asb *AutoscalingSpecsBuilder) Build() AutoscalingPolicySpec {
 	return AutoscalingPolicySpec{
+		NamedAutoscalingPolicy: NamedAutoscalingPolicy{
+			Name: asb.name,
+		},
 		AutoscalingResources: AutoscalingResources{
 			Cpu:     asb.cpu,
 			Memory:  asb.memory,

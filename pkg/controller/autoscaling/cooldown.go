@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -40,9 +41,9 @@ type stabilizationContext struct {
 func applyCoolDownFilters(
 	log logr.Logger,
 	es esv1.Elasticsearch,
-	nextNodeSetsResources nodesets.NodeSetsResources,
+	nextNodeSetsResources nodesets.NamedTierResources,
 	autoscalingPolicy esv1.AutoscalingPolicySpec,
-	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
+	actualAutoscalingStatus status.Status,
 	statusBuilder *status.PolicyStatesBuilder,
 ) {
 	sc := stabilizationContext{
@@ -52,39 +53,49 @@ func applyCoolDownFilters(
 		log:           log,
 		statusBuilder: statusBuilder,
 	}
-	sc.applyScaledownFilter(nextNodeSetsResources, autoscalingPolicy, actualNodeSetsResources)
+	sc.applyScaledownFilter(nextNodeSetsResources, actualAutoscalingStatus)
 }
 
 // applyScaledownFilter prevents scale down of resources while in the scale up stabilization window
 func (sc *stabilizationContext) applyScaledownFilter(
-	nextNodeSetsResources nodesets.NodeSetsResources,
-	autoscalingPolicy esv1.AutoscalingPolicySpec,
-	actualNodeSetsResources status.NodeSetsResourcesWithMeta,
+	nextNodeSetsResources nodesets.NamedTierResources,
+	actualAutoscalingStatus status.Status,
 ) {
+	actualNodeSetsResources, exists := actualAutoscalingStatus.GetNamedTierResources(nextNodeSetsResources.Name)
+	if !exists {
+		return
+	}
 	now := sc.Now()
-	for i := range nextNodeSetsResources {
-		actualNodeSetsResourcesByNodeSet := actualNodeSetsResources.ByNodeSet()
-		actualNodeSetResources, exists := actualNodeSetsResourcesByNodeSet[nextNodeSetsResources[i].Name]
-		if !exists {
+	lastModificationTime, exists := actualAutoscalingStatus.GetLastModificationTime(nextNodeSetsResources.Name)
+	if !exists {
+		return
+	}
+	if lastModificationTime.Add(defaultScaleUpStabilizationWindow).Before(now) {
+		return
+	}
+
+	// Memory
+	if actualNodeSetsResources.HasRequest(corev1.ResourceMemory) && nextNodeSetsResources.HasRequest(corev1.ResourceMemory) {
+		nextNodeSetsResources.SetRequest(corev1.ResourceMemory, sc.filterResourceScaledown("memory", actualNodeSetsResources.GetRequest(corev1.ResourceMemory), nextNodeSetsResources.GetRequest(corev1.ResourceMemory)))
+	}
+	// CPU
+	if actualNodeSetsResources.HasRequest(corev1.ResourceCPU) && nextNodeSetsResources.HasRequest(corev1.ResourceCPU) {
+		nextNodeSetsResources.SetRequest(corev1.ResourceCPU, sc.filterResourceScaledown("cpu", actualNodeSetsResources.GetRequest(corev1.ResourceCPU), nextNodeSetsResources.GetRequest(corev1.ResourceCPU)))
+	}
+
+	// Node count
+	actualByNodeSet := actualNodeSetsResources.NodeSetNodeCount.ByNodeSet()
+	for i := range nextNodeSetsResources.NodeSetNodeCount {
+		nextNodeSetName := nextNodeSetsResources.NodeSetNodeCount[i].Name
+		actualNodeCount, hasActualNodeCount := actualByNodeSet[nextNodeSetName]
+		if !hasActualNodeCount {
 			continue
 		}
-		if actualNodeSetResources.LastModificationTime.Add(defaultScaleUpStabilizationWindow).Before(now) {
-			continue
-		}
-		// Memory
-		if actualNodeSetResources.Memory != nil && nextNodeSetsResources[i].Memory != nil && autoscalingPolicy.IsMemoryDefined() {
-			nextNodeSetsResources[i].Memory = sc.filterResourceScaledown("memory", actualNodeSetResources.Memory, nextNodeSetsResources[i].Memory, autoscalingPolicy.Memory)
-		}
-		// CPU
-		if actualNodeSetResources.Cpu != nil && nextNodeSetsResources[i].Cpu != nil && autoscalingPolicy.IsCpuDefined() {
-			nextNodeSetsResources[i].Cpu = sc.filterResourceScaledown("cpu", actualNodeSetResources.Cpu, nextNodeSetsResources[i].Cpu, autoscalingPolicy.Cpu)
-		}
-		// Node count
-		nextNodeSetsResources[i].Count = sc.filterNodeCountScaledown(actualNodeSetResources.Count, nextNodeSetsResources[i].Count, autoscalingPolicy.NodeCount)
+		nextNodeSetsResources.NodeSetNodeCount[i].NodeCount = sc.filterNodeCountScaledown(actualNodeCount, nextNodeSetsResources.NodeSetNodeCount[i].NodeCount)
 	}
 }
 
-func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32, allowedRange esv1.CountRange) int32 {
+func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32) int32 {
 	if next >= actual {
 		return next
 	}
@@ -92,23 +103,12 @@ func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32, all
 	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(status.ScaleUpStabilizationWindow, fmt.Sprintf(scaleupStabilizationMessage, "node count"))
 	sc.log.Info("stabilization window", "policy", sc.policyName, "required_count", next, "actual_count", actual)
 
-	// We still want to ensure that the next value complies with the limits provided by the user
-	nodeCount := actual
-	if nodeCount > allowedRange.Max {
-		nodeCount = allowedRange.Max
-	}
-	if nodeCount < allowedRange.Min {
-		nodeCount = allowedRange.Min
-	}
-	return nodeCount
+	return actual
 }
 
-func (sc *stabilizationContext) filterResourceScaledown(
-	resourceType string,
-	actual, next *resource.Quantity,
-	allowedRange *esv1.QuantityRange,
-) *resource.Quantity {
-	if next.Cmp(*actual) >= 0 {
+func (sc *stabilizationContext) filterResourceScaledown(resourceType string, actual, next resource.Quantity,
+) resource.Quantity {
+	if next.Cmp(actual) >= 0 {
 		// not scaling down, ignore
 		return next
 	}
@@ -118,17 +118,5 @@ func (sc *stabilizationContext) filterResourceScaledown(
 		fmt.Sprintf("%s not scaled down because of scale up stabilization window", resourceType),
 	)
 	sc.log.Info("stabilization window", "policy", sc.policyName, "required_"+resourceType, next, "actual_"+resourceType, actual)
-	q := actual.DeepCopy()
-
-	if allowedRange == nil {
-		return &q
-	}
-	// Even if we are in a stabilization window we still want to ensure that the next value complies with the limits provided by the user
-	if q.Cmp(allowedRange.Max) > 0 {
-		q = allowedRange.Max.DeepCopy()
-	}
-	if q.Cmp(allowedRange.Min) < 0 {
-		q = allowedRange.Min.DeepCopy()
-	}
-	return &q
+	return actual
 }
