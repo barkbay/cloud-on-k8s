@@ -37,6 +37,7 @@ type PolicyStateItem struct {
 	// NodeSetNodeCount holds the number of nodes for each nodeSet.
 	NodeSetNodeCount nodesets.NodeSetNodeCountList `json:"nodeSets"`
 	// ResourcesSpecification holds the resource values common to all the nodeSet managed by a same autoscaling policy.
+	// Only the resources managed by the autoscaling controller are saved in the Status.
 	ResourcesSpecification nodesets.ResourcesSpecification `json:"resources"`
 	// PolicyStates may contain various messages regarding the current state of this autoscaling policy.
 	PolicyStates []PolicyState `json:"state"`

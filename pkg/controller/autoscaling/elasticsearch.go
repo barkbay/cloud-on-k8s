@@ -127,28 +127,18 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Get resource policies from the Elasticsearch spec
-	autoscalingSpecifications, err := es.GetAutoscalingSpecification()
+	autoscalingSpecification, err := es.GetAutoscalingSpecification()
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
 	// Validate autoscaling spec
-	errs := autoscalingSpecifications.Validate()
+	errs := autoscalingSpecification.Validate()
 	if len(errs) > 0 {
 		for _, err := range errs.ToAggregate().Errors() {
 			log.Error(err, "invalid autoscaling specification")
 		}
 		return reconcile.Result{}, tracing.CaptureError(ctx, fmt.Errorf("autoscaling spec is invalid"))
-	}
-
-	autoscalingStatus, err := status.GetStatus(es)
-	if err != nil {
-		return reconcile.Result{}, tracing.CaptureError(ctx, err)
-	}
-
-	if len(autoscalingSpecifications.AutoscalingPolicySpecs) == 0 && len(autoscalingStatus.PolicyStates) == 0 {
-		// This cluster is not managed by the autoscaler
-		return reconcile.Result{}, nil
 	}
 
 	v, err := version.Parse(es.Spec.Version)
@@ -159,16 +149,31 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		compatibilityErr := fmt.Errorf("autoscaling requires version %s of Elasticsearch, current version is %s", validation.ElasticsearchMinAutoscalingVersion, v)
 		k8s.EmitErrorEvent(r.recorder, compatibilityErr, &es, events.EventCompatCheckError, "Error during compatibility check: %v", compatibilityErr)
 	}
+	// Build status from annotation or existing resources
+	autoscalingStatus, err := status.GetStatus(es)
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	if len(autoscalingSpecification.AutoscalingPolicySpecs) == 0 && len(autoscalingStatus.PolicyStates) == 0 {
+		// This cluster is not managed by the autoscaler
+		return reconcile.Result{}, nil
+	}
 
 	// Compute named tiers
-	namedTiers, namedTiersErr := autoscalingSpecifications.GetAutoscaledNodeSets()
+	namedTiers, namedTiersErr := autoscalingSpecification.GetAutoscaledNodeSets()
 	if namedTiersErr != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
+	// Import existing resources in the actual Status
+	if err := autoscalingStatus.ImportExistingResources(log, r.Client, autoscalingSpecification, namedTiers); err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
 	// Call the main function
-	current, err := r.reconcileInternal(ctx, autoscalingStatus, namedTiers, autoscalingSpecifications, es)
+	current, err := r.reconcileInternal(ctx, autoscalingStatus, namedTiers, autoscalingSpecification, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

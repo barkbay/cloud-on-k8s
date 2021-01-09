@@ -27,7 +27,7 @@ func NewNamedTierResources(name string, nodeSetNames []string) NamedTierResource
 
 type ClusterResources []NamedTierResources
 
-// Matches returns true if the nodeSet resources matches the one specified in the NodeSetResources
+// IsUsedBy returns true if the nodeSet resources matches the one specified in the NodeSetResources
 func (nsr NamedTierResources) IsUsedBy(nodeSet v1.NodeSet) bool {
 	for _, nodeCount := range nsr.NodeSetNodeCount {
 		if nodeCount.Name != nodeSet.Name {
@@ -71,8 +71,51 @@ func newNodeSetNodeCountList(nodeSetNames []string) NodeSetNodeCountList {
 
 // ResourcesSpecification holds the result of the autoscaling algorithm.
 type ResourcesSpecification struct {
-	Requests corev1.ResourceList `json:"requests,omitempty"`
 	Limits   corev1.ResourceList `json:"limits,omitempty"`
+	Requests corev1.ResourceList `json:"requests,omitempty"`
+}
+
+// MaxMerge merge the specified resource into the ResourcesSpecification only if its quantity is greater
+// than the existing one.
+func (rs *ResourcesSpecification) MaxMerge(
+	other corev1.ResourceRequirements,
+	resourceName corev1.ResourceName,
+) {
+	// Requests
+	for otherResourceName, otherResourceValue := range other.Requests {
+		if otherResourceName != resourceName {
+			continue
+		}
+		if rs.Requests == nil {
+			rs.Requests = make(corev1.ResourceList)
+		}
+		receiverValue, receiverHasResource := rs.Requests[resourceName]
+		if !receiverHasResource {
+			rs.Requests[resourceName] = otherResourceValue
+			continue
+		}
+		if otherResourceValue.Cmp(receiverValue) > 0 {
+			rs.Requests[resourceName] = otherResourceValue
+		}
+	}
+
+	// Limits
+	for resourceName, otherResourceValue := range other.Limits {
+		if resourceName != resourceName {
+			continue
+		}
+		if rs.Limits == nil {
+			rs.Limits = make(corev1.ResourceList)
+		}
+		receiverValue, receiverHasResource := rs.Limits[resourceName]
+		if !receiverHasResource {
+			rs.Limits[resourceName] = otherResourceValue
+			continue
+		}
+		if otherResourceValue.Cmp(receiverValue) > 0 {
+			rs.Limits[resourceName] = otherResourceValue
+		}
+	}
 }
 
 func (rs *ResourcesSpecification) SetRequest(resourceName corev1.ResourceName, quantity resource.Quantity) {
