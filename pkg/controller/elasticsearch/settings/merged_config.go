@@ -32,12 +32,13 @@ func NewMergedESConfig(
 	ipFamily corev1.IPFamily,
 	httpConfig commonv1.HTTPConfig,
 	userConfig commonv1.Config,
+	autoscalingEnabled bool,
 ) (CanonicalConfig, error) {
 	userCfg, err := common.NewCanonicalConfigFrom(userConfig.Data)
 	if err != nil {
 		return CanonicalConfig{}, err
 	}
-	config := baseConfig(clusterName, ver, ipFamily).CanonicalConfig
+	config := baseConfig(clusterName, ver, ipFamily, autoscalingEnabled).CanonicalConfig
 	err = config.MergeWith(
 		xpackConfig(ver, httpConfig).CanonicalConfig,
 		userCfg,
@@ -49,7 +50,7 @@ func NewMergedESConfig(
 }
 
 // baseConfig returns the base ES configuration to apply for the given cluster
-func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamily) *CanonicalConfig {
+func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamily, autoscalingEnabled bool) *CanonicalConfig {
 	cfg := map[string]interface{}{
 		// derive node name dynamically from the pod name, injected as env var
 		esv1.NodeName:    "${" + EnvPodName + "}",
@@ -74,6 +75,10 @@ func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamil
 		cfg[esv1.DiscoveryZenHostsProvider] = fileProvider
 	} else {
 		cfg[esv1.DiscoverySeedProviders] = fileProvider
+	}
+
+	if autoscalingEnabled {
+		cfg[esv1.WatermarkEnableForSingleDataNode] = "true"
 	}
 
 	return &CanonicalConfig{common.MustCanonicalConfig(cfg)}

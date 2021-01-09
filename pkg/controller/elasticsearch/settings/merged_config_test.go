@@ -36,11 +36,12 @@ func TestNewMergedESConfig(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		version  string
-		ipFamily corev1.IPFamily
-		cfgData  map[string]interface{}
-		assert   func(cfg CanonicalConfig)
+		name               string
+		version            string
+		ipFamily           corev1.IPFamily
+		autoscalingEnabled bool
+		cfgData            map[string]interface{}
+		assert             func(cfg CanonicalConfig)
 	}{
 		{
 			name:     "in 6.x, empty config should have the default file and native realm settings configured",
@@ -208,6 +209,25 @@ func TestNewMergedESConfig(t *testing.T) {
 				require.Equal(t, "[${POD_IP}]", esCfg.Network.PublishHost)
 			},
 		},
+		{
+			name:     "autoscaling is not enabled",
+			version:  "7.11.0",
+			ipFamily: corev1.IPv4Protocol,
+			cfgData:  map[string]interface{}{},
+			assert: func(cfg CanonicalConfig) {
+				require.Equal(t, 0, len(cfg.HasKeys([]string{esv1.WatermarkEnableForSingleDataNode})))
+			},
+		},
+		{
+			name:               "autoscaling is enabled",
+			version:            "7.11.0",
+			ipFamily:           corev1.IPv4Protocol,
+			cfgData:            map[string]interface{}{},
+			autoscalingEnabled: true,
+			assert: func(cfg CanonicalConfig) {
+				require.Equal(t, 1, len(cfg.HasKeys([]string{esv1.WatermarkEnableForSingleDataNode})))
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -219,6 +239,7 @@ func TestNewMergedESConfig(t *testing.T) {
 				tt.ipFamily,
 				commonv1.HTTPConfig{},
 				commonv1.Config{Data: tt.cfgData},
+				tt.autoscalingEnabled,
 			)
 			require.NoError(t, err)
 			tt.assert(cfg)
