@@ -21,8 +21,6 @@ import (
 
 var log = logf.Log.WithName("es-validation")
 
-var ElasticsearchMinAutoscalingVersion = version.From(7, 11, 0)
-
 const (
 	autoscalingVersionMsg    = "autoscaling is not available in this version of Elasticsearch"
 	cfgInvalidMsg            = "Configuration invalid"
@@ -313,7 +311,7 @@ func autoscalingValidation(es esv1.Elasticsearch) field.ErrorList {
 	}
 
 	var errs field.ErrorList
-	if !proposedVer.IsSameOrAfter(ElasticsearchMinAutoscalingVersion) {
+	if !proposedVer.IsSameOrAfter(esv1.ElasticsearchMinAutoscalingVersion) {
 		errs = append(errs, field.Invalid(field.NewPath("metadata").Child("annotations", esv1.ElasticsearchAutoscalingSpecAnnotationName), es.Spec.Version, autoscalingVersionMsg))
 		return errs
 	}

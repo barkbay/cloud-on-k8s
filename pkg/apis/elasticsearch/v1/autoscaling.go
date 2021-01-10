@@ -20,6 +20,8 @@ import (
 const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
 var (
+	ElasticsearchMinAutoscalingVersion = version.From(7, 11, 0)
+
 	// minMemory is the minimum amount of memory which can be set in the memory limits specification.
 	minMemory = resource.MustParse("2G")
 
@@ -225,6 +227,26 @@ func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetC
 		namedTiersSet[resourcePolicy.Name] = append(namedTiersSet[resourcePolicy.Name], *nodeSet.DeepCopy())
 	}
 	return namedTiersSet, nil
+}
+
+// GetMLNodesCount computes the total number of nodes which can be deployed in the cluster.
+func (as AutoscalingSpec) GetMLNodesCount() (int32, error) {
+	var totalMLNodesCount int32
+	for _, nodeSet := range as.Elasticsearch.Spec.NodeSets {
+		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
+		if err != nil {
+			return 0, err
+		}
+		roles, err := getNodeSetRoles(as.Elasticsearch, nodeSet)
+		if err != nil {
+			return 0, err
+		}
+		rolesInPolicy := set.Make(roles...)
+		if rolesInPolicy.Has(MLRole) {
+			totalMLNodesCount += resourcePolicy.NodeCount.Max
+		}
+	}
+	return totalMLNodesCount, nil
 }
 
 // GetAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.

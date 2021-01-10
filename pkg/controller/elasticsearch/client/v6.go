@@ -163,6 +163,10 @@ func (c *clientV6) GetAutoscalingCapacity(_ context.Context) (Policies, error) {
 	return Policies{}, errors.New("Not supported in Elasticsearch 6.x")
 }
 
+func (c *clientV6) UpdateMaxLazyMLNodes(_ context.Context, _ int32) error {
+	return errors.New("Not supported in Elasticsearch 6.x")
+}
+
 func (c *clientV6) ClusterBootstrappedForZen2(ctx context.Context) (bool, error) {
 	// Look at the current master node of the cluster: if it's running version 7.x.x or above,
 	// the cluster has been bootstrapped.

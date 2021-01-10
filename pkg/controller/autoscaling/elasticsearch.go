@@ -10,28 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
-
-	"github.com/go-logr/logr"
-
-	"go.elastic.co/apm"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
@@ -47,9 +29,20 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/validation"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/go-logr/logr"
+	"go.elastic.co/apm"
+	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -145,8 +138,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	if !v.IsSameOrAfter(validation.ElasticsearchMinAutoscalingVersion) {
-		compatibilityErr := fmt.Errorf("autoscaling requires version %s of Elasticsearch, current version is %s", validation.ElasticsearchMinAutoscalingVersion, v)
+	if !v.IsSameOrAfter(esv1.ElasticsearchMinAutoscalingVersion) {
+		compatibilityErr := fmt.Errorf("autoscaling requires version %s of Elasticsearch, current version is %s", esv1.ElasticsearchMinAutoscalingVersion, v)
 		k8s.EmitErrorEvent(r.recorder, compatibilityErr, &es, events.EventCompatCheckError, "Error during compatibility check: %v", compatibilityErr)
 	}
 	// Build status from annotation or existing resources
@@ -245,6 +238,16 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	esClient, err := r.newElasticsearchClient(r.Client, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+
+	// Update Machine Learning settings
+	mlNodes, err := autoscalingSpecs.GetMLNodesCount()
+	if err != nil {
+		return reconcile.Result{}, tracing.CaptureError(ctx, err)
+	}
+	if err := esClient.UpdateMaxLazyMLNodes(ctx, mlNodes); err != nil {
+		// Trace the error but do not prevent the policies to be updated
+		log.Error(tracing.CaptureError(ctx, err), "Error while updating the ML settings")
 	}
 
 	// Update named policies in Elasticsearch

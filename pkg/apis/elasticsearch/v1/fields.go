@@ -13,7 +13,8 @@ const (
 	DiscoveryZenHostsProvider = "discovery.zen.hosts_provider" // ES < 7.X
 	DiscoverySeedProviders    = "discovery.seed_providers"     // ES >= 7.X
 
-	WatermarkEnableForSingleDataNode = "cluster.routing.allocation.disk.watermark.enable_for_single_data_node"
+	XPackMLUseAutoMachineMemoryPercent = "xpack.ml.use_auto_machine_memory_percent"
+	WatermarkEnableForSingleDataNode   = "cluster.routing.allocation.disk.watermark.enable_for_single_data_node"
 
 	NetworkHost        = "network.host"
 	NetworkPublishHost = "network.publish_host"

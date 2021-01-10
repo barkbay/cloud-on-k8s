@@ -38,7 +38,8 @@ func NewMergedESConfig(
 	if err != nil {
 		return CanonicalConfig{}, err
 	}
-	config := baseConfig(clusterName, ver, ipFamily, autoscalingEnabled).CanonicalConfig
+	isDedicatedMLNode, err := isDedicatedMLNode(userCfg)
+	config := baseConfig(clusterName, ver, ipFamily, autoscalingEnabled, isDedicatedMLNode).CanonicalConfig
 	err = config.MergeWith(
 		xpackConfig(ver, httpConfig).CanonicalConfig,
 		userCfg,
@@ -50,7 +51,12 @@ func NewMergedESConfig(
 }
 
 // baseConfig returns the base ES configuration to apply for the given cluster
-func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamily, autoscalingEnabled bool) *CanonicalConfig {
+func baseConfig(
+	clusterName string,
+	ver version.Version,
+	ipFamily corev1.IPFamily,
+	autoscalingEnabled, isDedicatedMLNode bool,
+) *CanonicalConfig {
 	cfg := map[string]interface{}{
 		// derive node name dynamically from the pod name, injected as env var
 		esv1.NodeName:    "${" + EnvPodName + "}",
@@ -77,11 +83,32 @@ func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamil
 		cfg[esv1.DiscoverySeedProviders] = fileProvider
 	}
 
-	if autoscalingEnabled {
+	if autoscalingEnabled && ver.IsSameOrAfter(esv1.ElasticsearchMinAutoscalingVersion) {
 		cfg[esv1.WatermarkEnableForSingleDataNode] = "true"
+		if isDedicatedMLNode {
+			cfg[esv1.XPackMLUseAutoMachineMemoryPercent] = "true"
+		}
 	}
 
 	return &CanonicalConfig{common.MustCanonicalConfig(cfg)}
+}
+
+func isDedicatedMLNode(userConfig *common.CanonicalConfig) (bool, error) {
+	if userConfig == nil {
+		return false, nil
+	}
+	settings := esv1.ElasticsearchSettings{}
+	if err := userConfig.Unpack(&settings); err != nil {
+		return false, err
+	}
+	if settings.Node == nil {
+		return false, nil
+	}
+	roles := settings.Node.Roles
+	if len(roles) == 1 && roles[0] == esv1.MLRole {
+		return true, nil
+	}
+	return false, nil
 }
 
 // xpackConfig returns the configuration bit related to XPack settings
