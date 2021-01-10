@@ -290,7 +290,13 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			nodeSetsResources = autoscaler.GetOfflineNodeSetsResources(log, nodeSetList.Names(), autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
 		case true:
 			// We received a capacity decision from Elasticsearch for this policy.
-			log.Info("Required capacity for policy", "policy", autoscalingPolicy.Name, "required_capacity", capacity.RequiredCapacity, "current_capacity", capacity.CurrentCapacity, "current_nodes", capacity.CurrentNodes)
+			log.Info(
+				"Required capacity for policy",
+				"policy", autoscalingPolicy.Name,
+				"required_capacity", capacity.RequiredCapacity,
+				"current_capacity", capacity.CurrentCapacity,
+				"current_capacity.count", len(capacity.CurrentNodes),
+				"current_nodes", capacity.CurrentNodes)
 			// Ensure that the user provides the related resources policies
 			if !canDecide(log, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder) {
 				continue

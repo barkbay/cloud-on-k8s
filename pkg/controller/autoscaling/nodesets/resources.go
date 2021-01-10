@@ -205,8 +205,10 @@ func (ntr NamedTierResources) SameResources(other NamedTierResources) bool {
 
 func (cr ClusterResources) ByNodeSet() map[string]NodeSetResources {
 	byNodeSet := make(map[string]NodeSetResources)
-	for _, nodeSetsResource := range cr {
-		for _, nodeSetNodeCount := range nodeSetsResource.NodeSetNodeCount {
+	for i := range cr {
+		nodeSetsResource := cr[i]
+		for j := range nodeSetsResource.NodeSetNodeCount {
+			nodeSetNodeCount := nodeSetsResource.NodeSetNodeCount[j]
 			nodeSetResources := NodeSetResources{
 				NodeCount:          nodeSetNodeCount.NodeCount,
 				NamedTierResources: &nodeSetsResource,
