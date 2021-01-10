@@ -290,7 +290,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			nodeSetsResources = autoscaler.GetOfflineNodeSetsResources(log, nodeSetList.Names(), autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
 		case true:
 			// We received a capacity decision from Elasticsearch for this policy.
-			log.Info("Required capacity for policy", "policy", autoscalingPolicy.Name, "required_capacity", capacity.RequiredCapacity)
+			log.Info("Required capacity for policy", "policy", autoscalingPolicy.Name, "required_capacity", capacity.RequiredCapacity, "current_capacity", capacity.CurrentCapacity, "current_nodes", capacity.CurrentNodes)
 			// Ensure that the user provides the related resources policies
 			if !canDecide(log, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder) {
 				continue
@@ -327,7 +327,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 // canDecide ensures that the user has provided resource ranges to apply Elasticsearch autoscaling decision.
 // Expected ranges are not consistent across all deciders. For example ml may only require memory limits, while processing
 // data deciders response may require storage limits.
-func canDecide(log logr.Logger, requiredCapacity esclient.RequiredCapacity, spec esv1.AutoscalingPolicySpec, statusBuilder *status.PolicyStatesBuilder) bool {
+func canDecide(log logr.Logger, requiredCapacity esclient.CapacityInfo, spec esv1.AutoscalingPolicySpec, statusBuilder *status.PolicyStatesBuilder) bool {
 	result := true
 	if (requiredCapacity.Node.Memory != nil || requiredCapacity.Total.Memory != nil) && !spec.IsMemoryDefined() {
 		log.Error(fmt.Errorf("min and max memory must be specified"), "Min and max memory must be specified", "policy", spec.Name)

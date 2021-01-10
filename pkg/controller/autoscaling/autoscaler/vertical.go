@@ -21,7 +21,7 @@ func nodeResources(
 	log logr.Logger,
 	minNodesCount int64,
 	currentStorage resource.Quantity,
-	requiredCapacity client.RequiredCapacity,
+	requiredCapacity client.CapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.ResourcesSpecification {

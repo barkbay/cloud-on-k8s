@@ -18,7 +18,7 @@ type MachineLearningSettings struct {
 
 // SettingsGroup is a group of persistent settings.
 type MLSettingsGroup struct {
-	MaxLazyMLNodes int32 `json:"xpack.ml.max_lazy_ml_nodes,omitempty"`
+	MaxLazyMLNodes int32 `json:"xpack.ml.max_lazy_ml_nodes"`
 }
 
 type AutoScalingClient interface {
@@ -51,15 +51,21 @@ type Policies struct {
 }
 
 type PolicyInfo struct {
-	RequiredCapacity RequiredCapacity `json:"required_capacity"`
+	RequiredCapacity CapacityInfo `json:"required_capacity"`
+	CurrentCapacity  CapacityInfo `json:"current_capacity"`
+	CurrentNodes     []NodeInfo   `json:"current_nodes"`
 }
 
-type RequiredCapacity struct {
+type CapacityInfo struct {
 	Node  Capacity `yaml:"node" json:"node,omitempty"`
 	Total Capacity `yaml:"total" json:"total,omitempty"`
 }
 
-func (rc RequiredCapacity) IsEmpty() bool {
+type NodeInfo struct {
+	Name string `json:"name"`
+}
+
+func (rc CapacityInfo) IsEmpty() bool {
 	return rc.Node.Memory == nil && rc.Node.Storage == nil &&
 		rc.Total.Memory == nil && rc.Total.Storage == nil
 }
