@@ -18,7 +18,6 @@ const (
 	VerticalScalingLimitReached   PolicyStateType = "VerticalScalingLimitReached"
 	HorizontalScalingLimitReached PolicyStateType = "HorizontalScalingLimitReached"
 	OverlappingPolicies           PolicyStateType = "OverlappingPolicies"
-	InvalidMinimumNodeCount       PolicyStateType = "InvalidMinimumNodeCount"
 	MemoryRequired                PolicyStateType = "MemoryRequired"
 	EmptyResponse                 PolicyStateType = "EmptyResponse"
 	ScaleUpStabilizationWindow    PolicyStateType = "ScaleUpStabilizationWindow"

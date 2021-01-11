@@ -5,8 +5,6 @@
 package autoscaler
 
 import (
-	"fmt"
-
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
@@ -46,7 +44,7 @@ func GetScaleDecision(
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NamedTierResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(log, len(nodeSets), actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
+	desiredNodeResources := scaleVertically(log, actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
 	log.Info(
 		"Vertical autoscaler",
 		"state", "online",
@@ -68,58 +66,18 @@ var giga = int64(1024 * 1024 * 1024)
 // It attempts to scale all the resources vertically until the expectations are met.
 func scaleVertically(
 	log logr.Logger,
-	nodeSetsCount int,
 	actualAutoscalingStatus status.Status,
 	requiredCapacity client.CapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.ResourcesSpecification {
-	minNodesCount, _ := adjustMinMaxCount(log, nodeSetsCount, autoscalingSpec, statusBuilder)
 	currentStorage := getStorage(autoscalingSpec, actualAutoscalingStatus)
-
 	return nodeResources(
 		log,
-		int64(minNodesCount),
+		int64(autoscalingSpec.NodeCount.Min),
 		currentStorage,
 		requiredCapacity,
 		autoscalingSpec,
 		statusBuilder,
 	)
-}
-
-// adjustMinMaxCount ensures that the min nodes is at least the same than the number of nodeSets managed by a policy.
-// This is is to avoid nodeSets with count set to 0, which is not supported.
-func adjustMinMaxCount(
-	log logr.Logger,
-	nodeSetCount int,
-	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.PolicyStatesBuilder,
-) (int, int) {
-	minNodes := int(autoscalingSpec.NodeCount.Min)
-	maxNodes := int(autoscalingSpec.NodeCount.Max)
-	if !(minNodes >= nodeSetCount) {
-		minNodes = nodeSetCount
-		if minNodes >= maxNodes {
-			// If needed also adjust the max number of Pods
-			maxNodes = minNodes
-		}
-		log.Info(
-			"Adjusting minimum and maximum number of nodes",
-			"policy", autoscalingSpec.Name,
-			"scope", "tier",
-			"min_count", autoscalingSpec.NodeCount.Min,
-			"new_min_count", minNodes,
-			"max_count", autoscalingSpec.NodeCount.Max,
-			"new_max_count", maxNodes,
-		)
-
-		// Update the autoscaling status accordingly
-		statusBuilder.
-			ForPolicy(autoscalingSpec.Name).
-			WithPolicyState(
-				status.InvalidMinimumNodeCount,
-				fmt.Sprintf("At leats 1 node per nodeSet is required, minimum number of nodes has been adjusted from %d to %d", autoscalingSpec.NodeCount.Min, minNodes),
-			)
-	}
-	return minNodes, maxNodes
 }

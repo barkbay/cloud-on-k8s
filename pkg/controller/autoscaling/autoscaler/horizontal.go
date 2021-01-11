@@ -26,11 +26,12 @@ func scaleHorizontally(
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NamedTierResources {
 	// Ensure that we have at least 1 node per nodeSet
-	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
+	minNodes := int(autoscalingSpec.NodeCount.Min)
+	maxNodes := int(autoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
 	if requiredCapacity.Memory != nil && nodeCapacity.HasRequest(corev1.ResourceMemory) {
 		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
-		minMemory := int64(minNodes) * (nodeMemory.Value())
+		minMemory := int64(autoscalingSpec.NodeCount.Min) * (nodeMemory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed

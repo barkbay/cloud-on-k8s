@@ -287,7 +287,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			// We didn't receive a decision for this tier, or the decision is empty. We can only ensure that resources are within the allowed ranges.
 			log.V(1).Info("No decision for tier, ensure min. are set", "policy", autoscalingPolicy.Name)
 			statusBuilder.ForPolicy(autoscalingPolicy.Name).WithPolicyState(status.EmptyResponse, "No required capacity from Elasticsearch")
-			nodeSetsResources = autoscaler.GetOfflineNodeSetsResources(log, nodeSetList.Names(), autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
+			nodeSetsResources = autoscaler.GetOfflineNodeSetsResources(log, nodeSetList.Names(), autoscalingPolicy, actualAutoscalingStatus)
 		case true:
 			// We received a capacity decision from Elasticsearch for this policy.
 			log.Info(
@@ -369,7 +369,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()
 		}
-		nodeSetsResources := autoscaler.GetOfflineNodeSetsResources(log, nodeSets.Names(), autoscalingSpec, actualAutoscalingStatus, statusBuilder)
+		nodeSetsResources := autoscaler.GetOfflineNodeSetsResources(log, nodeSets.Names(), autoscalingSpec, actualAutoscalingStatus)
 		clusterNodeSetsResources = append(clusterNodeSetsResources, nodeSetsResources)
 	}
 	// Update the Elasticsearch manifest

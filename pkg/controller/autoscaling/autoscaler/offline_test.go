@@ -81,7 +81,7 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := GetOfflineNodeSetsResources(logTest, tt.args.nodeSets, tt.args.autoscalingSpec, tt.args.actualAutoscalingStatus, status.NewPolicyStatesBuilder()); !reflect.DeepEqual(got, tt.want) {
+			if got := GetOfflineNodeSetsResources(logTest, tt.args.nodeSets, tt.args.autoscalingSpec, tt.args.actualAutoscalingStatus); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetOfflineNodeSetsResources() = %v, want %v", got, tt.want)
 			}
 		})

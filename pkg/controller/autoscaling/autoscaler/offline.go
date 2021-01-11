@@ -21,7 +21,6 @@ func GetOfflineNodeSetsResources(
 	nodeSets []string,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	actualAutoscalingStatus status.Status,
-	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NamedTierResources {
 	actualNamedTierResources, hasNamedTierResources := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name)
 
@@ -37,9 +36,8 @@ func GetOfflineNodeSetsResources(
 		}
 	}
 
-	// Ensure that we have at least 1 node per nodeSet
-	minNodes, maxNodes := adjustMinMaxCount(log, len(nodeSets), autoscalingSpec, statusBuilder)
-
+	minNodes := int(autoscalingSpec.NodeCount.Min)
+	maxNodes := int(autoscalingSpec.NodeCount.Max)
 	// ensure that the min. number of nodes is set
 	if expectedNodeCount < minNodes {
 		expectedNodeCount = minNodes

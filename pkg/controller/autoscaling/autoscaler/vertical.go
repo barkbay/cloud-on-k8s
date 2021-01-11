@@ -108,7 +108,7 @@ func getResourceValue(
 
 	nodeResource := nodeRequired
 	// Adjust the node requested capacity to try to fit the tier requested capacity
-	if totalRequired != nil {
+	if totalRequired != nil && minNodesCount > 0 {
 		memoryOverAllTiers := *totalRequired / minNodesCount
 		nodeResource = max64(nodeResource, roundUp(memoryOverAllTiers, giga))
 	}
