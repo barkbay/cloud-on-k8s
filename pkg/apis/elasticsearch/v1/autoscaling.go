@@ -311,8 +311,8 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 			}
 		}
 
-		if !(autoscalingSpec.NodeCount.Min > 0) {
-			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be a greater than 1"))
+		if !(autoscalingSpec.NodeCount.Min >= 0) {
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be equal or greater than 0"))
 		}
 
 		if !(autoscalingSpec.NodeCount.Max > autoscalingSpec.NodeCount.Min) {
