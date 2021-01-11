@@ -293,7 +293,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		{
 			name:          "Min. count should be greater than 1",
 			wantError:     true,
-			expectedError: "minAllowed.count: Invalid value: -1: count must be a greater than 1",
+			expectedError: "minAllowed.count: Invalid value: -1: count must be equal or greater than 0",
 			autoscalingSpec: `
 {
 	"policies": [{
