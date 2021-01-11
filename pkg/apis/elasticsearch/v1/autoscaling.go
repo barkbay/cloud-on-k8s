@@ -311,6 +311,10 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 			}
 		}
 
+		if containsString(autoscalingSpec.Roles, MLRole) && len(autoscalingSpec.Roles) > 1 {
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "name"), strings.Join(autoscalingSpec.Roles, ","), "ML nodes must be in a dedicated autoscaling policy"))
+		}
+
 		if !(autoscalingSpec.NodeCount.Min >= 0) {
 			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be equal or greater than 0"))
 		}
@@ -352,6 +356,16 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 func containsStringSlice(slices [][]string, slice []string) bool {
 	for _, s := range slices {
 		if reflect.DeepEqual(s, slice) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsString returns true if a string is included in a slice.
+func containsString(roles []string, role string) bool {
+	for _, s := range roles {
+		if reflect.DeepEqual(s, role) {
 			return true
 		}
 	}

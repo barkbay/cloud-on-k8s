@@ -23,6 +23,45 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		expectedError   string
 	}{
 		{
+			name:      "ML must be in a dedicated autoscaling policy",
+			wantError: true,
+			nodeSets:  map[string][]string{"nodeset-data-ml": {"data", "ml"}},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "data_ml_policy",
+		  "roles": [ "data", "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+			expectedError: "ML nodes must be in a dedicated autoscaling policy",
+		},
+		{
+			name:      "ML is in a dedicated autoscaling policy",
+			wantError: false,
+			nodeSets:  map[string][]string{"nodeset-ml": {"ml"}},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "ml",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+		},
+		{
 			name:      "Happy path",
 			wantError: false,
 			nodeSets:  map[string][]string{"nodeset-data-1": {"data"}, "nodeset-data-2": {"data"}, "nodeset-ml": {"ml"}},
