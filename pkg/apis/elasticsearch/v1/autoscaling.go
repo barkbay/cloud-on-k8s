@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/set"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -311,7 +313,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 			}
 		}
 
-		if containsString(autoscalingSpec.Roles, MLRole) && len(autoscalingSpec.Roles) > 1 {
+		if stringsutil.StringInSlice(MLRole, autoscalingSpec.Roles) && len(autoscalingSpec.Roles) > 1 {
 			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "name"), strings.Join(autoscalingSpec.Roles, ","), "ML nodes must be in a dedicated autoscaling policy"))
 		}
 
