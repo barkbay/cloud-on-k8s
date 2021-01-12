@@ -364,16 +364,6 @@ func containsStringSlice(slices [][]string, slice []string) bool {
 	return false
 }
 
-// containsString returns true if a string is included in a slice.
-func containsString(roles []string, role string) bool {
-	for _, s := range roles {
-		if reflect.DeepEqual(s, role) {
-			return true
-		}
-	}
-	return false
-}
-
 // validateQuantities ensures that a quantity range is valid.
 func validateQuantities(errs field.ErrorList, quantityRange *QuantityRange, index int, resource string, minQuantity resource.Quantity) field.ErrorList {
 	var quantityErrs field.ErrorList

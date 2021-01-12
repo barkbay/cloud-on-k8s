@@ -51,12 +51,14 @@ type Policies struct {
 }
 
 type PolicyInfo struct {
-	RequiredCapacity CapacityInfo `json:"required_capacity"`
-	CurrentCapacity  CapacityInfo `json:"current_capacity"`
-	CurrentNodes     []NodeInfo   `json:"current_nodes"`
+	RequiredCapacity PolicyCapacityInfo `json:"required_capacity"`
+	CurrentCapacity  PolicyCapacityInfo `json:"current_capacity"`
+	CurrentNodes     []NodeInfo         `json:"current_nodes"`
 }
 
-type CapacityInfo struct {
+// PolicyCapacityInfo models the capacity information, both current and required,
+// as received by the autoscaling Elasticsearch API.
+type PolicyCapacityInfo struct {
 	Node  Capacity `yaml:"node" json:"node,omitempty"`
 	Total Capacity `yaml:"total" json:"total,omitempty"`
 }
@@ -65,14 +67,52 @@ type NodeInfo struct {
 	Name string `json:"name"`
 }
 
-func (rc CapacityInfo) IsEmpty() bool {
-	return rc.Node.Memory == nil && rc.Node.Storage == nil &&
-		rc.Total.Memory == nil && rc.Total.Storage == nil
+func (rc PolicyCapacityInfo) IsEmpty() bool {
+	return rc.Node.IsEmpty() && rc.Total.IsEmpty()
+}
+
+// CapacityValue models a capacity value as received by Elasticsearch.
+type CapacityValue int64
+
+// Value return the int64 value returned by Elasticsearch. It returns 0 if no value has been set by Elasticsearch.
+func (e *CapacityValue) Value() int64 {
+	if e == nil {
+		return 0
+	}
+	return int64(*e)
+}
+
+// IsEmpty returns true if the value is nil.
+func (e *CapacityValue) IsEmpty() bool {
+	return e == nil
+}
+
+// IsZero returns true if the value is greater than 0.
+func (e *CapacityValue) IsZero() bool {
+	return e.Value() == 0
 }
 
 type Capacity struct {
-	Storage *int64 `yaml:"storage" json:"storage,omitempty"`
-	Memory  *int64 `yaml:"memory" json:"memory,omitempty"`
+	Storage *CapacityValue `yaml:"storage" json:"storage,omitempty"`
+	Memory  *CapacityValue `yaml:"memory" json:"memory,omitempty"`
+}
+
+// IsEmpty returns true if all the resource values are empty (no values, 0 being considered as a value).
+// Expressed in a different way, it returns true if no resource as been returned in the autoscaling API response.
+func (c *Capacity) IsEmpty() bool {
+	if c == nil {
+		return true
+	}
+	return c.Memory.IsEmpty() && c.Storage.IsEmpty()
+}
+
+// IsEmpty returns true if all the resource values are evaluated to 0.
+// It also returns true if no value has been set, to check if the value exists in the API response see IsEmpty().
+func (c *Capacity) IsZero() bool {
+	if c == nil {
+		return true
+	}
+	return c.Memory.IsZero() && c.Storage.IsZero()
 }
 
 func (c *clientV7) GetAutoscalingCapacity(ctx context.Context) (Policies, error) {

@@ -141,22 +141,23 @@ func (nsb *resourcesBuilder) build() nodesets.NamedTierResources {
 	return nodeSetResources
 }
 
-// - CapacityInfo builder
+// - PolicyCapacityInfo builder
 
 type requiredCapacityBuilder struct {
-	client.CapacityInfo
+	client.PolicyCapacityInfo
 }
 
 func newRequiredCapacityBuilder() *requiredCapacityBuilder {
 	return &requiredCapacityBuilder{}
 }
 
-func ptr(q int64) *int64 {
-	return &q
+func ptr(q int64) *client.CapacityValue {
+	v := client.CapacityValue(q)
+	return &v
 }
 
-func (rcb *requiredCapacityBuilder) build() client.CapacityInfo {
-	return rcb.CapacityInfo
+func (rcb *requiredCapacityBuilder) build() client.PolicyCapacityInfo {
+	return rcb.PolicyCapacityInfo
 }
 
 func (rcb *requiredCapacityBuilder) nodeMemory(m string) *requiredCapacityBuilder {
