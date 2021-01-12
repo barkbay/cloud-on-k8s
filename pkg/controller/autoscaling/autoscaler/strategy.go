@@ -39,7 +39,7 @@ func GetScaleDecision(
 	log logr.Logger,
 	nodeSets []string,
 	actualAutoscalingStatus status.Status,
-	requiredCapacity client.CapacityInfo,
+	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NamedTierResources {
@@ -67,7 +67,7 @@ var giga = int64(1024 * 1024 * 1024)
 func scaleVertically(
 	log logr.Logger,
 	actualAutoscalingStatus status.Status,
-	requiredCapacity client.CapacityInfo,
+	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.ResourcesSpecification {

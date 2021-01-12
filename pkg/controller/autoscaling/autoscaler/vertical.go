@@ -16,19 +16,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// nodeResources computes the desired amount of memory and storage
+// nodeResources computes the desired amount of memory and storage for a node managed by a given AutoscalingPolicySpec.
 func nodeResources(
 	log logr.Logger,
 	minNodesCount int64,
 	currentStorage resource.Quantity,
-	requiredCapacity client.CapacityInfo,
+	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.ResourcesSpecification {
 	resources := nodesets.ResourcesSpecification{}
 
-	// Get memory
-	if requiredCapacity.Node.Memory != nil && autoscalingSpec.IsMemoryDefined() {
+	// Compute desired memory quantity for the nodes managed by this AutoscalingPolicySpec.
+	if !requiredCapacity.Node.Memory.IsEmpty() && autoscalingSpec.IsMemoryDefined() {
 		memoryRequest := getResourceValue(
 			log,
 			autoscalingSpec.Name,
@@ -43,8 +43,8 @@ func nodeResources(
 		resources.SetRequest(corev1.ResourceMemory, memoryRequest)
 	}
 
-	// Get storage
-	if requiredCapacity.Node.Storage != nil && autoscalingSpec.IsStorageDefined() {
+	// Compute desired storage quantity for the nodes managed by this AutoscalingPolicySpec.
+	if !requiredCapacity.Node.Storage.IsEmpty() && autoscalingSpec.IsStorageDefined() {
 		storageRequest := getResourceValue(
 			log,
 			autoscalingSpec.Name,
@@ -63,13 +63,14 @@ func nodeResources(
 		resources.SetRequest(corev1.ResourceStorage, storageRequest)
 	}
 
-	// If no memory has been specified by the autoscaling API Memory
+	// If no memory has been returned by the autoscaling API, but the user has expressed the intent to manage memory
+	// using the autoscaling specification then we derive the memory from the storage if available.
 	if !resources.HasRequest(corev1.ResourceMemory) &&
 		autoscalingSpec.IsMemoryDefined() && autoscalingSpec.IsStorageDefined() && resources.HasRequest(corev1.ResourceStorage) {
 		resources.SetRequest(corev1.ResourceMemory, memoryFromStorage(resources.GetRequest(corev1.ResourceStorage), *autoscalingSpec.Storage, *autoscalingSpec.Memory))
 	}
 
-	// Adjust CPU request according to the memory request
+	// Same as above, if CPU limits have been expressed by the user in the autoscaling specificaiton then we adjust CPU request according to the memory request.
 	if autoscalingSpec.IsCPUDefined() && autoscalingSpec.IsMemoryDefined() && resources.HasRequest(corev1.ResourceMemory) {
 		resources.SetRequest(corev1.ResourceCPU, cpuFromMemory(resources.GetRequest(corev1.ResourceMemory), *autoscalingSpec.Memory, *autoscalingSpec.CPU))
 	}
@@ -77,17 +78,24 @@ func nodeResources(
 	return resources
 }
 
+// getResourceValue calculates the desired quantity for a specific resource to be assigned to a node in a tier, according
+// to the required value from the Elasticsearch API and the resource constraints (limits) expressed by the user.
 func getResourceValue(
 	log logr.Logger,
 	autoscalingPolicyName, resourceType string,
 	statusBuilder *status.PolicyStatesBuilder,
-	nodeRequired int64, // node required capacity as returned by the Elasticsearch API
-	totalRequired *int64, // tier required capacity as returned by the Elasticsearch API, considered as optional
-	minNodesCount int64,
+	nodeRequired client.CapacityValue, // node required capacity as returned by the Elasticsearch API
+	totalRequired *client.CapacityValue, // tier required capacity as returned by the Elasticsearch API, considered as optional
+	minNodesCount int64, // the minimum of nodes that will be deployed
 	min, max resource.Quantity, // as expressed by the user
 ) resource.Quantity {
+	if nodeRequired.IsZero() && totalRequired.IsZero() {
+		// Elasticsearch has returned 0 for both the node and the tier level. Scale down resources to minimum.
+		return resourceToQuantity(min.Value())
+	}
+
 	// Surface the condition where resource is exhausted.
-	if nodeRequired > max.Value() {
+	if nodeRequired.Value() > max.Value() {
 		// Elasticsearch requested more capacity per node than allowed by the user
 		err := fmt.Errorf("node required %s is greater than the maximum one", resourceType)
 		log.Error(
@@ -106,10 +114,16 @@ func getResourceValue(
 			)
 	}
 
-	nodeResource := nodeRequired
-	// Adjust the node requested capacity to try to fit the tier requested capacity
+	nodeResource := nodeRequired.Value()
+	if minNodesCount == 0 {
+		// Elasticsearch returned some resources, even if user allowed empty nodeSet we need at least 1 node to host them.
+		minNodesCount = 1
+	}
+	// Adjust the node requested capacity to try to fit the tier requested capacity.
+	// This is done to check if the required resources at the tier level can fit on the minimum number of nodes scaled to
+	// their maximums, and thus avoid to scale horizontally while scaling vertically to the maximum is enough.
 	if totalRequired != nil && minNodesCount > 0 {
-		memoryOverAllTiers := *totalRequired / minNodesCount
+		memoryOverAllTiers := (*totalRequired).Value() / minNodesCount
 		nodeResource = max64(nodeResource, roundUp(memoryOverAllTiers, giga))
 	}
 
@@ -123,6 +137,11 @@ func getResourceValue(
 		nodeResource = max.Value()
 	}
 
+	return resourceToQuantity(nodeResource)
+}
+
+// resourceToQuantity attempts to convert a raw integer value into a human readable quantity.
+func resourceToQuantity(nodeResource int64) resource.Quantity {
 	var nodeQuantity resource.Quantity
 	if nodeResource >= giga && nodeResource%giga == 0 {
 		// When it's possible we may want to express the memory with a "human readable unit" like the the Gi unit
@@ -130,7 +149,6 @@ func getResourceValue(
 	} else {
 		nodeQuantity = resource.NewQuantity(nodeResource, resource.DecimalSI).DeepCopy()
 	}
-
 	return nodeQuantity
 }
 

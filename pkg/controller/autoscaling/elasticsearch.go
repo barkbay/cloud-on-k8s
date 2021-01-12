@@ -333,7 +333,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 // canDecide ensures that the user has provided resource ranges to apply Elasticsearch autoscaling decision.
 // Expected ranges are not consistent across all deciders. For example ml may only require memory limits, while processing
 // data deciders response may require storage limits.
-func canDecide(log logr.Logger, requiredCapacity esclient.CapacityInfo, spec esv1.AutoscalingPolicySpec, statusBuilder *status.PolicyStatesBuilder) bool {
+func canDecide(log logr.Logger, requiredCapacity esclient.PolicyCapacityInfo, spec esv1.AutoscalingPolicySpec, statusBuilder *status.PolicyStatesBuilder) bool {
 	result := true
 	if (requiredCapacity.Node.Memory != nil || requiredCapacity.Total.Memory != nil) && !spec.IsMemoryDefined() {
 		log.Error(fmt.Errorf("min and max memory must be specified"), "Min and max memory must be specified", "policy", spec.Name)
