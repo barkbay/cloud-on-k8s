@@ -20,21 +20,21 @@ import (
 func scaleHorizontally(
 	log logr.Logger,
 	nodeSets []string,
-	requiredCapacity client.Capacity,
-	nodeCapacity nodesets.ResourcesSpecification,
+	totalRequiredCapacity client.Capacity, // total required resources
+	nodeCapacity nodesets.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.PolicyStatesBuilder,
 ) nodesets.NamedTierResources {
 	minNodes := int(autoscalingSpec.NodeCount.Min)
 	maxNodes := int(autoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
-	if !requiredCapacity.Memory.IsZero() && nodeCapacity.HasRequest(corev1.ResourceMemory) {
+	if !totalRequiredCapacity.Memory.IsZero() && nodeCapacity.HasRequest(corev1.ResourceMemory) {
 		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
 		minMemory := int64(autoscalingSpec.NodeCount.Min) * (nodeMemory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed
-		memoryDelta := requiredCapacity.Memory.Value() - minMemory
+		memoryDelta := totalRequiredCapacity.Memory.Value() - minMemory
 		nodeToAdd = getNodeDelta(memoryDelta, nodeMemory.Value())
 
 		if minNodes+nodeToAdd > maxNodes {
@@ -45,7 +45,7 @@ func scaleHorizontally(
 				"scope", "tier",
 				"resource", "memory",
 				"node_value", nodeMemory.Value(),
-				"requested_value", *requiredCapacity.Memory,
+				"requested_value", *totalRequiredCapacity.Memory,
 				"requested_count", minNodes+nodeToAdd,
 				"max_count", maxNodes,
 			)
@@ -55,16 +55,16 @@ func scaleHorizontally(
 				ForPolicy(autoscalingSpec.Name).
 				WithPolicyState(
 					status.HorizontalScalingLimitReached,
-					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *requiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
+					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
 				)
 			nodeToAdd = maxNodes - minNodes
 		}
 	}
 
-	if !requiredCapacity.Storage.IsZero() && nodeCapacity.HasRequest(corev1.ResourceStorage) {
+	if !totalRequiredCapacity.Storage.IsZero() && nodeCapacity.HasRequest(corev1.ResourceStorage) {
 		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
 		minStorage := int64(minNodes) * (nodeStorage.Value())
-		storageDelta := requiredCapacity.Storage.Value() - minStorage
+		storageDelta := totalRequiredCapacity.Storage.Value() - minStorage
 		nodeToAddStorage := getNodeDelta(storageDelta, nodeStorage.Value())
 		if minNodes+nodeToAddStorage > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
@@ -74,7 +74,7 @@ func scaleHorizontally(
 				"scope", "tier",
 				"resource", "storage",
 				"node_value", nodeStorage.Value(),
-				"requested_value", *requiredCapacity.Storage,
+				"requested_value", *totalRequiredCapacity.Storage,
 				"requested_count", minNodes+nodeToAddStorage,
 				"max_count", maxNodes,
 			)
@@ -84,7 +84,7 @@ func scaleHorizontally(
 				ForPolicy(autoscalingSpec.Name).
 				WithPolicyState(
 					status.HorizontalScalingLimitReached,
-					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *requiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
+					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
 				)
 			nodeToAddStorage = maxNodes - minNodes
 		}
@@ -97,7 +97,7 @@ func scaleHorizontally(
 	log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name,
 		"scope", "tier",
 		"count", totalNodes,
-		"required_capacity", requiredCapacity,
+		"required_capacity", totalRequiredCapacity,
 	)
 
 	nodeSetsResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)

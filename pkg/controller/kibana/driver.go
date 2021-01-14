@@ -32,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // minSupportedVersion is the minimum version of Kibana supported by ECK. Currently this is set to version 6.8.0.
@@ -162,7 +163,23 @@ func (d *driver) Reconcile(
 // upgrade is in progress. Kibana does not support a smooth rolling upgrade from one version to another:
 // running multiple versions simultaneously may lead to concurrency bugs and data corruption.
 func (d *driver) getStrategyType(kb *kbv1.Kibana) (appsv1.DeploymentStrategyType, error) {
-	return appsv1.RecreateDeploymentStrategyType, nil
+	var pods corev1.PodList
+	var labels client.MatchingLabels = map[string]string{KibanaNameLabelName: kb.Name}
+	if err := d.client.List(&pods, client.InNamespace(kb.Namespace), labels); err != nil {
+		return "", err
+	}
+
+	for _, pod := range pods.Items {
+		ver, ok := pod.Labels[KibanaVersionLabelName]
+		// if label is missing we assume that the last reconciliation was done by previous version of the operator
+		// to be safe, we assume the Kibana version has changed when operator was offline and use Recreate,
+		// otherwise we may run into data corruption/data loss.
+		if !ok || ver != kb.Spec.Version {
+			return appsv1.RecreateDeploymentStrategyType, nil
+		}
+	}
+
+	return appsv1.RollingUpdateDeploymentStrategyType, nil
 }
 
 func (d *driver) deploymentParams(kb *kbv1.Kibana) (deployment.Params, error) {

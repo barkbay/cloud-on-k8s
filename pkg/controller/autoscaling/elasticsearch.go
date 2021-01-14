@@ -302,8 +302,6 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 				continue
 			}
 			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), actualAutoscalingStatus, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder)
-			// Apply cooldown filter
-			applyCoolDownFilters(log, es, nodeSetsResources, autoscalingPolicy, actualAutoscalingStatus, statusBuilder)
 		}
 		// Add the result to the list of the next resources
 		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources)
