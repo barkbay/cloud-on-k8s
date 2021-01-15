@@ -35,7 +35,7 @@ type stabilizationContext struct {
 	es            esv1.Elasticsearch
 	policyName    string
 	log           logr.Logger
-	statusBuilder *status.PolicyStatesBuilder
+	statusBuilder *status.AutoscalingStatusBuilder
 }
 
 func applyCoolDownFilters(
@@ -44,7 +44,7 @@ func applyCoolDownFilters(
 	nextNodeSetsResources nodesets.NamedTierResources,
 	autoscalingPolicy esv1.AutoscalingPolicySpec,
 	actualAutoscalingStatus status.Status,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 ) {
 	sc := stabilizationContext{
 		Clock:         RealClock{},
@@ -100,7 +100,7 @@ func (sc *stabilizationContext) filterNodeCountScaledown(actual, next int32) int
 		return next
 	}
 
-	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(status.ScaleUpStabilizationWindow, fmt.Sprintf(scaleupStabilizationMessage, "node count"))
+	sc.statusBuilder.ForPolicy(sc.policyName).WithEvent(status.ScaleUpStabilizationWindow, fmt.Sprintf(scaleupStabilizationMessage, "node count"))
 	sc.log.Info("stabilization window", "policy", sc.policyName, "required_count", next, "actual_count", actual)
 
 	return actual
@@ -113,7 +113,7 @@ func (sc *stabilizationContext) filterResourceScaledown(resourceType string, act
 		return next
 	}
 
-	sc.statusBuilder.ForPolicy(sc.policyName).WithPolicyState(
+	sc.statusBuilder.ForPolicy(sc.policyName).WithEvent(
 		status.ScaleUpStabilizationWindow,
 		fmt.Sprintf("%s not scaled down because of scale up stabilization window", resourceType),
 	)

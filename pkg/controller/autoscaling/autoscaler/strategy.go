@@ -41,7 +41,7 @@ func GetScaleDecision(
 	actualAutoscalingStatus status.Status,
 	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 ) nodesets.NamedTierResources {
 	// 1. Scale vertically
 	desiredNodeResources := scaleVertically(log, actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
@@ -69,7 +69,7 @@ func scaleVertically(
 	actualAutoscalingStatus status.Status,
 	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 ) nodesets.ResourcesSpecification {
 	currentStorage := getStorage(autoscalingSpec, actualAutoscalingStatus)
 	return nodeResources(

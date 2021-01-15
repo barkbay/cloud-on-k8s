@@ -23,7 +23,7 @@ func scaleHorizontally(
 	totalRequiredCapacity client.Capacity, // total required resources
 	nodeCapacity nodesets.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
 	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 ) nodesets.NamedTierResources {
 	minNodes := int(autoscalingSpec.NodeCount.Min)
 	maxNodes := int(autoscalingSpec.NodeCount.Max)
@@ -53,7 +53,7 @@ func scaleHorizontally(
 			// Update the autoscaling status accordingly
 			statusBuilder.
 				ForPolicy(autoscalingSpec.Name).
-				WithPolicyState(
+				WithEvent(
 					status.HorizontalScalingLimitReached,
 					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
 				)
@@ -82,7 +82,7 @@ func scaleHorizontally(
 			// Update the autoscaling status accordingly
 			statusBuilder.
 				ForPolicy(autoscalingSpec.Name).
-				WithPolicyState(
+				WithEvent(
 					status.HorizontalScalingLimitReached,
 					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
 				)

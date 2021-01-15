@@ -34,7 +34,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale both horizontally to fulfil storage capacity request",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3G"), corev1.ResourceStorage: q("1Gi")}}}},
@@ -55,7 +55,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale existing nodes vertically",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3G"), corev1.ResourceStorage: q("1Gi")}}}},
@@ -76,7 +76,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Do not scale down storage capacity",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("10G")}}}},
@@ -99,7 +99,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale existing nodes vertically up to the tier limit",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("1Gi")}}}},
@@ -120,7 +120,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			name: "Scale both vertically and horizontally",
 			args: args{
 				currentNodeSets: []string{"default"},
-				nodeSetsStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("4G"), corev1.ResourceStorage: q("1Gi")}}}},
@@ -140,7 +140,7 @@ func Test_applyScaleDecision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusBuilder := status.NewPolicyStatesBuilder()
+			statusBuilder := status.NewAutoscalingStatusBuilder()
 			if got := autoscaler.GetScaleDecision(
 				logTest,
 				tt.args.currentNodeSets,

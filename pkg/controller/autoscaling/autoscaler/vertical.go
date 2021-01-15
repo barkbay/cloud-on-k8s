@@ -23,7 +23,7 @@ func nodeResources(
 	currentStorage resource.Quantity,
 	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 ) nodesets.ResourcesSpecification {
 	resources := nodesets.ResourcesSpecification{}
 
@@ -83,7 +83,7 @@ func nodeResources(
 func getResourceValue(
 	log logr.Logger,
 	autoscalingPolicyName, resourceType string,
-	statusBuilder *status.PolicyStatesBuilder,
+	statusBuilder *status.AutoscalingStatusBuilder,
 	nodeRequired *client.CapacityValue, // node required capacity as returned by the Elasticsearch API
 	totalRequired *client.CapacityValue, // tier required capacity as returned by the Elasticsearch API, considered as optional
 	minNodesCount int64, // the minimum of nodes that will be deployed
@@ -108,7 +108,7 @@ func getResourceValue(
 		// Update the autoscaling status accordingly
 		statusBuilder.
 			ForPolicy(autoscalingPolicyName).
-			WithPolicyState(
+			WithEvent(
 				status.VerticalScalingLimitReached,
 				fmt.Sprintf("Node required %s %d is greater than max allowed: %d", resourceType, nodeRequired, max.Value()),
 			)

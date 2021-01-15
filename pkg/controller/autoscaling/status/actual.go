@@ -48,8 +48,8 @@ func (s *Status) ImportExistingResources(log logr.Logger, c k8s.Client, as esv1.
 			"resources", resources.ToInt64(),
 		)
 		// We only want to save the status the resources
-		s.PolicyStates = append(s.PolicyStates,
-			PolicyStateItem{
+		s.AutoscalingPolicyStatuses = append(s.AutoscalingPolicyStatuses,
+			AutoscalingPolicyStatus{
 				Name:                   autoscalingPolicy.Name,
 				NodeSetNodeCount:       resources.NodeSetNodeCount,
 				ResourcesSpecification: resources.ResourcesSpecification,

@@ -36,7 +36,7 @@ func Test_scaledownFilter(t *testing.T) {
 		clock         Clock
 		es            esv1.Elasticsearch
 		policyName    string
-		statusBuilder *status.PolicyStatesBuilder
+		statusBuilder *status.AutoscalingStatusBuilder
 	}
 	type args struct {
 		nextNodeSetsResources   nodesets.NamedTierResources
@@ -53,7 +53,7 @@ func Test_scaledownFilter(t *testing.T) {
 		{
 			name: "Within a stabilization window: prevent scale down of resources",
 			ctx: ctx{
-				statusBuilder: status.NewPolicyStatesBuilder(),
+				statusBuilder: status.NewAutoscalingStatusBuilder(),
 				clock:         defaultFixedClock,
 				es:            esv1.Elasticsearch{},
 				policyName:    "my_policy",
@@ -61,7 +61,7 @@ func Test_scaledownFilter(t *testing.T) {
 			args: args{
 				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1" /* scale down request to */, 2).withMemoryRequest("6Gi").withCPURequest("2000").build(),
 				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCPU("1000", "8000").Build(),
-				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
+				actualNodeSetsResources: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					LastModificationTime:   metav1.NewTime(defaultNow.Add(-2 * time.Minute)),
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: /* actual node count */ 3}},
@@ -89,7 +89,7 @@ func Test_scaledownFilter(t *testing.T) {
 		{
 			name: "Outside of a stabilization window: allow scale down of resources",
 			ctx: ctx{
-				statusBuilder: status.NewPolicyStatesBuilder(),
+				statusBuilder: status.NewAutoscalingStatusBuilder(),
 				clock:         defaultFixedClock,
 				es:            esv1.Elasticsearch{},
 				policyName:    "my_policy",
@@ -97,7 +97,7 @@ func Test_scaledownFilter(t *testing.T) {
 			args: args{
 				nextNodeSetsResources: newResourcesBuilder("my-autoscaling-policy").withNodeSet("nodeset-1", 2).withMemoryRequest("6Gi").withCPURequest("2000").build(),
 				autoscalingPolicy:     esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "10Gi").WithCPU("1000", "8000").Build(),
-				actualNodeSetsResources: status.Status{PolicyStates: []status.PolicyStateItem{{
+				actualNodeSetsResources: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					LastModificationTime:   metav1.NewTime(defaultNow.Add(-11 * time.Minute)),
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}},

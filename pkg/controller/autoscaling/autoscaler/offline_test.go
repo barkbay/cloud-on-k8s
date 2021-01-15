@@ -35,7 +35,7 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 			args: args{
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "20Gi").Build(),
-				actualAutoscalingStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
@@ -51,7 +51,7 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 			args: args{
 				nodeSets:        []string{"region-a", "region-b"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("50Gi", "60Gi").WithStorage("10Gi", "20Gi").Build(),
-				actualAutoscalingStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
@@ -67,7 +67,7 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 			args: args{
 				nodeSets:        []string{"region-a", "region-b", "region-new"},
 				autoscalingSpec: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(1, 6).WithMemory("2Gi", "6Gi").WithStorage("10Gi", "20Gi").Build(),
-				actualAutoscalingStatus: status.Status{PolicyStates: []status.PolicyStateItem{{
+				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []nodesets.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
 					ResourcesSpecification: nodesets.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
