@@ -410,7 +410,7 @@ func updateElasticsearch(
 			continue
 		}
 
-		container, containers := getContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
+		container, containers := removeContainer(esv1.ElasticsearchContainerName, es.Spec.NodeSets[i].PodTemplate.Spec.Containers)
 		// Create a copy to compare if some changes have been made.
 		actualContainer := container.DeepCopy()
 		if container == nil {
@@ -580,7 +580,8 @@ func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.El
 	), nil
 }
 
-func getContainer(name string, containers []corev1.Container) (*corev1.Container, []corev1.Container) {
+// removeContainer remove a container from a slice and return the removed container if found.
+func removeContainer(name string, containers []corev1.Container) (*corev1.Container, []corev1.Container) {
 	for i, container := range containers {
 		if container.Name == name {
 			// Remove the container

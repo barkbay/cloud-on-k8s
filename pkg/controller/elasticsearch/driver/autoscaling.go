@@ -43,7 +43,11 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 			)
 			return false, nil
 		}
-		if s.IsUsedBy(nodeSet) {
+		inSync, err := s.IsUsedBy(esv1.ElasticsearchContainerName, nodeSet)
+		if err != nil {
+			return false, err
+		}
+		if !inSync {
 			log.Info("NodeSet managed by the autoscaling controller but not in sync",
 				"nodeset", nodeSet.Name,
 				"expected", s.ResourcesSpecification,
