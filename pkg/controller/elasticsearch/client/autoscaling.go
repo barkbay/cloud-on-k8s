@@ -18,14 +18,15 @@ type MachineLearningSettings struct {
 
 // SettingsGroup is a group of persistent settings.
 type MLSettingsGroup struct {
-	MaxLazyMLNodes int32 `json:"xpack.ml.max_lazy_ml_nodes"`
+	MaxLazyMLNodes int32  `json:"xpack.ml.max_lazy_ml_nodes"`
+	MaxMemory      string `json:"xpack.ml.max_ml_node_size"`
 }
 
 type AutoScalingClient interface {
 	DeleteAutoscalingAutoscalingPolicies(ctx context.Context) error
 	UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy esv1.AutoscalingPolicy) error
 	GetAutoscalingCapacity(ctx context.Context) (Policies, error)
-	UpdateMaxLazyMLNodes(ctx context.Context, maxLazyMLNodes int32) error
+	UpdateMLNodesSettings(ctx context.Context, maxLazyMLNodes int32, maxMemory string) error
 }
 
 func (c *clientV7) UpsertAutoscalingPolicy(ctx context.Context, policyName string, autoscalingPolicy esv1.AutoscalingPolicy) error {
@@ -37,11 +38,15 @@ func (c *clientV7) DeleteAutoscalingAutoscalingPolicies(ctx context.Context) err
 	return c.delete(ctx, "/_autoscaling/policy/*", nil, nil)
 }
 
-func (c *clientV7) UpdateMaxLazyMLNodes(ctx context.Context, maxLazyMLNodes int32) error {
+func (c *clientV7) UpdateMLNodesSettings(ctx context.Context, maxLazyMLNodes int32, maxMemory string) error {
 	return c.put(
 		ctx,
 		"/_cluster/settings",
-		&MachineLearningSettings{&MLSettingsGroup{MaxLazyMLNodes: maxLazyMLNodes}}, nil)
+		&MachineLearningSettings{
+			&MLSettingsGroup{
+				MaxLazyMLNodes: maxLazyMLNodes,
+				MaxMemory:      maxMemory,
+			}}, nil)
 }
 
 // Policies represents autoscaling policies and decisions.

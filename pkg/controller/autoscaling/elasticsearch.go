@@ -241,11 +241,11 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	}
 
 	// Update Machine Learning settings
-	mlNodes, err := autoscalingSpecs.GetMLNodesCount()
+	mlNodes, maxMemory, err := autoscalingSpecs.GetMLNodesCount()
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
-	if err := esClient.UpdateMaxLazyMLNodes(ctx, mlNodes); err != nil {
+	if err := esClient.UpdateMLNodesSettings(ctx, mlNodes, maxMemory); err != nil {
 		// Trace the error but do not prevent the policies to be updated
 		log.Error(tracing.CaptureError(ctx, err), "Error while updating the ML settings")
 	}

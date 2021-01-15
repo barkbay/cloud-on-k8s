@@ -231,24 +231,28 @@ func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetC
 	return namedTiersSet, nil
 }
 
-// GetMLNodesCount computes the total number of nodes which can be deployed in the cluster.
-func (as AutoscalingSpec) GetMLNodesCount() (int32, error) {
-	var totalMLNodesCount int32
+// GetMLNodesCount computes the total number of ML nodes which can be deployed in the cluster and the maximum memory size.
+func (as AutoscalingSpec) GetMLNodesCount() (nodes int32, maxMemory string, err error) {
+	var maxMemoryAsInt int64
 	for _, nodeSet := range as.Elasticsearch.Spec.NodeSets {
 		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
 		if err != nil {
-			return 0, err
+			return 0, "0b", err
 		}
 		roles, err := getNodeSetRoles(as.Elasticsearch, nodeSet)
 		if err != nil {
-			return 0, err
+			return 0, "0b", err
 		}
 		rolesInPolicy := set.Make(roles...)
 		if rolesInPolicy.Has(MLRole) {
-			totalMLNodesCount += resourcePolicy.NodeCount.Max
+			nodes += resourcePolicy.NodeCount.Max
+			if resourcePolicy.IsMemoryDefined() && resourcePolicy.Memory.Max.Value() > maxMemoryAsInt {
+				maxMemoryAsInt = resourcePolicy.Memory.Max.Value()
+			}
 		}
 	}
-	return totalMLNodesCount, nil
+	maxMemory = fmt.Sprintf("%db", maxMemoryAsInt)
+	return nodes, maxMemory, nil
 }
 
 // GetAutoscalingSpecFor retrieves the autoscaling spec associated to a NodeSet or nil if none.

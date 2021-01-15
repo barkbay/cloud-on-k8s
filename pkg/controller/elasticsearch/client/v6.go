@@ -163,7 +163,7 @@ func (c *clientV6) GetAutoscalingCapacity(_ context.Context) (Policies, error) {
 	return Policies{}, errors.New("Not supported in Elasticsearch 6.x")
 }
 
-func (c *clientV6) UpdateMaxLazyMLNodes(_ context.Context, _ int32) error {
+func (c *clientV6) UpdateMLNodesSettings(_ context.Context, _ int32, _ string) error {
 	return errors.New("Not supported in Elasticsearch 6.x")
 }
 
