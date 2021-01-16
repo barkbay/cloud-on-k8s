@@ -17,7 +17,8 @@ import (
 
 // TODO: Create a context struct to embed things like nodeSets, log, autoscalingSpec or statusBuilder
 
-// getStorage returns the storage capacity for the provided autoscaling policy.The storage capacityis always at least the
+// getStorage returns the storage min. capacity that should be used in the autoscaling algorithm.
+// The value is the max. value of either the current value in the status or in the autoscaling spec. set by the user.
 func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingStatus status.Status) resource.Quantity {
 	// If no storage spec is defined in the autoscaling status we return the default volume size.
 	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
@@ -25,6 +26,7 @@ func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingSta
 	if autoscalingSpec.IsStorageDefined() {
 		storage = autoscalingSpec.Storage.Min
 	}
+	// If a storage value is stored in the status then reuse it.
 	if actualResources, exists := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name); exists && actualResources.HasRequest(corev1.ResourceStorage) {
 		storageInStatus := actualResources.GetRequest(corev1.ResourceStorage)
 		// There is a resources definition for this autoscaling policy
@@ -35,6 +37,7 @@ func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingSta
 	return storage
 }
 
+// GetScaleDecision calculates the resources to be required by NodeSets managed by a same autoscaling policy.
 func GetScaleDecision(
 	log logr.Logger,
 	nodeSets []string,
@@ -71,6 +74,9 @@ func scaleVertically(
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.AutoscalingStatusBuilder,
 ) nodesets.ResourcesSpecification {
+	// All resources can be computed "from scratch", without knowing the previous values.
+	// It is not true for storage. Storage can't be scaled down, current storage capacity must be considered as an hard min. limit.
+	// This limit must be taken into consideration when computing the desired resources.
 	currentStorage := getStorage(autoscalingSpec, actualAutoscalingStatus)
 	return nodeResources(
 		log,

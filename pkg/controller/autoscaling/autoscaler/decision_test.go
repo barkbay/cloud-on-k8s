@@ -2,13 +2,12 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package autoscaling
+package autoscaler
 
 import (
 	"testing"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -141,7 +140,7 @@ func Test_applyScaleDecision(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusBuilder := status.NewAutoscalingStatusBuilder()
-			if got := autoscaler.GetScaleDecision(
+			if got := GetScaleDecision(
 				logTest,
 				tt.args.currentNodeSets,
 				tt.args.nodeSetsStatus,
@@ -154,6 +153,46 @@ func Test_applyScaleDecision(t *testing.T) {
 	}
 }
 
-func q(quantity string) resource.Quantity {
-	return resource.MustParse(quantity)
+// - PolicyCapacityInfo builder
+
+type requiredCapacityBuilder struct {
+	client.PolicyCapacityInfo
+}
+
+func newRequiredCapacityBuilder() *requiredCapacityBuilder {
+	return &requiredCapacityBuilder{}
+}
+
+func ptr(q int64) *client.CapacityValue {
+	v := client.CapacityValue(q)
+	return &v
+}
+
+func (rcb *requiredCapacityBuilder) build() client.PolicyCapacityInfo {
+	return rcb.PolicyCapacityInfo
+}
+
+func (rcb *requiredCapacityBuilder) nodeMemory(m string) *requiredCapacityBuilder {
+	rcb.Node.Memory = ptr(value(m))
+	return rcb
+}
+
+func (rcb *requiredCapacityBuilder) tierMemory(m string) *requiredCapacityBuilder {
+	rcb.Total.Memory = ptr(value(m))
+	return rcb
+}
+
+func (rcb *requiredCapacityBuilder) nodeStorage(m string) *requiredCapacityBuilder {
+	rcb.Node.Storage = ptr(value(m))
+	return rcb
+}
+
+func (rcb *requiredCapacityBuilder) tierStorage(m string) *requiredCapacityBuilder {
+	rcb.Total.Storage = ptr(value(m))
+	return rcb
+}
+
+func value(v string) int64 {
+	q := resource.MustParse(v)
+	return q.Value()
 }

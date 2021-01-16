@@ -13,8 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetOfflineNodeSetsResources attempts to create or restore nodeSetResources without an autoscaling decisions.
-// It ensures that even if no decisions have been returned the nodeSet respect the min. and max. resource requirements.
+// GetOfflineNodeSetsResources attempts to create or restore nodeSetResources without an actual autoscaling decision
+// from Elasticsearch. It ensures that even if no decisions have been returned by the autoscaling API then the nodeSets
+// respect the min. and max. resource requirements specified by the user.
 // If resources are within the min. and max. boundaries then they are left untouched.
 func GetOfflineNodeSetsResources(
 	log logr.Logger,
@@ -25,26 +26,28 @@ func GetOfflineNodeSetsResources(
 	actualNamedTierResources, hasNamedTierResources := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name)
 
 	var namedTierResources nodesets.NamedTierResources
-	expectedNodeCount := 0
+	var expectedNodeCount int32
 	if !hasNamedTierResources {
-		// No current status for this nodeSet, create a new one with minimums
+		// There's no current status for this nodeSet, this happens when the Elasticsearch cluster does not exist.
+		// In that case we create a new one from the minimum values provided by the user.
 		namedTierResources = newMinNodeSetResources(autoscalingSpec, nodeSets)
 	} else {
+		// The status contains some resource values for the nodeSets managed by this autoscaling policy, let's reuse them.
 		namedTierResources = nodeSetResourcesFromStatus(actualAutoscalingStatus, actualNamedTierResources, autoscalingSpec, nodeSets)
 		for _, nodeSet := range actualNamedTierResources.NodeSetNodeCount {
-			expectedNodeCount += int(nodeSet.NodeCount)
+			expectedNodeCount += nodeSet.NodeCount
 		}
 	}
 
-	minNodes := int(autoscalingSpec.NodeCount.Min)
-	maxNodes := int(autoscalingSpec.NodeCount.Max)
-	// ensure that the min. number of nodes is set
-	if expectedNodeCount < minNodes {
-		expectedNodeCount = minNodes
-	} else if expectedNodeCount > maxNodes {
-		expectedNodeCount = maxNodes
+	// Ensure that the min. number of nodes is in the allowed range.
+	if expectedNodeCount < autoscalingSpec.NodeCount.Min {
+		expectedNodeCount = autoscalingSpec.NodeCount.Min
+	} else if expectedNodeCount > autoscalingSpec.NodeCount.Max {
+		expectedNodeCount = autoscalingSpec.NodeCount.Max
 	}
 
+	// User may have added or removed some NodeSets while the autoscaling API is not available.
+	// We distribute the nodes to reflect that change.
 	fnm := NewFairNodesManager(log, namedTierResources.NodeSetNodeCount)
 	for expectedNodeCount > 0 {
 		fnm.AddNode()
@@ -71,19 +74,25 @@ func nodeSetResourcesFromStatus(
 	nodeSets []string,
 ) nodesets.NamedTierResources {
 	namedTierResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
-	// Ensure memory settings are in the allowed range,
+	// Ensure memory settings are in the allowed limit range.
 	if autoscalingSpec.IsMemoryDefined() {
 		if actualNamedTierResources.HasRequest(corev1.ResourceMemory) {
-			namedTierResources.SetRequest(corev1.ResourceMemory, adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceMemory), autoscalingSpec.Memory.Min, autoscalingSpec.Memory.Max))
+			namedTierResources.SetRequest(
+				corev1.ResourceMemory,
+				adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceMemory), autoscalingSpec.Memory.Min, autoscalingSpec.Memory.Max),
+			)
 		} else {
 			namedTierResources.SetRequest(corev1.ResourceMemory, autoscalingSpec.Memory.Min.DeepCopy())
 		}
 	}
 
-	// Ensure CPU settings are in the allowed range
+	// Ensure CPU settings are in the allowed limit range.
 	if autoscalingSpec.IsCPUDefined() {
 		if actualNamedTierResources.HasRequest(corev1.ResourceCPU) {
-			namedTierResources.SetRequest(corev1.ResourceCPU, adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceCPU), autoscalingSpec.CPU.Min, autoscalingSpec.CPU.Max))
+			namedTierResources.SetRequest(
+				corev1.ResourceCPU,
+				adjustQuantity(actualNamedTierResources.GetRequest(corev1.ResourceCPU), autoscalingSpec.CPU.Min, autoscalingSpec.CPU.Max),
+			)
 		} else {
 			namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.CPU.Min.DeepCopy())
 		}
@@ -91,7 +100,6 @@ func nodeSetResourcesFromStatus(
 
 	// Ensure storage capacity is set
 	namedTierResources.SetRequest(corev1.ResourceStorage, getStorage(autoscalingSpec, actualAutoscalingStatus))
-
 	return namedTierResources
 }
 
