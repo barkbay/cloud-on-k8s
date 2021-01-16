@@ -16,10 +16,10 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
+	logconf "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -30,8 +30,9 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	autoscalingSpecs esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 ) (reconcile.Result, error) {
+	defer tracing.Span(&ctx)()
 	results := &reconciler.Results{}
-	log := logf.FromContext(ctx)
+	log := logconf.FromContext(ctx)
 
 	if esReachable, err := r.isElasticsearchReachable(ctx, es); !esReachable || err != nil {
 		// Elasticsearch is not reachable, or we got an error while checking Elasticsearch availability, follow up with an offline reconciliation.
@@ -82,7 +83,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 ) (reconcile.Result, error) {
 	span, _ := apm.StartSpan(ctx, "online_reconciliation", tracing.SpanTypeApp)
 	defer span.End()
-	log := logf.FromContext(ctx)
+	log := logconf.FromContext(ctx)
 	log.V(1).Info("Starting online autoscaling reconciliation")
 	esClient, err := r.newElasticsearchClient(r.Client, es)
 	if err != nil {
@@ -205,9 +206,8 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	es esv1.Elasticsearch,
 	results *reconciler.Results,
 ) (reconcile.Result, error) {
-	span, _ := apm.StartSpan(ctx, "offline_reconciliation", tracing.SpanTypeApp)
-	defer span.End()
-	log := logf.FromContext(ctx)
+	defer tracing.Span(&ctx)()
+	log := logconf.FromContext(ctx)
 	log.V(1).Info("Starting offline autoscaling reconciliation")
 	statusBuilder := status.NewAutoscalingStatusBuilder()
 	var clusterNodeSetsResources nodesets.ClusterResources

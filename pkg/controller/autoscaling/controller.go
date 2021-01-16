@@ -6,7 +6,6 @@ package autoscaling
 
 import (
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -21,16 +20,16 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	logconf "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
-	name = "elasticsearch-autoscaling"
+	controllerName = "elasticsearch-autoscaling"
 )
 
 // ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch specifications based on autoscaling decisions.
@@ -53,7 +52,7 @@ var defaultReconcile = reconcile.Result{
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager, p operator.Parameters) error {
 	r := newReconciler(mgr, p)
-	c, err := common.NewController(mgr, name, r, p)
+	c, err := common.NewController(mgr, controllerName, r, p)
 	if err != nil {
 		return err
 	}
@@ -72,7 +71,7 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 	return &ReconcileElasticsearch{
 		Client:         c,
 		Parameters:     params,
-		recorder:       mgr.GetEventRecorderFor(name),
+		recorder:       mgr.GetEventRecorderFor(controllerName),
 		licenseChecker: license.NewLicenseChecker(c, params.OperatorNamespace),
 	}
 }
@@ -81,27 +80,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 // resource according to the result of the Elasticsearch capacity API and given the constraints provided by the user in
 // the resource policies.
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// TODO: remove custom log/tracing or refactor it based on https://github.com/elastic/cloud-on-k8s/issues/2491#issuecomment-696678067
-	currentIteration := atomic.AddUint64(&r.iteration, 1)
-	startTime := time.Now()
-	tx, ctx := tracing.NewTransaction(r.Tracer, request.NamespacedName, name)
-	defer tracing.EndTransaction(tx)
-	keyValues := tracing.TraceContextKV(ctx)
-
-	// Create logger
-	log := logf.Log.WithName(name).
-		WithValues("event.sequence", currentIteration, "event.dataset", name).
-		WithValues("labels", map[string]interface{}{
-			"reconcile.name":      request.Name,
-			"reconcile.namespace": request.Namespace,
-		}).
-		WithValues(keyValues...)
-	log.Info("Starting reconciliation run")
-	defer func() {
-		totalTime := time.Since(startTime)
-		log.Info("Ending reconciliation run", "event.duration", totalTime)
-	}()
-	ctx = logf.IntoContext(ctx, log)
+	ctx := common.NewReconciliationContext(&r.iteration, r.Tracer, controllerName, "es_name", request)
+	defer common.LogReconciliationRunNoSideEffects(logconf.FromContext(ctx))()
+	defer tracing.EndContextTransaction(ctx)
 
 	// Fetch the Elasticsearch instance
 	var es esv1.Elasticsearch
@@ -114,6 +95,7 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, nil
 	}
 
+	log := logconf.FromContext(ctx)
 	if common.IsUnmanaged(&es) {
 		log.Info("Object is currently not managed by this controller. Skipping reconciliation", "namespace", es.Namespace, "es_name", es.Name)
 		return reconcile.Result{}, nil

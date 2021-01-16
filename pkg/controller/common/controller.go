@@ -42,6 +42,8 @@ func NewReconciliationContext(
 		ctx,
 		controllerName,
 		"iteration", itString,
+		"event.sequence", itString,
+		"event.dataset", controllerName,
 		"namespace", request.Namespace,
 		nameField, request.Name)
 }
