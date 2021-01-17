@@ -92,7 +92,10 @@ func reconcileElasticsearch(
 			}
 		}
 
-		es.Spec.NodeSets[i].PodTemplate.Spec.Containers = append(containers, *container)
+		// Add the container to other containers
+		containers = append(containers, *container)
+		// Update the NodeSet
+		es.Spec.NodeSets[i].PodTemplate.Spec.Containers = containers
 
 		if !apiequality.Semantic.DeepEqual(actualContainer, container) {
 			log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", nextNodeSetsResources)

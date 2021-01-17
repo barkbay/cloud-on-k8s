@@ -10,10 +10,109 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestResourcesSpecification_MaxMerge(t *testing.T) {
+	type fields struct {
+		Limits   corev1.ResourceList
+		Requests corev1.ResourceList
+	}
+	type args struct {
+		other        corev1.ResourceRequirements
+		resourceName corev1.ResourceName
+		want         ResourcesSpecification
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{
+			name: "max is receiver",
+			fields: fields{
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+					corev1.ResourceCPU:    resource.MustParse("2000"),
+				},
+			},
+			args: args{
+				other: corev1.ResourceRequirements{
+					Limits: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("4Gi"),
+					},
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("4Gi"),
+						corev1.ResourceCPU:    resource.MustParse("1000"),
+					},
+				},
+				resourceName: corev1.ResourceMemory,
+				want: ResourcesSpecification{
+					Limits: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+					},
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+						corev1.ResourceCPU:    resource.MustParse("2000"),
+					},
+				},
+			},
+		},
+		{
+			name: "max is other",
+			fields: fields{
+				// receiver
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
+				},
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
+					corev1.ResourceCPU:    resource.MustParse("1000"),
+				},
+			},
+			args: args{
+				other: corev1.ResourceRequirements{
+					Limits: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceCPU:    resource.MustParse("2000"),
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+					},
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+						corev1.ResourceCPU:    resource.MustParse("2000"),
+					},
+				},
+				resourceName: corev1.ResourceMemory,
+				want: ResourcesSpecification{
+					Limits: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+					},
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceMemory: resource.MustParse("8Gi"),
+						corev1.ResourceCPU:    resource.MustParse("1000"),
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs := &ResourcesSpecification{
+				Limits:   tt.fields.Limits,
+				Requests: tt.fields.Requests,
+			}
+			rs.MaxMerge(tt.args.other, tt.args.resourceName)
+			assert.True(t, apiequality.Semantic.DeepEqual(rs.Requests, tt.args.want.Requests), "Unexpected requests")
+			assert.True(t, apiequality.Semantic.DeepEqual(rs.Limits, tt.args.want.Limits), "Unexpected limits")
+		})
+	}
+}
 
 func TestNamedTierResources_IsUsedBy(t *testing.T) {
 	type fields struct {

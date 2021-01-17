@@ -147,38 +147,30 @@ func (rs *ResourcesSpecification) MaxMerge(
 	resourceName corev1.ResourceName,
 ) {
 	// Requests
-	for otherResourceName, otherResourceValue := range other.Requests {
-		if otherResourceName != resourceName {
-			continue
-		}
+	otherResourceRequestValue, otherHasResourceRequest := other.Requests[resourceName]
+	if otherHasResourceRequest {
 		if rs.Requests == nil {
 			rs.Requests = make(corev1.ResourceList)
 		}
 		receiverValue, receiverHasResource := rs.Requests[resourceName]
 		if !receiverHasResource {
-			rs.Requests[resourceName] = otherResourceValue
-			continue
-		}
-		if otherResourceValue.Cmp(receiverValue) > 0 {
-			rs.Requests[resourceName] = otherResourceValue
+			rs.Requests[resourceName] = otherResourceRequestValue
+		} else if otherResourceRequestValue.Cmp(receiverValue) > 0 {
+			rs.Requests[resourceName] = otherResourceRequestValue
 		}
 	}
 
 	// Limits
-	for resourceName, otherResourceValue := range other.Limits {
-		if resourceName != resourceName {
-			continue
-		}
+	otherResourceLimitValue, otherHasResourceLimit := other.Limits[resourceName]
+	if otherHasResourceLimit {
 		if rs.Limits == nil {
 			rs.Limits = make(corev1.ResourceList)
 		}
 		receiverValue, receiverHasResource := rs.Limits[resourceName]
 		if !receiverHasResource {
-			rs.Limits[resourceName] = otherResourceValue
-			continue
-		}
-		if otherResourceValue.Cmp(receiverValue) > 0 {
-			rs.Limits[resourceName] = otherResourceValue
+			rs.Limits[resourceName] = otherResourceLimitValue
+		} else if otherResourceLimitValue.Cmp(receiverValue) > 0 {
+			rs.Limits[resourceName] = otherResourceLimitValue
 		}
 	}
 }
