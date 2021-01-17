@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,7 +25,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 	tests := []struct {
 		name                   string
 		args                   args
-		wantNamedTierResources *nodesets.NamedTierResources
+		wantNamedTierResources *resources.NamedTierResources
 		wantErr                bool
 	}{
 		{
@@ -63,10 +63,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 					AutoscalingResources:   esv1.AutoscalingResources{Storage: &esv1.QuantityRange{Min: resource.MustParse("7Gi"), Max: resource.MustParse("50Gi")}}},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &nodesets.NamedTierResources{
+			wantNamedTierResources: &resources.NamedTierResources{
 				Name:             "aspec",
-				NodeSetNodeCount: []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: nodesets.ResourcesSpecification{
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
+				ResourcesSpecification: resources.ResourcesSpecification{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
 					},
@@ -104,10 +104,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 				},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &nodesets.NamedTierResources{
+			wantNamedTierResources: &resources.NamedTierResources{
 				Name:             "aspec",
-				NodeSetNodeCount: []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: nodesets.ResourcesSpecification{
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
+				ResourcesSpecification: resources.ResourcesSpecification{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory:  resource.MustParse("32Gi"),
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
@@ -146,10 +146,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 				},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &nodesets.NamedTierResources{
+			wantNamedTierResources: &resources.NamedTierResources{
 				Name:             "aspec",
-				NodeSetNodeCount: []nodesets.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: nodesets.ResourcesSpecification{
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
+				ResourcesSpecification: resources.ResourcesSpecification{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory: resource.MustParse("32Gi"),
 					},

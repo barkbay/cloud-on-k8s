@@ -6,7 +6,7 @@ import (
 	"github.com/go-logr/logr"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	appsv1 "k8s.io/api/apps/v1"
@@ -64,8 +64,8 @@ func namedTierResourcesFromStatefulSets(
 	es esv1.Elasticsearch,
 	autoscalingPolicySpec esv1.AutoscalingPolicySpec,
 	nodeSets []string,
-) (*nodesets.NamedTierResources, error) {
-	namedTierResources := nodesets.NamedTierResources{
+) (*resources.NamedTierResources, error) {
+	namedTierResources := resources.NamedTierResources{
 		Name: autoscalingPolicySpec.Name,
 	}
 	found := false
@@ -87,7 +87,7 @@ func namedTierResourcesFromStatefulSets(
 		}
 
 		found = true
-		namedTierResources.NodeSetNodeCount = append(namedTierResources.NodeSetNodeCount, nodesets.NodeSetNodeCount{
+		namedTierResources.NodeSetNodeCount = append(namedTierResources.NodeSetNodeCount, resources.NodeSetNodeCount{
 			Name:      nodeSetName,
 			NodeCount: getStatefulSetReplicas(statefulSet),
 		})

@@ -10,7 +10,7 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
@@ -115,7 +115,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	statusBuilder := status.NewAutoscalingStatusBuilder()
 
 	// nextNodeSetsResources holds the resources computed by the autoscaling algorithm for each nodeSet.
-	var nextNodeSetsResources nodesets.ClusterResources
+	var nextNodeSetsResources resources.ClusterResources
 
 	// For each autoscaling policy we compute the resources to be applied to the related nodeSets.
 	for _, autoscalingPolicy := range autoscalingSpecs.AutoscalingPolicySpecs {
@@ -131,7 +131,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		}
 
 		// Get the decision from the Elasticsearch API
-		var nodeSetsResources nodesets.NamedTierResources
+		var nodeSetsResources resources.NamedTierResources
 		switch capacity, hasCapacity := decisions.Policies[autoscalingPolicy.Name]; hasCapacity && !capacity.RequiredCapacity.IsEmpty() {
 		case false:
 			// We didn't receive a decision for this tier, or the decision is empty. We can only ensure that resources are within the allowed ranges.
@@ -210,7 +210,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	log := logconf.FromContext(ctx)
 	log.V(1).Info("Starting offline autoscaling reconciliation")
 	statusBuilder := status.NewAutoscalingStatusBuilder()
-	var clusterNodeSetsResources nodesets.ClusterResources
+	var clusterNodeSetsResources resources.ClusterResources
 	// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
 	for _, autoscalingSpec := range autoscalingSpecs.AutoscalingPolicySpecs {
 		nodeSets, exists := namedTiers[autoscalingSpec.Name]

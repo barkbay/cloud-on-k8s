@@ -6,7 +6,7 @@ package autoscaler
 
 import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -22,10 +22,10 @@ func GetOfflineNodeSetsResources(
 	nodeSets []string,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	actualAutoscalingStatus status.Status,
-) nodesets.NamedTierResources {
+) resources.NamedTierResources {
 	actualNamedTierResources, hasNamedTierResources := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name)
 
-	var namedTierResources nodesets.NamedTierResources
+	var namedTierResources resources.NamedTierResources
 	var expectedNodeCount int32
 	if !hasNamedTierResources {
 		// There's no current status for this nodeSet, this happens when the Elasticsearch cluster does not exist.
@@ -69,11 +69,11 @@ func GetOfflineNodeSetsResources(
 // If user removed the limits while offline we are assuming that it wants to take back control on the resources.
 func nodeSetResourcesFromStatus(
 	actualAutoscalingStatus status.Status,
-	actualNamedTierResources nodesets.NamedTierResources,
+	actualNamedTierResources resources.NamedTierResources,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	nodeSets []string,
-) nodesets.NamedTierResources {
-	namedTierResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+) resources.NamedTierResources {
+	namedTierResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
 	// Ensure memory settings are in the allowed limit range.
 	if autoscalingSpec.IsMemoryDefined() {
 		if actualNamedTierResources.HasRequest(corev1.ResourceMemory) {
@@ -104,8 +104,8 @@ func nodeSetResourcesFromStatus(
 }
 
 // newMinNodeSetResources returns a NodeSetResources with minimums values
-func newMinNodeSetResources(autoscalingSpec esv1.AutoscalingPolicySpec, nodeSets []string) nodesets.NamedTierResources {
-	namedTierResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+func newMinNodeSetResources(autoscalingSpec esv1.AutoscalingPolicySpec, nodeSets []string) resources.NamedTierResources {
+	namedTierResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
 	if autoscalingSpec.IsCPUDefined() {
 		namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.CPU.Min.DeepCopy())
 	}

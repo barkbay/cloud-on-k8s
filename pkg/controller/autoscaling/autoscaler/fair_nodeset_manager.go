@@ -8,15 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
-
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/go-logr/logr"
 )
 
 // FairNodesManager helps to distribute nodes among several NodeSets whose belong to a same tier.
 type FairNodesManager struct {
 	log                  logr.Logger
-	nodeSetNodeCountList nodesets.NodeSetNodeCountList
+	nodeSetNodeCountList resources.NodeSetNodeCountList
 }
 
 // sort sorts nodeSets by the value of the Count field, giving priority to nodeSets with less nodes.
@@ -30,7 +29,7 @@ func (fnm *FairNodesManager) sort() {
 	})
 }
 
-func NewFairNodesManager(log logr.Logger, nodeSetNodeCount []nodesets.NodeSetNodeCount) FairNodesManager {
+func NewFairNodesManager(log logr.Logger, nodeSetNodeCount []resources.NodeSetNodeCount) FairNodesManager {
 	fnm := FairNodesManager{
 		log:                  log,
 		nodeSetNodeCountList: nodeSetNodeCount,

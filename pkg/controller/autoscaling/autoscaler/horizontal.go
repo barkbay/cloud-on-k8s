@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/go-logr/logr"
@@ -21,10 +21,10 @@ func scaleHorizontally(
 	log logr.Logger,
 	nodeSets []string,
 	totalRequiredCapacity client.Capacity, // total required resources
-	nodeCapacity nodesets.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
+	nodeCapacity resources.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.AutoscalingStatusBuilder,
-) nodesets.NamedTierResources {
+) resources.NamedTierResources {
 	minNodes := int(autoscalingSpec.NodeCount.Min)
 	maxNodes := int(autoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
@@ -100,7 +100,7 @@ func scaleHorizontally(
 		"required_capacity", totalRequiredCapacity,
 	)
 
-	nodeSetsResources := nodesets.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+	nodeSetsResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
 	nodeSetsResources.ResourcesSpecification = nodeCapacity
 	fnm := NewFairNodesManager(log, nodeSetsResources.NodeSetNodeCount)
 	for totalNodes > 0 {

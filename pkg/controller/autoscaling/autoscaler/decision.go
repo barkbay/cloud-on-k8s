@@ -6,7 +6,7 @@ package autoscaler
 
 import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
@@ -45,7 +45,7 @@ func GetScaleDecision(
 	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.AutoscalingStatusBuilder,
-) nodesets.NamedTierResources {
+) resources.NamedTierResources {
 	// 1. Scale vertically
 	desiredNodeResources := scaleVertically(log, actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
 	log.Info(
@@ -73,7 +73,7 @@ func scaleVertically(
 	requiredCapacity client.PolicyCapacityInfo,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	statusBuilder *status.AutoscalingStatusBuilder,
-) nodesets.ResourcesSpecification {
+) resources.ResourcesSpecification {
 	// All resources can be computed "from scratch", without knowing the previous values.
 	// It is not true for storage. Storage can't be scaled down, current storage capacity must be considered as an hard min. limit.
 	// This limit must be taken into consideration when computing the desired resources.

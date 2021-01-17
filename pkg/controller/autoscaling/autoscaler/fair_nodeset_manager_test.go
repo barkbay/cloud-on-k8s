@@ -7,13 +7,13 @@ package autoscaler
 import (
 	"testing"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestFairNodesManager_AddNode(t *testing.T) {
 	type fields struct {
-		nodeSetNodeCountList []nodesets.NodeSetNodeCount
+		nodeSetNodeCountList []resources.NodeSetNodeCount
 	}
 	tests := []struct {
 		name       string
@@ -23,7 +23,7 @@ func TestFairNodesManager_AddNode(t *testing.T) {
 		{
 			name: "One nodeSet",
 			fields: fields{
-				nodeSetNodeCountList: []nodesets.NodeSetNodeCount{{Name: "nodeset-1"}},
+				nodeSetNodeCountList: []resources.NodeSetNodeCount{{Name: "nodeset-1"}},
 			},
 			assertFunc: func(t *testing.T, fnm FairNodesManager) {
 				assert.Equal(t, 1, len(fnm.nodeSetNodeCountList))
@@ -37,7 +37,7 @@ func TestFairNodesManager_AddNode(t *testing.T) {
 		{
 			name: "Several nodeSets",
 			fields: fields{
-				nodeSetNodeCountList: []nodesets.NodeSetNodeCount{{Name: "nodeset-1"}, {Name: "nodeset-2"}},
+				nodeSetNodeCountList: []resources.NodeSetNodeCount{{Name: "nodeset-1"}, {Name: "nodeset-2"}},
 			},
 			assertFunc: func(t *testing.T, fnm FairNodesManager) {
 				assert.Equal(t, 2, len(fnm.nodeSetNodeCountList))

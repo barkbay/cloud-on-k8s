@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,27 +34,27 @@ type AutoscalingPolicyStatus struct {
 	// Name is the name of the autoscaling policy
 	Name string `json:"name"`
 	// NodeSetNodeCount holds the number of nodes for each nodeSet.
-	NodeSetNodeCount nodesets.NodeSetNodeCountList `json:"nodeSets"`
+	NodeSetNodeCount resources.NodeSetNodeCountList `json:"nodeSets"`
 	// ResourcesSpecification holds the resource values common to all the nodeSet managed by a same autoscaling policy.
 	// Only the resources managed by the autoscaling controller are saved in the Status.
-	ResourcesSpecification nodesets.ResourcesSpecification `json:"resources"`
+	ResourcesSpecification resources.ResourcesSpecification `json:"resources"`
 	// PolicyStates may contain various messages regarding the current state of this autoscaling policy.
 	PolicyStates []PolicyState `json:"state"`
 	// LastModificationTime is the last time the resources have been updated, used by the cooldown algorithm.
 	LastModificationTime metav1.Time `json:"lastModificationTime"`
 }
 
-func (s *Status) GetNamedTierResources(policyName string) (nodesets.NamedTierResources, bool) {
+func (s *Status) GetNamedTierResources(policyName string) (resources.NamedTierResources, bool) {
 	for _, policyStatus := range s.AutoscalingPolicyStatuses {
 		if policyStatus.Name == policyName {
-			return nodesets.NamedTierResources{
+			return resources.NamedTierResources{
 				Name:                   policyStatus.Name,
 				NodeSetNodeCount:       policyStatus.NodeSetNodeCount,
 				ResourcesSpecification: policyStatus.ResourcesSpecification,
 			}, true
 		}
 	}
-	return nodesets.NamedTierResources{}, false
+	return resources.NamedTierResources{}, false
 }
 
 func (s *Status) GetLastModificationTime(policyName string) (metav1.Time, bool) {
@@ -68,7 +68,7 @@ func (s *Status) GetLastModificationTime(policyName string) (metav1.Time, bool) 
 
 type AutoscalingPolicyStatusBuilder struct {
 	policyName           string
-	namedTierResources   nodesets.NamedTierResources
+	namedTierResources   resources.NamedTierResources
 	lastModificationTime metav1.Time
 	states               map[PolicyStateType]PolicyState
 }
@@ -100,7 +100,7 @@ func (psb *AutoscalingPolicyStatusBuilder) Build() AutoscalingPolicyStatus {
 }
 
 // SetNamedTierResources sets the compute resources associated to a tier.
-func (psb *AutoscalingPolicyStatusBuilder) SetNamedTierResources(namedTierResources nodesets.NamedTierResources) *AutoscalingPolicyStatusBuilder {
+func (psb *AutoscalingPolicyStatusBuilder) SetNamedTierResources(namedTierResources resources.NamedTierResources) *AutoscalingPolicyStatusBuilder {
 	psb.namedTierResources = namedTierResources
 	return psb
 }
@@ -179,7 +179,7 @@ func GetStatus(es esv1.Elasticsearch) (Status, error) {
 func UpdateAutoscalingStatus(
 	es *esv1.Elasticsearch,
 	statusBuilder *AutoscalingStatusBuilder,
-	nextClusterResources nodesets.ClusterResources,
+	nextClusterResources resources.ClusterResources,
 	actualAutoscalingStatus Status,
 ) error {
 	// Update the timestamp on tiers resources

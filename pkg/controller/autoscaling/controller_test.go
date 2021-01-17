@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
@@ -189,10 +189,10 @@ func statusesEqual(t *testing.T, got, want esv1.Elasticsearch) {
 		require.NotNil(t, gotPolicyStatus, "Autoscaling policy not found")
 		require.ElementsMatch(t, gotPolicyStatus.NodeSetNodeCount, wantPolicyStatus.NodeSetNodeCount)
 		for resource := range wantPolicyStatus.ResourcesSpecification.Requests {
-			require.True(t, nodesets.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
+			require.True(t, resources.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
 		}
 		for resource := range wantPolicyStatus.ResourcesSpecification.Limits {
-			require.True(t, nodesets.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
+			require.True(t, resources.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
 		}
 	}
 

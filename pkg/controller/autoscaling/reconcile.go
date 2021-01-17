@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/nodesets"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
@@ -31,10 +31,10 @@ func reconcileElasticsearch(
 	log logr.Logger,
 	es *esv1.Elasticsearch,
 	statusBuilder *status.AutoscalingStatusBuilder,
-	nextNodeSetsResources nodesets.ClusterResources,
+	nextClusterResources resources.ClusterResources,
 	actualAutoscalingStatus status.Status,
 ) error {
-	nextResourcesByNodeSet := nextNodeSetsResources.ByNodeSet()
+	nextResourcesByNodeSet := nextClusterResources.ByNodeSet()
 	for i := range es.Spec.NodeSets {
 		name := es.Spec.NodeSets[i].Name
 		nodeSetResources, ok := nextResourcesByNodeSet[name]
@@ -98,12 +98,12 @@ func reconcileElasticsearch(
 		es.Spec.NodeSets[i].PodTemplate.Spec.Containers = containers
 
 		if !apiequality.Semantic.DeepEqual(actualContainer, container) {
-			log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", nextNodeSetsResources)
+			log.V(1).Info("Updating nodeset with resources", "nodeset", name, "resources", nextClusterResources)
 		}
 	}
 
 	// Update autoscaling status
-	return status.UpdateAutoscalingStatus(es, statusBuilder, nextNodeSetsResources, actualAutoscalingStatus)
+	return status.UpdateAutoscalingStatus(es, statusBuilder, nextClusterResources, actualAutoscalingStatus)
 }
 
 func (r *ReconcileElasticsearch) fetchElasticsearch(
