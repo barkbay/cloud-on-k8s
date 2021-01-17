@@ -16,8 +16,8 @@ import (
 
 // updatePolicies updates the autoscaling policies in the Elasticsearch cluster.
 func updatePolicies(
-	log logr.Logger,
 	ctx context.Context,
+	log logr.Logger,
 	autoscalingSpec esv1.AutoscalingSpec,
 	esclient client.AutoScalingClient,
 ) error {

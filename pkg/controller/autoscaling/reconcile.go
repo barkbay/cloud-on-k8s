@@ -163,7 +163,9 @@ func newElasticsearchClient(
 		return nil, fmt.Errorf("%s not found in Secret %s/%s", certificates.CertFileName, key.Namespace, key.Name)
 	}
 	caCerts, err := certificates.ParsePEMCerts(trustedCerts)
-
+	if err != nil {
+		return nil, err
+	}
 	return esclient.NewElasticsearchClient(
 		dialer,
 		url,

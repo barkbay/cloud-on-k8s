@@ -198,8 +198,8 @@ func statusesEqual(t *testing.T, got, want esv1.Elasticsearch) {
 
 }
 
-func getPolicyStatus(AutoscalingPolicyStatuses []status.AutoscalingPolicyStatus, name string) *status.AutoscalingPolicyStatus {
-	for _, policyStatus := range AutoscalingPolicyStatuses {
+func getPolicyStatus(autoscalingPolicyStatuses []status.AutoscalingPolicyStatus, name string) *status.AutoscalingPolicyStatus {
+	for _, policyStatus := range autoscalingPolicyStatuses {
 		if policyStatus.Name == name {
 			return &policyStatus
 		}

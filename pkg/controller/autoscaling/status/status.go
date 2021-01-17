@@ -69,7 +69,6 @@ func (s *Status) GetLastModificationTime(policyName string) (metav1.Time, bool) 
 type AutoscalingPolicyStatusBuilder struct {
 	policyName           string
 	namedTierResources   nodesets.NamedTierResources
-	nodeSets             []string
 	lastModificationTime metav1.Time
 	states               map[PolicyStateType]PolicyState
 }

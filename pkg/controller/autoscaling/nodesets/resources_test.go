@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	v1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -121,7 +120,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 		ResourcesSpecification ResourcesSpecification
 	}
 	type args struct {
-		nodeSet v1.NodeSet
+		nodeSet esv1.NodeSet
 	}
 	tests := []struct {
 		name    string

@@ -39,6 +39,9 @@ func NewMergedESConfig(
 		return CanonicalConfig{}, err
 	}
 	isDedicatedMLNode, err := isDedicatedMLNode(userCfg)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
 	config := baseConfig(clusterName, ver, ipFamily, autoscalingEnabled, isDedicatedMLNode).CanonicalConfig
 	err = config.MergeWith(
 		xpackConfig(ver, httpConfig).CanonicalConfig,

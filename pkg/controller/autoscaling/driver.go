@@ -101,7 +101,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	}
 
 	// Update named policies in Elasticsearch
-	if err := updatePolicies(log, ctx, autoscalingSpecs, esClient); err != nil {
+	if err := updatePolicies(ctx, log, autoscalingSpecs, esClient); err != nil {
 		log.Error(err, "Error while updating the autoscaling policies")
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

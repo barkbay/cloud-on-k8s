@@ -254,10 +254,7 @@ func (ntr NamedTierResources) SameResources(other NamedTierResources) bool {
 			return false
 		}
 	}
-	if !equality.Semantic.DeepEqual(ntr.ResourcesSpecification, other.ResourcesSpecification) {
-		return false
-	}
-	return true
+	return equality.Semantic.DeepEqual(ntr.ResourcesSpecification, other.ResourcesSpecification)
 }
 
 func (cr ClusterResources) ByNodeSet() map[string]NodeSetResources {
