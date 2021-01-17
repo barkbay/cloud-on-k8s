@@ -18,9 +18,11 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
+	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	logconf "github.com/elastic/cloud-on-k8s/pkg/utils/log"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/net"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -32,10 +34,13 @@ const (
 	controllerName = "elasticsearch-autoscaling"
 )
 
+type esClientProvider func(c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
+
 // ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch specifications based on autoscaling decisions.
 type ReconcileElasticsearch struct {
 	k8s.Client
 	operator.Parameters
+	esClientProvider
 	recorder       record.EventRecorder
 	licenseChecker license.Checker
 
@@ -69,10 +74,11 @@ func Add(mgr manager.Manager, p operator.Parameters) error {
 func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileElasticsearch {
 	c := k8s.WrapClient(mgr.GetClient())
 	return &ReconcileElasticsearch{
-		Client:         c,
-		Parameters:     params,
-		recorder:       mgr.GetEventRecorderFor(controllerName),
-		licenseChecker: license.NewLicenseChecker(c, params.OperatorNamespace),
+		Client:           c,
+		Parameters:       params,
+		esClientProvider: newElasticsearchClient,
+		recorder:         mgr.GetEventRecorderFor(controllerName),
+		licenseChecker:   license.NewLicenseChecker(c, params.OperatorNamespace),
 	}
 }
 

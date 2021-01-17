@@ -85,7 +85,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 	defer span.End()
 	log := logconf.FromContext(ctx)
 	log.V(1).Info("Starting online autoscaling reconciliation")
-	esClient, err := r.newElasticsearchClient(r.Client, es)
+	esClient, err := r.esClientProvider(r.Client, r.Dialer, es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

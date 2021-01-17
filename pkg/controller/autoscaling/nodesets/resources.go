@@ -51,7 +51,7 @@ func (ntr NamedTierResources) IsUsedBy(containerName string, nodeSet v1.NodeSet)
 			}
 		case 1:
 			volumeClaim := nodeSet.VolumeClaimTemplates[0]
-			if !resourcesEqual(corev1.ResourceStorage, ntr.ResourcesSpecification.Requests, volumeClaim.Spec.Resources.Requests) {
+			if !ResourcesEqual(corev1.ResourceStorage, ntr.ResourcesSpecification.Requests, volumeClaim.Spec.Resources.Requests) {
 				return false, nil
 			}
 		default:
@@ -63,13 +63,13 @@ func (ntr NamedTierResources) IsUsedBy(containerName string, nodeSet v1.NodeSet)
 		if container == nil {
 			return false, nil
 		}
-		return resourcesEqual(corev1.ResourceMemory, ntr.ResourcesSpecification.Requests, container.Resources.Requests) &&
-			resourcesEqual(corev1.ResourceCPU, ntr.ResourcesSpecification.Requests, container.Resources.Requests), nil
+		return ResourcesEqual(corev1.ResourceMemory, ntr.ResourcesSpecification.Requests, container.Resources.Requests) &&
+			ResourcesEqual(corev1.ResourceCPU, ntr.ResourcesSpecification.Requests, container.Resources.Requests), nil
 	}
 	return false, nil
 }
 
-func resourcesEqual(resourceName corev1.ResourceName, expected, current corev1.ResourceList) bool {
+func ResourcesEqual(resourceName corev1.ResourceName, expected, current corev1.ResourceList) bool {
 	if len(expected) == 0 {
 		// No value expected, return true
 		return true

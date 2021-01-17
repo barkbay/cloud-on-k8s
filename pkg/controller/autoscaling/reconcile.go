@@ -15,6 +15,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/net"
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -121,10 +122,12 @@ func (r *ReconcileElasticsearch) fetchElasticsearch(
 	return false, nil
 }
 
-func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.Elasticsearch) (esclient.Client, error) {
+func newElasticsearchClient(
+	c k8s.Client,
+	dialer net.Dialer,
+	es esv1.Elasticsearch,
+) (esclient.Client, error) {
 	url := services.ExternalServiceURL(es)
-	// use a fake service for now
-	//url := stringsutil.Concat("http://autoscaling-mock-api", ".", es.Namespace, ".svc", ":", strconv.Itoa(network.HTTPPort))
 	v, err := version.Parse(es.Spec.Version)
 	if err != nil {
 		return nil, err
@@ -159,7 +162,7 @@ func (r *ReconcileElasticsearch) newElasticsearchClient(c k8s.Client, es esv1.El
 	caCerts, err := certificates.ParsePEMCerts(trustedCerts)
 
 	return esclient.NewElasticsearchClient(
-		r.Parameters.Dialer,
+		dialer,
 		url,
 		esclient.BasicAuth{
 			Name:     user.ControllerUserName,
