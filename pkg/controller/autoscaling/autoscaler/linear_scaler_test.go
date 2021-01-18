@@ -31,7 +31,15 @@ func Test_memoryFromStorage(t *testing.T) {
 		wantMemory *resource.Quantity
 	}{
 		{
-			name: "Storage is at its min value, do not scale up memory",
+			name: "Required storage is at its min. value, return min memory",
+			args: args{
+				requiredStorageCapacity: q("2Gi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("3Gi", "6Gi").WithStorage("2Gi", "4Gi").Build(),
+			},
+			wantMemory: quantityPtr("3Gi"),
+		},
+		{
+			name: "Storage range is 0, keep memory at its minimum",
 			args: args{
 				requiredStorageCapacity: q("2Gi"),
 				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "3Gi").WithStorage("2Gi", "2Gi").Build(),
@@ -47,12 +55,28 @@ func Test_memoryFromStorage(t *testing.T) {
 			wantMemory: quantityPtr("1500Mi"), // keep the min. value
 		},
 		{
+			name: "Do not allocate more memory than max allowed II",
+			args: args{
+				requiredStorageCapacity: q("1800Mi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "1500Mi").WithStorage("1Gi", "2Gi").Build(),
+			},
+			wantMemory: quantityPtr("1500Mi"), // keep the min. value
+		},
+		{
 			name: "Allocate max of memory when it's possible",
 			args: args{
 				requiredStorageCapacity: q("2Gi"),
 				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "2256Mi").WithStorage("1Gi", "2Gi").Build(),
 			},
 			wantMemory: quantityPtr("2256Mi"), // keep the min. value
+		},
+		{
+			name: "Half of the storage range should be translated to rounded value of half of the memory range",
+			args: args{
+				requiredStorageCapacity: q("2Gi"),
+				autoscalingSpec:         esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithMemory("1Gi", "3Gi").WithStorage("1Gi", "3Gi").Build(),
+			},
+			wantMemory: quantityPtr("2Gi"),
 		},
 	}
 	for _, tt := range tests {
