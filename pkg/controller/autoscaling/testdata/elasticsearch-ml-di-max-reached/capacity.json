@@ -21,28 +21,28 @@
       },
       "current_nodes": [
         {
-          "name": "mldi-sample-es-di-0"
+          "name": "testes-es-di-0"
         },
         {
-          "name": "mldi-sample-es-di-1"
+          "name": "testes-es-di-1"
         },
         {
-          "name": "mldi-sample-es-di-2"
+          "name": "testes-es-di-2"
         },
         {
-          "name": "mldi-sample-es-di-3"
+          "name": "testes-es-di-3"
         },
         {
-          "name": "mldi-sample-es-di-4"
+          "name": "testes-es-di-4"
         },
         {
-          "name": "mldi-sample-es-di-5"
+          "name": "testes-es-di-5"
         },
         {
-          "name": "mldi-sample-es-di-6"
+          "name": "testes-es-di-6"
         },
         {
-          "name": "mldi-sample-es-di-7"
+          "name": "testes-es-di-7"
         }
       ],
       "deciders": {
@@ -103,7 +103,7 @@
       },
       "current_nodes": [
         {
-          "name": "mldi-sample-es-ml-0"
+          "name": "testes-es-ml-0"
         }
       ],
       "deciders": {
