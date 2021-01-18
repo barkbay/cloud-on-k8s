@@ -23,67 +23,12 @@ func (ctx *Context) scaleHorizontally(
 	nodeToAdd := 0
 	if !totalRequiredCapacity.Memory.IsZero() && nodeCapacity.HasRequest(corev1.ResourceMemory) {
 		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
-		minMemory := int64(ctx.AutoscalingSpec.NodeCount.Min) * (nodeMemory.Value())
-		// memoryDelta holds the memory variation, it can be:
-		// * a positive value if some memory needs to be added
-		// * a negative value if some memory can be reclaimed
-		memoryDelta := totalRequiredCapacity.Memory.Value() - minMemory
-		nodeToAdd = getNodeDelta(memoryDelta, nodeMemory.Value())
-
-		if minNodes+nodeToAdd > maxNodes {
-			// Elasticsearch requested more memory per node than allowed
-			ctx.Log.Info(
-				"Can't provide total required memory",
-				"policy", ctx.AutoscalingSpec.Name,
-				"scope", "tier",
-				"resource", "memory",
-				"node_value", nodeMemory.Value(),
-				"requested_value", *totalRequiredCapacity.Memory,
-				"requested_count", minNodes+nodeToAdd,
-				"max_count", maxNodes,
-			)
-
-			// Update the autoscaling status accordingly
-			ctx.StatusBuilder.
-				ForPolicy(ctx.AutoscalingSpec.Name).
-				WithEvent(
-					status.HorizontalScalingLimitReached,
-					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
-				)
-			nodeToAdd = maxNodes - minNodes
-		}
+		nodeToAdd = ctx.getNodesToAdd(nodeMemory.Value(), totalRequiredCapacity.Memory.Value(), minNodes, maxNodes, string(corev1.ResourceMemory))
 	}
 
 	if !totalRequiredCapacity.Storage.IsZero() && nodeCapacity.HasRequest(corev1.ResourceStorage) {
 		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
-		minStorage := int64(minNodes) * (nodeStorage.Value())
-		storageDelta := totalRequiredCapacity.Storage.Value() - minStorage
-		nodeToAddStorage := getNodeDelta(storageDelta, nodeStorage.Value())
-		if minNodes+nodeToAddStorage > maxNodes {
-			// Elasticsearch requested more memory per node than allowed
-			ctx.Log.Info(
-				"Can't provide total required storage",
-				"policy", ctx.AutoscalingSpec.Name,
-				"scope", "tier",
-				"resource", "storage",
-				"node_value", nodeStorage.Value(),
-				"requested_value", *totalRequiredCapacity.Storage,
-				"requested_count", minNodes+nodeToAddStorage,
-				"max_count", maxNodes,
-			)
-
-			// Update the autoscaling status accordingly
-			ctx.StatusBuilder.
-				ForPolicy(ctx.AutoscalingSpec.Name).
-				WithEvent(
-					status.HorizontalScalingLimitReached,
-					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
-				)
-			nodeToAddStorage = maxNodes - minNodes
-		}
-		if nodeToAddStorage > nodeToAdd {
-			nodeToAdd = nodeToAddStorage
-		}
+		nodeToAdd = max(nodeToAdd, ctx.getNodesToAdd(nodeStorage.Value(), totalRequiredCapacity.Storage.Value(), minNodes, maxNodes, string(corev1.ResourceStorage)))
 	}
 
 	totalNodes := nodeToAdd + minNodes
@@ -104,16 +49,62 @@ func (ctx *Context) scaleHorizontally(
 	return nodeSetsResources
 }
 
-func getNodeDelta(memoryDelta, nodeMemoryCapacity int64) int {
+// getNodesToAdd calculates the number of nodes to add in order to comply with capacity requested by Elasticsearch.
+func (ctx *Context) getNodesToAdd(
+	nodeResourceCapacity int64, // resource capacity of a single node, for example the node memory
+	totalRequiredCapacity int64, // required capacity at the tier level
+	minNodes, maxNodes int, // min and max number of nodes in this tier, as specified by the user the autoscaling spec.
+	resourceName string, // used for logging and in events
+) int {
+	minResourceQuantity := int64(minNodes) * (nodeResourceCapacity)
+	// resourceDelta holds the resource needed to comply with what is requested by Elasticsearch.
+	resourceDelta := totalRequiredCapacity - minResourceQuantity
+	nodeToAdd := getNodeDelta(resourceDelta, nodeResourceCapacity)
+
+	if minNodes+nodeToAdd > maxNodes {
+		// Elasticsearch requested more resource quantity per node than allowed.
+		ctx.Log.Info(
+			fmt.Sprintf("Can't provide total required %s", resourceName),
+			"policy", ctx.AutoscalingSpec.Name,
+			"scope", "tier",
+			"resource", resourceName,
+			"node_value", nodeResourceCapacity,
+			"requested_value", totalRequiredCapacity,
+			"requested_count", minNodes+nodeToAdd,
+			"max_count", maxNodes,
+		)
+
+		// Update the autoscaling status accordingly
+		ctx.StatusBuilder.
+			ForPolicy(ctx.AutoscalingSpec.Name).
+			WithEvent(
+				status.HorizontalScalingLimitReached,
+				fmt.Sprintf("Can't provide total required %s %d, max number of nodes is %d, requires %d nodes", resourceName, totalRequiredCapacity, maxNodes, minNodes+nodeToAdd),
+			)
+		// Adjust the number of nodes to be added to comply with the limit specified by the user.
+		nodeToAdd = maxNodes - minNodes
+	}
+	return nodeToAdd
+}
+
+// getNodeDelta computes the nodes to be added given a delta (the additional amount of resource needed) and the individual capacity a single node.
+func getNodeDelta(delta, nodeCapacity int64) int {
 	nodeToAdd := 0
-	if memoryDelta < 0 {
+	if delta < 0 {
 		return 0
 	}
 
-	for memoryDelta > 0 {
-		memoryDelta -= nodeMemoryCapacity
+	for delta > 0 {
+		delta -= nodeCapacity
 		// Compute how many nodes should be added
 		nodeToAdd++
 	}
 	return nodeToAdd
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
