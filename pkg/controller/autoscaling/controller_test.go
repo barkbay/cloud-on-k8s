@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -153,22 +154,41 @@ func TestReconcile(t *testing.T) {
 			},
 			want: defaultReconcile,
 		},
+		{
+			name: "Cluster does not exit",
+			fields: fields{
+				EsClient:       newFakeEsClient(t),
+				Parameters:     operator.Parameters{},
+				recorder:       record.NewFakeRecorder(1000),
+				licenseChecker: &fakeLicenceChecker{},
+			},
+			args: args{
+				esManifest: "",
+			},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: 0,
+			},
+			wantErr:    false,
+			wantEvents: []string{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Load the actual Elasticsearch resource from the sample files.
-			es := esv1.Elasticsearch{}
-			bytes, err := ioutil.ReadFile(filepath.Join("testdata", tt.args.esManifest, "elasticsearch.yml"))
-			require.NoError(t, err)
-			if err := yaml.Unmarshal(bytes, &es); err != nil {
-				t.Fatalf("yaml.Unmarshal error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			var k8sClient k8s.Client
-			if tt.args.isOnline {
-				k8sClient = k8s.WrappedFakeClient(es.DeepCopy(), fakeService, fakeEndpoints)
-			} else {
-				k8sClient = k8s.WrappedFakeClient(es.DeepCopy())
+			k8sClient := k8s.WrappedFakeClient()
+			if tt.args.esManifest != "" {
+				// Load the actual Elasticsearch resource from the sample files.
+				es := esv1.Elasticsearch{}
+				bytes, err := ioutil.ReadFile(filepath.Join("testdata", tt.args.esManifest, "elasticsearch.yml"))
+				require.NoError(t, err)
+				if err := yaml.Unmarshal(bytes, &es); err != nil {
+					t.Fatalf("yaml.Unmarshal error = %v, wantErr %v", err, tt.wantErr)
+				}
+				if tt.args.isOnline {
+					k8sClient = k8s.WrappedFakeClient(es.DeepCopy(), fakeService, fakeEndpoints)
+				} else {
+					k8sClient = k8s.WrappedFakeClient(es.DeepCopy())
+				}
 			}
 
 			r := &ReconcileElasticsearch{
@@ -178,7 +198,10 @@ func TestReconcile(t *testing.T) {
 				recorder:         tt.fields.recorder,
 				licenseChecker:   tt.fields.licenseChecker,
 			}
-			got, err := r.Reconcile(reconcile.Request{NamespacedName: k8s.ExtractNamespacedName(&es)})
+			got, err := r.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{
+				Namespace: "testns",
+				Name:      "testes", // All the samples must have this name
+			}})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("autoscaling.Reconcile() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -186,26 +209,28 @@ func TestReconcile(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ReconcileElasticsearch.reconcileInternal() = %v, want %v", got, tt.want)
 			}
-			// Get back Elasticsearch from the API Server.
-			updatedElasticsearch := esv1.Elasticsearch{}
-			require.NoError(t, k8sClient.Get(client.ObjectKey{Namespace: "testns", Name: "testes"}, &updatedElasticsearch))
-			// Read expected the expected Elasticsearch resource.
-			expectedElasticsearch := esv1.Elasticsearch{}
-			bytes, err = ioutil.ReadFile(filepath.Join("testdata", tt.args.esManifest, "elasticsearch-expected.yml"))
-			require.NoError(t, err)
-			require.NoError(t, yaml.Unmarshal(bytes, &expectedElasticsearch))
-			assert.Equal(t, updatedElasticsearch.Spec, expectedElasticsearch.Spec)
-			// Check that the autoscaling spec is still the expected one.
-			assert.Equal(
-				t,
-				updatedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
-				expectedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
-			)
-			// Compare the statuses.
-			statusesEqual(t, updatedElasticsearch, expectedElasticsearch)
-			// Check event raised
-			gotEvents := fetchEvents(tt.fields.recorder)
-			require.ElementsMatch(t, tt.wantEvents, gotEvents)
+			if tt.args.esManifest != "" {
+				// Get back Elasticsearch from the API Server.
+				updatedElasticsearch := esv1.Elasticsearch{}
+				require.NoError(t, k8sClient.Get(client.ObjectKey{Namespace: "testns", Name: "testes"}, &updatedElasticsearch))
+				// Read expected the expected Elasticsearch resource.
+				expectedElasticsearch := esv1.Elasticsearch{}
+				bytes, err := ioutil.ReadFile(filepath.Join("testdata", tt.args.esManifest, "elasticsearch-expected.yml"))
+				require.NoError(t, err)
+				require.NoError(t, yaml.Unmarshal(bytes, &expectedElasticsearch))
+				assert.Equal(t, updatedElasticsearch.Spec, expectedElasticsearch.Spec)
+				// Check that the autoscaling spec is still the expected one.
+				assert.Equal(
+					t,
+					updatedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
+					expectedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
+				)
+				// Compare the statuses.
+				statusesEqual(t, updatedElasticsearch, expectedElasticsearch)
+				// Check event raised
+				gotEvents := fetchEvents(tt.fields.recorder)
+				require.ElementsMatch(t, tt.wantEvents, gotEvents)
+			}
 		})
 	}
 }
