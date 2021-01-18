@@ -8,14 +8,10 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
-
-// TODO: Create a context struct to embed things like nodeSets, log, autoscalingSpec or statusBuilder
 
 // getStorage returns the storage min. capacity that should be used in the autoscaling algorithm.
 // The value is the max. value of either the current value in the status or in the autoscaling spec. set by the user.
@@ -38,52 +34,33 @@ func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingSta
 }
 
 // GetScaleDecision calculates the resources to be required by NodeSets managed by a same autoscaling policy.
-func GetScaleDecision(
-	log logr.Logger,
-	nodeSets []string,
-	actualAutoscalingStatus status.Status,
-	requiredCapacity client.PolicyCapacityInfo,
-	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.AutoscalingStatusBuilder,
-) resources.NamedTierResources {
+func (ctx *Context) GetScaleDecision() resources.NamedTierResources {
 	// 1. Scale vertically
-	desiredNodeResources := scaleVertically(log, actualAutoscalingStatus, requiredCapacity, autoscalingSpec, statusBuilder)
-	log.Info(
+	desiredNodeResources := ctx.scaleVertically()
+	ctx.Log.Info(
 		"Vertical autoscaler",
 		"state", "online",
-		"policy", autoscalingSpec.Name,
+		"policy", ctx.AutoscalingSpec.Name,
 		"scope", "node",
-		"nodesets", nodeSets,
+		"nodesets", ctx.NodeSets.Names(),
 		"resources", desiredNodeResources.ToInt64(),
-		"required_capacity", requiredCapacity,
+		"required_capacity", ctx.RequiredCapacity,
 	)
 
 	// 2. Scale horizontally
-	return scaleHorizontally(log, nodeSets, requiredCapacity.Total, desiredNodeResources, autoscalingSpec, statusBuilder)
+	return ctx.scaleHorizontally(ctx.RequiredCapacity.Total, desiredNodeResources)
 }
 
-var giga = int64(1024 * 1024 * 1024)
-
-// scaleVertically computes desired state for a node given the requested capacity from ES and the resource autoscalingSpec
+// scaleVertically computes desired state for a node given the requested capacity from ES and the resource AutoscalingSpec
 // specified by the user.
 // It attempts to scale all the resources vertically until the expectations are met.
-func scaleVertically(
-	log logr.Logger,
-	actualAutoscalingStatus status.Status,
-	requiredCapacity client.PolicyCapacityInfo,
-	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.AutoscalingStatusBuilder,
-) resources.ResourcesSpecification {
+func (ctx *Context) scaleVertically() resources.ResourcesSpecification {
 	// All resources can be computed "from scratch", without knowing the previous values.
 	// It is not true for storage. Storage can't be scaled down, current storage capacity must be considered as an hard min. limit.
 	// This limit must be taken into consideration when computing the desired resources.
-	currentStorage := getStorage(autoscalingSpec, actualAutoscalingStatus)
-	return nodeResources(
-		log,
-		int64(autoscalingSpec.NodeCount.Min),
+	currentStorage := getStorage(ctx.AutoscalingSpec, ctx.ActualAutoscalingStatus)
+	return ctx.nodeResources(
+		int64(ctx.AutoscalingSpec.NodeCount.Min),
 		currentStorage,
-		requiredCapacity,
-		autoscalingSpec,
-		statusBuilder,
 	)
 }

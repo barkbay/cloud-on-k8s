@@ -7,83 +7,70 @@ package autoscaler
 import (
 	"fmt"
 
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+var giga = int64(1024 * 1024 * 1024)
+
 // nodeResources computes the desired amount of memory and storage for a node managed by a given AutoscalingPolicySpec.
-func nodeResources(
-	log logr.Logger,
-	minNodesCount int64,
-	currentStorage resource.Quantity,
-	requiredCapacity client.PolicyCapacityInfo,
-	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.AutoscalingStatusBuilder,
-) resources.ResourcesSpecification {
-	resources := resources.ResourcesSpecification{}
+func (ctx *Context) nodeResources(minNodesCount int64, currentStorage resource.Quantity) resources.ResourcesSpecification {
+	nodeResources := resources.ResourcesSpecification{}
 
 	// Compute desired memory quantity for the nodes managed by this AutoscalingPolicySpec.
-	if !requiredCapacity.Node.Memory.IsEmpty() {
-		memoryRequest := getResourceValue(
-			log,
-			autoscalingSpec.Name,
+	if !ctx.RequiredCapacity.Node.Memory.IsEmpty() {
+		memoryRequest := ctx.getResourceValue(
+			ctx.AutoscalingSpec.Name,
 			"memory",
-			statusBuilder,
-			requiredCapacity.Node.Memory,
-			requiredCapacity.Total.Memory,
+			ctx.RequiredCapacity.Node.Memory,
+			ctx.RequiredCapacity.Total.Memory,
 			minNodesCount,
-			autoscalingSpec.Memory.Min,
-			autoscalingSpec.Memory.Max,
+			ctx.AutoscalingSpec.Memory.Min,
+			ctx.AutoscalingSpec.Memory.Max,
 		)
-		resources.SetRequest(corev1.ResourceMemory, memoryRequest)
+		nodeResources.SetRequest(corev1.ResourceMemory, memoryRequest)
 	}
 
 	// Compute desired storage quantity for the nodes managed by this AutoscalingPolicySpec.
-	if !requiredCapacity.Node.Storage.IsEmpty() {
-		storageRequest := getResourceValue(
-			log,
-			autoscalingSpec.Name,
+	if !ctx.RequiredCapacity.Node.Storage.IsEmpty() {
+		storageRequest := ctx.getResourceValue(
+			ctx.AutoscalingSpec.Name,
 			"storage",
-			statusBuilder,
-			requiredCapacity.Node.Storage,
-			requiredCapacity.Total.Storage,
+			ctx.RequiredCapacity.Node.Storage,
+			ctx.RequiredCapacity.Total.Storage,
 			minNodesCount,
-			autoscalingSpec.Storage.Min,
-			autoscalingSpec.Storage.Max,
+			ctx.AutoscalingSpec.Storage.Min,
+			ctx.AutoscalingSpec.Storage.Max,
 		)
 		if storageRequest.Cmp(currentStorage) < 0 {
 			// Do not decrease storage capacity
 			storageRequest = currentStorage
 		}
-		resources.SetRequest(corev1.ResourceStorage, storageRequest)
+		nodeResources.SetRequest(corev1.ResourceStorage, storageRequest)
 	}
 
 	// If no memory has been returned by the autoscaling API, but the user has expressed the intent to manage memory
 	// using the autoscaling specification then we derive the memory from the storage if available.
-	if !resources.HasRequest(corev1.ResourceMemory) && autoscalingSpec.IsMemoryDefined() &&
-		autoscalingSpec.IsStorageDefined() && resources.HasRequest(corev1.ResourceStorage) {
-		resources.SetRequest(corev1.ResourceMemory, memoryFromStorage(resources.GetRequest(corev1.ResourceStorage), *autoscalingSpec.Storage, *autoscalingSpec.Memory))
+	if !nodeResources.HasRequest(corev1.ResourceMemory) && ctx.AutoscalingSpec.IsMemoryDefined() &&
+		ctx.AutoscalingSpec.IsStorageDefined() && nodeResources.HasRequest(corev1.ResourceStorage) {
+		nodeResources.SetRequest(corev1.ResourceMemory, memoryFromStorage(nodeResources.GetRequest(corev1.ResourceStorage), *ctx.AutoscalingSpec.Storage, *ctx.AutoscalingSpec.Memory))
 	}
 
 	// Same as above, if CPU limits have been expressed by the user in the autoscaling specification then we adjust CPU request according to the memory request.
-	if autoscalingSpec.IsCPUDefined() && autoscalingSpec.IsMemoryDefined() && resources.HasRequest(corev1.ResourceMemory) {
-		resources.SetRequest(corev1.ResourceCPU, cpuFromMemory(resources.GetRequest(corev1.ResourceMemory), *autoscalingSpec.Memory, *autoscalingSpec.CPU))
+	if ctx.AutoscalingSpec.IsCPUDefined() && ctx.AutoscalingSpec.IsMemoryDefined() && nodeResources.HasRequest(corev1.ResourceMemory) {
+		nodeResources.SetRequest(corev1.ResourceCPU, cpuFromMemory(nodeResources.GetRequest(corev1.ResourceMemory), *ctx.AutoscalingSpec.Memory, *ctx.AutoscalingSpec.CPU))
 	}
 
-	return resources
+	return nodeResources
 }
 
 // getResourceValue calculates the desired quantity for a specific resource to be assigned to a node in a tier, according
 // to the required value from the Elasticsearch API and the resource constraints (limits) expressed by the user.
-func getResourceValue(
-	log logr.Logger,
+func (ctx *Context) getResourceValue(
 	autoscalingPolicyName, resourceType string,
-	statusBuilder *status.AutoscalingStatusBuilder,
 	nodeRequired *client.CapacityValue, // node required capacity as returned by the Elasticsearch API
 	totalRequired *client.CapacityValue, // tier required capacity as returned by the Elasticsearch API, considered as optional
 	minNodesCount int64, // the minimum of nodes that will be deployed
@@ -98,7 +85,7 @@ func getResourceValue(
 	if nodeRequired.Value() > max.Value() {
 		// Elasticsearch requested more capacity per node than allowed by the user
 		err := fmt.Errorf("node required %s is greater than the maximum one", resourceType)
-		log.Error(
+		ctx.Log.Error(
 			err, err.Error(),
 			"scope", "node",
 			"policy", autoscalingPolicyName,
@@ -106,7 +93,7 @@ func getResourceValue(
 			"max_allowed_memory", max.Value(),
 		)
 		// Update the autoscaling status accordingly
-		statusBuilder.
+		ctx.StatusBuilder.
 			ForPolicy(autoscalingPolicyName).
 			WithEvent(
 				status.VerticalScalingLimitReached,

@@ -13,15 +13,15 @@ import (
 
 // Context contains the required objects used by the autoscaler functions.
 type Context struct {
-	log logr.Logger
-	// autoscalingSpec is the autoscaling specification as provided by the user.
-	autoscalingSpec esv1.AutoscalingPolicySpec
-	// nodeSets is the list of the NodeSets managed by the autoscaling specification.
-	nodeSets esv1.NodeSetList
-	// actualAutoscalingStatus is the current resources status as stored in the Elasticsearch resource.
-	actualAutoscalingStatus status.Status
-	// requiredCapacity contains the Elasticsearch Autoscaling API result.
-	requiredCapacity client.PolicyCapacityInfo
-	// statusBuilder is used to track any event that should be surfaced to the user.
-	statusBuilder *status.AutoscalingStatusBuilder
+	Log logr.Logger
+	// AutoscalingSpec is the autoscaling specification as provided by the user.
+	AutoscalingSpec esv1.AutoscalingPolicySpec
+	// NodeSets is the list of the NodeSets managed by the autoscaling specification.
+	NodeSets esv1.NodeSetList
+	// ActualAutoscalingStatus is the current resources status as stored in the Elasticsearch resource.
+	ActualAutoscalingStatus status.Status
+	// RequiredCapacity contains the Elasticsearch Autoscaling API result.
+	RequiredCapacity client.PolicyCapacityInfo
+	// StatusBuilder is used to track any event that should be surfaced to the user.
+	StatusBuilder *status.AutoscalingStatusBuilder
 }

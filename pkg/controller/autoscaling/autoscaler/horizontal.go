@@ -7,30 +7,23 @@ package autoscaler
 import (
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
-
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
-func scaleHorizontally(
-	log logr.Logger,
-	nodeSets []string,
-	totalRequiredCapacity client.Capacity, // total required resources
+func (ctx *Context) scaleHorizontally(
+	totalRequiredCapacity client.Capacity, // total required resources, at the tier level.
 	nodeCapacity resources.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
-	autoscalingSpec esv1.AutoscalingPolicySpec,
-	statusBuilder *status.AutoscalingStatusBuilder,
 ) resources.NamedTierResources {
-	minNodes := int(autoscalingSpec.NodeCount.Min)
-	maxNodes := int(autoscalingSpec.NodeCount.Max)
+	minNodes := int(ctx.AutoscalingSpec.NodeCount.Min)
+	maxNodes := int(ctx.AutoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
 	if !totalRequiredCapacity.Memory.IsZero() && nodeCapacity.HasRequest(corev1.ResourceMemory) {
 		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
-		minMemory := int64(autoscalingSpec.NodeCount.Min) * (nodeMemory.Value())
+		minMemory := int64(ctx.AutoscalingSpec.NodeCount.Min) * (nodeMemory.Value())
 		// memoryDelta holds the memory variation, it can be:
 		// * a positive value if some memory needs to be added
 		// * a negative value if some memory can be reclaimed
@@ -39,9 +32,9 @@ func scaleHorizontally(
 
 		if minNodes+nodeToAdd > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
-			log.Info(
+			ctx.Log.Info(
 				"Can't provide total required memory",
-				"policy", autoscalingSpec.Name,
+				"policy", ctx.AutoscalingSpec.Name,
 				"scope", "tier",
 				"resource", "memory",
 				"node_value", nodeMemory.Value(),
@@ -51,8 +44,8 @@ func scaleHorizontally(
 			)
 
 			// Update the autoscaling status accordingly
-			statusBuilder.
-				ForPolicy(autoscalingSpec.Name).
+			ctx.StatusBuilder.
+				ForPolicy(ctx.AutoscalingSpec.Name).
 				WithEvent(
 					status.HorizontalScalingLimitReached,
 					fmt.Sprintf("Can't provide total required memory %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Memory, maxNodes, minNodes+nodeToAdd),
@@ -68,9 +61,9 @@ func scaleHorizontally(
 		nodeToAddStorage := getNodeDelta(storageDelta, nodeStorage.Value())
 		if minNodes+nodeToAddStorage > maxNodes {
 			// Elasticsearch requested more memory per node than allowed
-			log.Info(
+			ctx.Log.Info(
 				"Can't provide total required storage",
-				"policy", autoscalingSpec.Name,
+				"policy", ctx.AutoscalingSpec.Name,
 				"scope", "tier",
 				"resource", "storage",
 				"node_value", nodeStorage.Value(),
@@ -80,8 +73,8 @@ func scaleHorizontally(
 			)
 
 			// Update the autoscaling status accordingly
-			statusBuilder.
-				ForPolicy(autoscalingSpec.Name).
+			ctx.StatusBuilder.
+				ForPolicy(ctx.AutoscalingSpec.Name).
 				WithEvent(
 					status.HorizontalScalingLimitReached,
 					fmt.Sprintf("Can't provide total required storage %d, max number of nodes is %d, requires %d nodes", *totalRequiredCapacity.Storage, maxNodes, minNodes+nodeToAddStorage),
@@ -94,15 +87,15 @@ func scaleHorizontally(
 	}
 
 	totalNodes := nodeToAdd + minNodes
-	log.Info("Horizontal autoscaler", "policy", autoscalingSpec.Name,
+	ctx.Log.Info("Horizontal autoscaler", "policy", ctx.AutoscalingSpec.Name,
 		"scope", "tier",
 		"count", totalNodes,
 		"required_capacity", totalRequiredCapacity,
 	)
 
-	nodeSetsResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+	nodeSetsResources := resources.NewNamedTierResources(ctx.AutoscalingSpec.Name, ctx.NodeSets.Names())
 	nodeSetsResources.ResourcesSpecification = nodeCapacity
-	fnm := NewFairNodesManager(log, nodeSetsResources.NodeSetNodeCount)
+	fnm := NewFairNodesManager(ctx.Log, nodeSetsResources.NodeSetNodeCount)
 	for totalNodes > 0 {
 		fnm.AddNode()
 		totalNodes--

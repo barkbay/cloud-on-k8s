@@ -151,7 +151,15 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			if !canDecide(log, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder) {
 				continue
 			}
-			nodeSetsResources = autoscaler.GetScaleDecision(log, nodeSetList.Names(), actualAutoscalingStatus, capacity.RequiredCapacity, autoscalingPolicy, statusBuilder)
+			ctx := autoscaler.Context{
+				Log:                     log,
+				AutoscalingSpec:         autoscalingPolicy,
+				NodeSets:                nodeSetList,
+				ActualAutoscalingStatus: actualAutoscalingStatus,
+				RequiredCapacity:        capacity.RequiredCapacity,
+				StatusBuilder:           statusBuilder,
+			}
+			nodeSetsResources = ctx.GetScaleDecision()
 		}
 		// Add the result to the list of the next resources
 		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources)

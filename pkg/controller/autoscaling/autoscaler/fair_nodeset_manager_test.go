@@ -35,7 +35,7 @@ func TestFairNodesManager_AddNode(t *testing.T) {
 			},
 		},
 		{
-			name: "Several nodeSets",
+			name: "Several NodeSets",
 			fields: fields{
 				nodeSetNodeCountList: []resources.NodeSetNodeCount{{Name: "nodeset-1"}, {Name: "nodeset-2"}},
 			},

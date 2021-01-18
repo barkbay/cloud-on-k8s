@@ -17,8 +17,11 @@ import (
 )
 
 func Test_applyScaleDecision(t *testing.T) {
+	defaultNodeSets := esv1.NodeSetList{{
+		Name: "default",
+	}}
 	type args struct {
-		currentNodeSets  []string
+		currentNodeSets  esv1.NodeSetList
 		nodeSetsStatus   status.Status
 		requiredCapacity client.PolicyCapacityInfo
 		policy           esv1.AutoscalingPolicySpec
@@ -32,7 +35,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		{
 			name: "Scale both horizontally to fulfil storage capacity request",
 			args: args{
-				currentNodeSets: []string{"default"},
+				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
@@ -53,7 +56,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		{
 			name: "Scale existing nodes vertically",
 			args: args{
-				currentNodeSets: []string{"default"},
+				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
@@ -74,7 +77,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		{
 			name: "Do not scale down storage capacity",
 			args: args{
-				currentNodeSets: []string{"default"},
+				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
@@ -97,7 +100,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		{
 			name: "Scale existing nodes vertically up to the tier limit",
 			args: args{
-				currentNodeSets: []string{"default"},
+				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
@@ -118,7 +121,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		{
 			name: "Scale both vertically and horizontally",
 			args: args{
-				currentNodeSets: []string{"default"},
+				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
@@ -139,14 +142,15 @@ func Test_applyScaleDecision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusBuilder := status.NewAutoscalingStatusBuilder()
-			if got := GetScaleDecision(
-				logTest,
-				tt.args.currentNodeSets,
-				tt.args.nodeSetsStatus,
-				tt.args.requiredCapacity,
-				tt.args.policy, statusBuilder,
-			); !equality.Semantic.DeepEqual(got, tt.want) {
+			ctx := Context{
+				Log:                     logTest,
+				AutoscalingSpec:         tt.args.policy,
+				NodeSets:                tt.args.currentNodeSets,
+				ActualAutoscalingStatus: tt.args.nodeSetsStatus,
+				RequiredCapacity:        tt.args.requiredCapacity,
+				StatusBuilder:           status.NewAutoscalingStatusBuilder(),
+			}
+			if got := ctx.GetScaleDecision(); !equality.Semantic.DeepEqual(got, tt.want) {
 				t.Errorf("autoscaler.GetScaleDecision() = %v, want %v", got, tt.want)
 			}
 		})
