@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
@@ -19,7 +21,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/utils/net"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -162,9 +163,9 @@ func TestReconcile(t *testing.T) {
 			bytes, err = ioutil.ReadFile(filepath.Join("testdata", tt.args.esManifest, "elasticsearch-expected.yml"))
 			require.NoError(t, err)
 			require.NoError(t, yaml.Unmarshal(bytes, &expectedElasticsearch))
-			assert.DeepEqual(t, updatedElasticsearch.Spec, expectedElasticsearch.Spec)
+			assert.Equal(t, updatedElasticsearch.Spec, expectedElasticsearch.Spec)
 			// Check that the autoscaling spec is still the expected one.
-			assert.DeepEqual(
+			assert.Equal(
 				t,
 				updatedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
 				expectedElasticsearch.Annotations[esv1.ElasticsearchAutoscalingSpecAnnotationName],
