@@ -3,6 +3,7 @@ package autoscaling
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
@@ -80,15 +81,45 @@ func TestReconcile(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "Cluster has just been created, initialize resources",
+			name: "Simulate an error while updating the autoscaling policies, we still want to respect min nodes count set by user",
 			fields: fields{
-				EsClient:       newFakeEsClient(t).withCapacity("elasticsearch-ml-di-max-reached"),
+				EsClient:       newFakeEsClient(t).withErrorOnDeleteAutoscalingAutoscalingPolicies(),
 				Parameters:     operator.Parameters{},
 				recorder:       record.NewFakeRecorder(1000),
 				licenseChecker: &fakeLicenceChecker{},
 			},
 			args: args{
-				esManifest: "elasticsearch-ml-di",
+				esManifest: "min-nodes-increased-by-user",
+				isOnline:   true, // Online, but an error will be raised when updating the autoscaling policies.
+			},
+			want:       reconcile.Result{},
+			wantErr:    true, // Autoscaling API error should be returned.
+			wantEvents: []string{},
+		},
+		{
+			name: "Cluster is online, but answer from the API is empty, do not touch anything",
+			fields: fields{
+				EsClient:       newFakeEsClient(t).withCapacity("empty-autoscaling-api-response"),
+				Parameters:     operator.Parameters{},
+				recorder:       record.NewFakeRecorder(1000),
+				licenseChecker: &fakeLicenceChecker{},
+			},
+			args: args{
+				esManifest: "empty-autoscaling-api-response",
+				isOnline:   true,
+			},
+			want: defaultReconcile,
+		},
+		{
+			name: "Cluster has just been created, initialize resources",
+			fields: fields{
+				EsClient:       newFakeEsClient(t),
+				Parameters:     operator.Parameters{},
+				recorder:       record.NewFakeRecorder(1000),
+				licenseChecker: &fakeLicenceChecker{},
+			},
+			args: args{
+				esManifest: "cluster-creation",
 				isOnline:   false,
 			},
 			want: defaultReconcile,
@@ -96,13 +127,13 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Cluster is online, data tier has reached max. capacity",
 			fields: fields{
-				EsClient:       newFakeEsClient(t).withCapacity("elasticsearch-ml-di-max-reached"),
+				EsClient:       newFakeEsClient(t).withCapacity("max-storage-reached"),
 				Parameters:     operator.Parameters{},
 				recorder:       record.NewFakeRecorder(1000),
 				licenseChecker: &fakeLicenceChecker{},
 			},
 			args: args{
-				esManifest: "elasticsearch-ml-di-max-reached",
+				esManifest: "max-storage-reached",
 				isOnline:   true,
 			},
 			want:       defaultReconcile,
@@ -111,13 +142,13 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Cluster is online, data tier needs to be scaled up from 8 to 9 nodes",
 			fields: fields{
-				EsClient:       newFakeEsClient(t).withCapacity("elasticsearch-ml-di-scaled"),
+				EsClient:       newFakeEsClient(t).withCapacity("storage-scaled-horizontally"),
 				Parameters:     operator.Parameters{},
 				recorder:       record.NewFakeRecorder(1000),
 				licenseChecker: &fakeLicenceChecker{},
 			},
 			args: args{
-				esManifest: "elasticsearch-ml-di-scaled",
+				esManifest: "storage-scaled-horizontally",
 				isOnline:   true,
 			},
 			want: defaultReconcile,
@@ -149,7 +180,7 @@ func TestReconcile(t *testing.T) {
 			}
 			got, err := r.Reconcile(reconcile.Request{NamespacedName: k8s.ExtractNamespacedName(&es)})
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ReconcileElasticsearch.reconcileInternal() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("autoscaling.Reconcile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
@@ -216,8 +247,9 @@ type fakeEsClient struct {
 
 	autoscalingPolicies esclient.Policies
 
-	policiesCleaned bool
-	updatedPolicies map[string]esv1.AutoscalingPolicy
+	policiesCleaned                             bool
+	errorOnDeleteAutoscalingAutoscalingPolicies bool
+	updatedPolicies                             map[string]esv1.AutoscalingPolicy
 }
 
 func newFakeEsClient(t *testing.T) *fakeEsClient {
@@ -241,12 +273,20 @@ func (f *fakeEsClient) withCapacity(testdata string) *fakeEsClient {
 	return f
 }
 
+func (f *fakeEsClient) withErrorOnDeleteAutoscalingAutoscalingPolicies() *fakeEsClient {
+	f.errorOnDeleteAutoscalingAutoscalingPolicies = true
+	return f
+}
+
 func (f *fakeEsClient) newFakeElasticsearchClient(_ k8s.Client, _ net.Dialer, _ esv1.Elasticsearch) (esclient.Client, error) {
 	return f, nil
 }
 
 func (f *fakeEsClient) DeleteAutoscalingAutoscalingPolicies(_ context.Context) error {
 	f.policiesCleaned = true
+	if f.errorOnDeleteAutoscalingAutoscalingPolicies {
+		return fmt.Errorf("simulated error while calling DeleteAutoscalingAutoscalingPolicies")
+	}
 	return nil
 }
 func (f *fakeEsClient) UpsertAutoscalingPolicy(_ context.Context, policyName string, autoscalingPolicy esv1.AutoscalingPolicy) error {

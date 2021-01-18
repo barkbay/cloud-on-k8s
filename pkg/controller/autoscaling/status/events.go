@@ -22,7 +22,7 @@ func EmitEvents(elasticsearch esv1.Elasticsearch, recorder record.EventRecorder,
 func emitEventForAutoscalingPolicy(elasticsearch esv1.Elasticsearch, recorder record.EventRecorder, status AutoscalingPolicyStatus) {
 	for _, event := range status.PolicyStates {
 		switch event.Type {
-		case VerticalScalingLimitReached, HorizontalScalingLimitReached:
+		case VerticalScalingLimitReached, HorizontalScalingLimitReached, MemoryRequired, StorageRequired:
 			recorder.Event(&elasticsearch, corev1.EventTypeWarning, string(event.Type), strings.Join(event.Messages, ". "))
 		}
 	}

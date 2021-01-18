@@ -190,6 +190,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 // canDecide ensures that the user has provided resource ranges to apply Elasticsearch autoscaling decision.
 // Expected ranges are not consistent across all deciders. For example ml may only require memory limits, while processing
 // data deciders response may require storage limits.
+// Only memory and storage are supported since CPU is not part of the autoscaling API specification.
 func canDecide(log logr.Logger, requiredCapacity esclient.PolicyCapacityInfo, spec esv1.AutoscalingPolicySpec, statusBuilder *status.AutoscalingStatusBuilder) bool {
 	result := true
 	if (requiredCapacity.Node.Memory != nil || requiredCapacity.Total.Memory != nil) && !spec.IsMemoryDefined() {
