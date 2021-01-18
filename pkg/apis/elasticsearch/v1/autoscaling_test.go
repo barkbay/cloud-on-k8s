@@ -210,13 +210,14 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		},
 		{
 			name:          "Duplicated roles sets",
+			nodeSets:      map[string][]string{"nodeset-data-2": {"data_hot", "data_content"}},
 			wantError:     true,
-			expectedError: "[1].name: Invalid value: \"data, ml\": roles set is duplicated",
+			expectedError: "autoscaling-spec\"[1].name: Invalid value: \"data_content,data_hot\": roles set is duplicated",
 			autoscalingSpec: `
 {
 	 "policies" : [{
 		  "name": "my_policy",
-		  "roles": [ "data, ml" ],
+		  "roles": [ "data_hot", "data_content" ],
 		  "resources" : {
 			  "nodeCount" : { "min" : 1 , "max" : 2 },
 			  "cpu" : { "min" : 1 , "max" : 1 },
@@ -226,7 +227,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		},
 		{
 		  "name": "my_policy2",
-		  "roles": [ "data, ml" ],
+		  "roles": [ "data_hot", "data_content" ],
 		  "resources" : {
 			  "nodeCount" : { "min" : 1 , "max" : 2 },
 			  "cpu" : { "min" : 1 , "max" : 1 },
@@ -244,7 +245,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			autoscalingSpec: `
 {
 	 "policies" : [{
-	  "roles": [ "data, ml" ],
+	  "roles": [ "data", "ml" ],
       "resources" : {
 		  "nodeCount" : { "min" : 1 , "max" : 2 },
 		  "cpu" : { "min" : 1 , "max" : 1 },
@@ -275,12 +276,14 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		},
 		{
 			name:          "No count",
+			nodeSets:      map[string][]string{"nodeset-data-1": {"ml"}},
 			wantError:     true,
-			expectedError: "maxAllowed.count: Invalid value: 0: max node count must be an integer greater than min node count",
+			expectedError: "resources.nodeCount.max: Invalid value: 0: max count must be greater than 0",
 			autoscalingSpec: `
 {
 	 "policies" : [{
   "name": "my_policy",
+  "roles": [ "ml" ],
   "resources" : {
 	  "cpu" : { "min" : 1 , "max" : 1 },
 	  "memory" : { "min" : "2Gi" , "max" : "2Gi" },
@@ -291,14 +294,15 @@ func TestResourcePolicies_Validate(t *testing.T) {
 `,
 		},
 		{
-			name:          "Min. count should be greater than 1",
+			name:          "Min. count should be equal or greater than 0",
+			nodeSets:      map[string][]string{"nodeset-data-1": {"ml"}},
 			wantError:     true,
-			expectedError: "minAllowed.count: Invalid value: -1: count must be equal or greater than 0",
+			expectedError: "resources.nodeCount.min: Invalid value: -1: min count must be equal or greater than 0",
 			autoscalingSpec: `
 {
 	"policies": [{
 		"name": "my_policy",
-		"roles": ["data, ml"],
+		"roles": ["ml"],
 		"resources": {
 			"nodeCount": {
 				"min": -1,
@@ -322,14 +326,77 @@ func TestResourcePolicies_Validate(t *testing.T) {
 `,
 		},
 		{
-			name:          "Min. count is greater than max",
-			wantError:     true,
-			expectedError: "maxAllowed.count: Invalid value: 4: max node count must be an integer greater than min node count",
+			name:      "Min. count is 0 max count must be greater than 0",
+			nodeSets:  map[string][]string{"nodeset-data-1": {"ml"}},
+			wantError: true,
 			autoscalingSpec: `
 {
 	"policies": [{
 		"name": "my_policy",
-		"roles": ["data, ml"],
+		"roles": ["ml"],
+		"resources": {
+			"nodeCount": {
+				"min": 0,
+				"max": 0
+			},
+			"cpu": {
+				"min": 1,
+				"max": 1
+			},
+			"memory": {
+				"min": "2Gi",
+				"max": "2Gi"
+			},
+			"storage": {
+				"min": "5Gi",
+				"max": "10Gi"
+			}
+		}
+	}]
+}
+`,
+		},
+		{
+			name:      "Min. count and max count are equal",
+			nodeSets:  map[string][]string{"nodeset-data-1": {"ml"}},
+			wantError: false,
+			autoscalingSpec: `
+{
+	"policies": [{
+		"name": "my_policy",
+        "roles": [ "ml" ],
+		"resources": {
+			"nodeCount": {
+				"min": 2,
+				"max": 2
+			},
+			"cpu": {
+				"min": 1,
+				"max": 1
+			},
+			"memory": {
+				"min": "2Gi",
+				"max": "2Gi"
+			},
+			"storage": {
+				"min": "5Gi",
+				"max": "10Gi"
+			}
+		}
+	}]
+}
+`,
+		},
+		{
+			name:          "Min. count is greater than max",
+			nodeSets:      map[string][]string{"nodeset-data-1": {"ml"}},
+			wantError:     true,
+			expectedError: "resources.nodeCount.max: Invalid value: 4: max node count must be an integer greater or equal than min node count",
+			autoscalingSpec: `
+{
+	"policies": [{
+		"name": "my_policy",
+        "roles": [ "ml" ],
 		"resources": {
 			"nodeCount": {
 				"min": 5,
@@ -354,13 +421,14 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		},
 		{
 			name:          "Min. CPU is greater than max",
+			nodeSets:      map[string][]string{"nodeset-data-1": {"ml"}},
 			wantError:     true,
 			expectedError: "cpu: Invalid value: \"50m\": max quantity must be greater or equal than min quantity",
 			autoscalingSpec: `
 {
 	"policies": [{
 		"name": "my_policy",
-		"roles": ["data, ml"],
+        "roles": [ "ml" ],
 		"resources": {
 			"nodeCount": {
 				"min": -1,

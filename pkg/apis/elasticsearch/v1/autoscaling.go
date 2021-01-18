@@ -322,11 +322,15 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		}
 
 		if !(autoscalingSpec.NodeCount.Min >= 0) {
-			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "minAllowed", "count"), autoscalingSpec.NodeCount.Min, "count must be equal or greater than 0"))
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "resources", "nodeCount", "min"), autoscalingSpec.NodeCount.Min, "min count must be equal or greater than 0"))
 		}
 
-		if !(autoscalingSpec.NodeCount.Max > autoscalingSpec.NodeCount.Min) {
-			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "maxAllowed", "count"), autoscalingSpec.NodeCount.Max, "max node count must be an integer greater than min node count"))
+		if !(autoscalingSpec.NodeCount.Max > 0) {
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "resources", "nodeCount", "max"), autoscalingSpec.NodeCount.Max, "max count must be greater than 0"))
+		}
+
+		if !(autoscalingSpec.NodeCount.Max >= autoscalingSpec.NodeCount.Min) {
+			errs = append(errs, field.Invalid(autoscalingSpecPath(i, "resources", "nodeCount", "max"), autoscalingSpec.NodeCount.Max, "max node count must be an integer greater or equal than min node count"))
 		}
 
 		// Validate CPU
