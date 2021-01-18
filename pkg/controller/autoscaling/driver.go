@@ -27,7 +27,7 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 	ctx context.Context,
 	autoscalingStatus status.Status,
 	namedTiers esv1.AutoscaledNodeSets,
-	autoscalingSpecs esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 ) (reconcile.Result, error) {
 	defer tracing.Span(&ctx)()
@@ -39,15 +39,15 @@ func (r *ReconcileElasticsearch) reconcileInternal(
 		if err != nil {
 			log.V(1).Info("error while checking if Elasticsearch is available, attempting offline reconciliation", "error.message", err.Error())
 		}
-		return r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results)
+		return r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpec, es, results)
 	}
 
 	// Cluster is supposed to be online
-	result, err := r.attemptOnlineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results)
+	result, err := r.attemptOnlineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpec, es, results)
 	if err != nil {
 		log.Error(tracing.CaptureError(ctx, err), "autoscaling online reconciliation failed")
 		// Attempt an offline reconciliation
-		if _, err := r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpecs, es, results); err != nil {
+		if _, err := r.doOfflineReconciliation(ctx, autoscalingStatus, namedTiers, autoscalingSpec, es, results); err != nil {
 			log.Error(tracing.CaptureError(ctx, err), "autoscaling offline reconciliation failed")
 		}
 	}
@@ -211,7 +211,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	ctx context.Context,
 	actualAutoscalingStatus status.Status,
 	namedTiers esv1.AutoscaledNodeSets,
-	autoscalingSpecs esv1.AutoscalingSpec,
+	autoscalingSpec esv1.AutoscalingSpec,
 	es esv1.Elasticsearch,
 	results *reconciler.Results,
 ) (reconcile.Result, error) {
@@ -221,7 +221,7 @@ func (r *ReconcileElasticsearch) doOfflineReconciliation(
 	statusBuilder := status.NewAutoscalingStatusBuilder()
 	var clusterNodeSetsResources resources.ClusterResources
 	// Elasticsearch is not reachable, we still want to ensure that min. requirements are set
-	for _, autoscalingSpec := range autoscalingSpecs.AutoscalingPolicySpecs {
+	for _, autoscalingSpec := range autoscalingSpec.AutoscalingPolicySpecs {
 		nodeSets, exists := namedTiers[autoscalingSpec.Name]
 		if !exists {
 			return results.WithError(fmt.Errorf("no nodeSets for tier %s", autoscalingSpec.Name)).Aggregate()

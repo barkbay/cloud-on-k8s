@@ -134,7 +134,8 @@ func newNodeSetNodeCountList(nodeSetNames []string) NodeSetNodeCountList {
 	return nodeSetNodeCount
 }
 
-// ResourcesSpecification holds the result of the autoscaling algorithm.
+// ResourcesSpecification holds the resources to be used by the nodes managed by an autoscaling policy.
+// Al the nodes managed by an autoscaling policy have the same resources, even if they are in different NodeSets.
 type ResourcesSpecification struct {
 	Limits   corev1.ResourceList `json:"limits,omitempty"`
 	Requests corev1.ResourceList `json:"requests,omitempty"`

@@ -11,10 +11,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
-
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/set"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/stringsutil"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -24,7 +23,7 @@ const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.
 var (
 	ElasticsearchMinAutoscalingVersion = version.From(7, 11, 0)
 
-	// minMemory is the minimum amount of memory which can be set in the memory limits specification.
+	// minMemory is the minimal amount of memory which can be set as the minimum limit in an autoscaling specification.
 	minMemory = resource.MustParse("2G")
 
 	// No minimum values are expected for CPU and Storage.
@@ -105,12 +104,12 @@ type QuantityRange struct {
 	RequestsToLimitsRatio *float64 `json:"requestsToLimitsRatio"`
 }
 
-// CountRange is used to model the limit range for node deployed in
+// CountRange is used to model the minimum and the maximum number of nodes over all the NodeSets managed by a same autoscaling policy.
 // +kubebuilder:object:generate=false
 type CountRange struct {
 	// Min represents the minimum number of nodes in a tier.
 	Min int32 `json:"min"`
-	// Max represents the minimum number of nodes in a tier.
+	// Max represents the maximum number of nodes in a tier.
 	Max int32 `json:"max"`
 }
 
@@ -210,7 +209,7 @@ type NodeSetConfigError struct {
 	Index int
 }
 
-// GetAutoscaledNodeSets retrieves the name of all the tiers in the Elasticsearch manifest.
+// GetAutoscaledNodeSets retrieves the name of all the autoscaling policies in the Elasticsearch manifest and the associated NodeSets.
 func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetConfigError) {
 	namedTiersSet := make(AutoscaledNodeSets)
 	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {

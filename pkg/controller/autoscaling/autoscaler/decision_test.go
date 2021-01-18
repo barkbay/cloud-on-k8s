@@ -45,7 +45,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("3Gi").nodeStorage("8Gi").
 					tierMemory("9Gi").tierStorage("50Gi").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("3Gi", "4Gi").WithStorage("5Gi", "10Gi").Build(),
+				policy: esv1.NewAutoscalingSpecBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("3Gi", "4Gi").WithStorage("5Gi", "10Gi").Build(),
 			},
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
@@ -66,7 +66,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("15G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
@@ -89,7 +89,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeStorage("1Gi").
 					tierStorage("3Gi").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").WithStorage("1G", "20G").Build(),
+				policy: esv1.NewAutoscalingSpecBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").WithStorage("1G", "20G").Build(),
 			},
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
@@ -110,7 +110,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("21G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
@@ -131,7 +131,7 @@ func Test_applyScaleDecision(t *testing.T) {
 					nodeMemory("6G").
 					tierMemory("48G").
 					build(),
-				policy: esv1.NewAutoscalingSpecsBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
+				policy: esv1.NewAutoscalingSpecBuilder("my-autoscaling-policy").WithNodeCounts(3, 6).WithMemory("5G", "8G").Build(),
 			},
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",

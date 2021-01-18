@@ -13,26 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// getStorage returns the storage min. capacity that should be used in the autoscaling algorithm.
-// The value is the max. value of either the current value in the status or in the autoscaling spec. set by the user.
-func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingStatus status.Status) resource.Quantity {
-	// If no storage spec is defined in the autoscaling status we return the default volume size.
-	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
-	// Always adjust to the min value specified by the user in the limits.
-	if autoscalingSpec.IsStorageDefined() {
-		storage = autoscalingSpec.Storage.Min
-	}
-	// If a storage value is stored in the status then reuse it.
-	if actualResources, exists := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name); exists && actualResources.HasRequest(corev1.ResourceStorage) {
-		storageInStatus := actualResources.GetRequest(corev1.ResourceStorage)
-		// There is a resources definition for this autoscaling policy
-		if storageInStatus.Cmp(storage) > 0 {
-			storage = storageInStatus
-		}
-	}
-	return storage
-}
-
 // GetScaleDecision calculates the resources to be required by NodeSets managed by a same autoscaling policy.
 func (ctx *Context) GetScaleDecision() resources.NamedTierResources {
 	// 1. Scale vertically
@@ -51,8 +31,7 @@ func (ctx *Context) GetScaleDecision() resources.NamedTierResources {
 	return ctx.scaleHorizontally(ctx.RequiredCapacity.Total, desiredNodeResources)
 }
 
-// scaleVertically computes desired state for a node given the requested capacity from ES and the resource AutoscalingSpec
-// specified by the user.
+// scaleVertically computes the desired state for a node given the requested capacity from ES and the AutoscalingSpec specified by the user.
 // It attempts to scale all the resources vertically until the expectations are met.
 func (ctx *Context) scaleVertically() resources.ResourcesSpecification {
 	// All resources can be computed "from scratch", without knowing the previous values.
@@ -63,4 +42,24 @@ func (ctx *Context) scaleVertically() resources.ResourcesSpecification {
 		int64(ctx.AutoscalingSpec.NodeCount.Min),
 		currentStorage,
 	)
+}
+
+// getStorage returns the storage min. capacity that should be used in the autoscaling algorithm.
+// The value is the max. value of either the current value in the status or in the autoscaling spec. set by the user.
+func getStorage(autoscalingSpec esv1.AutoscalingPolicySpec, actualAutoscalingStatus status.Status) resource.Quantity {
+	// If no storage spec is defined in the autoscaling status we return the default volume size.
+	storage := volume.DefaultPersistentVolumeSize.DeepCopy()
+	// Always adjust to the min value specified by the user in the limits.
+	if autoscalingSpec.IsStorageDefined() {
+		storage = autoscalingSpec.Storage.Min
+	}
+	// If a storage value is stored in the status then reuse it.
+	if actualResources, exists := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name); exists && actualResources.HasRequest(corev1.ResourceStorage) {
+		storageInStatus := actualResources.GetRequest(corev1.ResourceStorage)
+		// There is a resources definition for this autoscaling policy
+		if storageInStatus.Cmp(storage) > 0 {
+			storage = storageInStatus
+		}
+	}
+	return storage
 }

@@ -5,23 +5,23 @@ import "k8s.io/apimachinery/pkg/api/resource"
 // - AutoscalingSpec builder
 
 // +kubebuilder:object:generate=false
-type AutoscalingSpecsBuilder struct {
+type AutoscalingSpecBuilder struct {
 	name                       string
 	nodeCountMin, nodeCountMax int32
 	cpu, memory, storage       *QuantityRange
 }
 
-func NewAutoscalingSpecsBuilder(name string) *AutoscalingSpecsBuilder {
-	return &AutoscalingSpecsBuilder{name: name}
+func NewAutoscalingSpecBuilder(name string) *AutoscalingSpecBuilder {
+	return &AutoscalingSpecBuilder{name: name}
 }
 
-func (asb *AutoscalingSpecsBuilder) WithNodeCounts(min, max int) *AutoscalingSpecsBuilder {
+func (asb *AutoscalingSpecBuilder) WithNodeCounts(min, max int) *AutoscalingSpecBuilder {
 	asb.nodeCountMin = int32(min)
 	asb.nodeCountMax = int32(max)
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) WithMemory(min, max string) *AutoscalingSpecsBuilder {
+func (asb *AutoscalingSpecBuilder) WithMemory(min, max string) *AutoscalingSpecBuilder {
 	asb.memory = &QuantityRange{
 		Min: resource.MustParse(min),
 		Max: resource.MustParse(max),
@@ -29,7 +29,7 @@ func (asb *AutoscalingSpecsBuilder) WithMemory(min, max string) *AutoscalingSpec
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) WithStorage(min, max string) *AutoscalingSpecsBuilder {
+func (asb *AutoscalingSpecBuilder) WithStorage(min, max string) *AutoscalingSpecBuilder {
 	asb.storage = &QuantityRange{
 		Min: resource.MustParse(min),
 		Max: resource.MustParse(max),
@@ -37,7 +37,7 @@ func (asb *AutoscalingSpecsBuilder) WithStorage(min, max string) *AutoscalingSpe
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) WithCPU(min, max string) *AutoscalingSpecsBuilder {
+func (asb *AutoscalingSpecBuilder) WithCPU(min, max string) *AutoscalingSpecBuilder {
 	asb.cpu = &QuantityRange{
 		Min: resource.MustParse(min),
 		Max: resource.MustParse(max),
@@ -45,7 +45,7 @@ func (asb *AutoscalingSpecsBuilder) WithCPU(min, max string) *AutoscalingSpecsBu
 	return asb
 }
 
-func (asb *AutoscalingSpecsBuilder) Build() AutoscalingPolicySpec {
+func (asb *AutoscalingSpecBuilder) Build() AutoscalingPolicySpec {
 	return AutoscalingPolicySpec{
 		NamedAutoscalingPolicy: NamedAutoscalingPolicy{
 			Name: asb.name,
