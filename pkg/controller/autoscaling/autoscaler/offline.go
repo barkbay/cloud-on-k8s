@@ -13,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetOfflineNodeSetsResources attempts to create or restore nodeSetResources without an actual autoscaling decision
-// from Elasticsearch. It ensures that even if no decisions have been returned by the autoscaling API then the NodeSets
-// respect the min. and max. resource requirements specified by the user.
+// GetOfflineNodeSetsResources attempts to create or restore resources.NamedTierResources without an actual autoscaling
+// decision from Elasticsearch. It ensures that even if no decision has been returned by the autoscaling API then
+// the NodeSets still respect the min. and max. resource requirements specified by the user.
 // If resources are within the min. and max. boundaries then they are left untouched.
 func GetOfflineNodeSetsResources(
 	log logr.Logger,

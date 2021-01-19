@@ -36,7 +36,7 @@ const (
 
 type esClientProvider func(c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
 
-// ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch specifications based on autoscaling decisions.
+// ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch resources specifications based on autoscaling decisions.
 type ReconcileElasticsearch struct {
 	k8s.Client
 	operator.Parameters
@@ -53,8 +53,8 @@ var defaultReconcile = reconcile.Result{
 	RequeueAfter: 10 * time.Second,
 }
 
-// Add creates a new Elasticsearch autoscaling controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
+// Add creates a new Elasticsearch autoscaling controller and adds it to the Manager with default RBAC.
+// The Manager will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager, p operator.Parameters) error {
 	r := newReconciler(mgr, p)
 	c, err := common.NewController(mgr, controllerName, r, p)
@@ -82,9 +82,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 	}
 }
 
-// Reconcile attempts to update the capacity fields (count and memory request for now) in the currentNodeSets of the Elasticsearch
-// resource according to the result of the Elasticsearch capacity API and given the constraints provided by the user in
-// the resource policies.
+// Reconcile updates the ResourceRequirements and PersistentVolumeClaim fields of the elasticsearch container in each
+// NodeSet managed by an autoscaling policy. ResourceRequirements is updated according to the result of the Elasticsearch
+// _autoscaling/capacity API and given the constraints provided by the user in the autoscaling specification.
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := common.NewReconciliationContext(&r.iteration, r.Tracer, controllerName, "es_name", request)
 	defer common.LogReconciliationRunNoSideEffects(logconf.FromContext(ctx))()
