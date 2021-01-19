@@ -82,6 +82,22 @@ func TestReconcile(t *testing.T) {
 		wantErr    bool
 	}{
 		{
+			name: "ML case",
+			fields: fields{
+				EsClient:       newFakeEsClient(t).withCapacity("ml"),
+				Parameters:     operator.Parameters{},
+				recorder:       record.NewFakeRecorder(1000),
+				licenseChecker: &fakeLicenceChecker{},
+			},
+			args: args{
+				esManifest: "ml",
+				isOnline:   true,
+			},
+			want:       defaultReconcile,
+			wantErr:    false,
+			wantEvents: []string{},
+		},
+		{
 			name: "Simulate an error while updating the autoscaling policies, we still want to respect min nodes count set by user",
 			fields: fields{
 				EsClient:       newFakeEsClient(t).withErrorOnDeleteAutoscalingAutoscalingPolicies(),

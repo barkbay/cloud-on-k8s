@@ -71,7 +71,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
 				NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
-				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6G")}},
+				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6Gi")}},
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func Test_applyScaleDecision(t *testing.T) {
 			want: resources.NamedTierResources{
 				Name:                   "my-autoscaling-policy",
 				NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "default", NodeCount: 3}},
-				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6G"), corev1.ResourceStorage: q("10G")}},
+				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("6Gi"), corev1.ResourceStorage: q("10G")}},
 			},
 		},
 		{

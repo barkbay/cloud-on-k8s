@@ -111,8 +111,11 @@ func (ctx *Context) getResourceValue(
 	// their maximums, and thus avoid to scale horizontally while scaling vertically to the maximum is enough.
 	if totalRequired != nil && minNodesCount > 0 {
 		memoryOverAllTiers := (*totalRequired).Value() / minNodesCount
-		nodeResource = max64(nodeResource, roundUp(memoryOverAllTiers, giga))
+		nodeResource = max64(nodeResource, memoryOverAllTiers)
 	}
+
+	// Try to round up the Gb value
+	nodeResource = roundUp(nodeResource, giga)
 
 	// Set desired memory capacity within the allowed range
 	if nodeResource < min.Value() {
