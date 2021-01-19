@@ -18,8 +18,9 @@ type MachineLearningSettings struct {
 
 // SettingsGroup is a group of persistent settings.
 type MLSettingsGroup struct {
-	MaxLazyMLNodes int32  `json:"xpack.ml.max_lazy_ml_nodes"`
-	MaxMemory      string `json:"xpack.ml.max_ml_node_size"`
+	MaxLazyMLNodes              int32  `json:"xpack.ml.max_lazy_ml_nodes"`
+	MaxMemory                   string `json:"xpack.ml.max_ml_node_size"`
+	UseAutoMachineMemoryPercent bool   `json:"xpack.ml.use_auto_machine_memory_percent"`
 }
 
 type AutoScalingClient interface {
@@ -44,8 +45,9 @@ func (c *clientV7) UpdateMLNodesSettings(ctx context.Context, maxLazyMLNodes int
 		"/_cluster/settings",
 		&MachineLearningSettings{
 			&MLSettingsGroup{
-				MaxLazyMLNodes: maxLazyMLNodes,
-				MaxMemory:      maxMemory,
+				MaxLazyMLNodes:              maxLazyMLNodes,
+				MaxMemory:                   maxMemory,
+				UseAutoMachineMemoryPercent: true,
 			}}, nil)
 }
 
