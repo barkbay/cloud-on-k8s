@@ -7,7 +7,7 @@ package autoscaler
 import (
 	"testing"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/stretchr/testify/assert"
 )
 

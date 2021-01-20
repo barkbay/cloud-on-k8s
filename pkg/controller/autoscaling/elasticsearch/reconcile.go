@@ -1,12 +1,12 @@
-package autoscaling
+package elasticsearch
 
 import (
 	"context"
 	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"

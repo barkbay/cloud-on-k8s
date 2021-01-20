@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

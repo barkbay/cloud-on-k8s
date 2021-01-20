@@ -2,16 +2,16 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package autoscaling
+package elasticsearch
 
 import (
 	"context"
 	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/autoscaler"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/autoscaler"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"

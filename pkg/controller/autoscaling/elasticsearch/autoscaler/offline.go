@@ -6,8 +6,8 @@ package autoscaler
 
 import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/go-logr/logr"
 )
 

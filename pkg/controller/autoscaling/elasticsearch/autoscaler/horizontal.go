@@ -7,8 +7,8 @@ package autoscaler
 import (
 	"fmt"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	corev1 "k8s.io/api/core/v1"
 )

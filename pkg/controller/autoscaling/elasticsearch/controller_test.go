@@ -1,4 +1,4 @@
-package autoscaling
+package elasticsearch
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -82,7 +82,7 @@ func TestReconcile(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "ML case",
+			name: "ML case where tier total memory was lower than node memory",
 			fields: fields{
 				EsClient:       newFakeEsClient(t).withCapacity("ml"),
 				Parameters:     operator.Parameters{},
