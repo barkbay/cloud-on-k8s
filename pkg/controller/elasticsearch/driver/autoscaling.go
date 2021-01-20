@@ -6,7 +6,7 @@ package driver
 
 import (
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/status"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 )
 
 // resourcesAutoscaled checks that the autoscaler controller has updated the resources

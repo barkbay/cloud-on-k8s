@@ -6,12 +6,16 @@ package elasticsearch
 
 import (
 	"fmt"
+
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"time"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/annotation"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
@@ -20,58 +24,42 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	logconf "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/net"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
+
+type EsClientProvider func(c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
 
 const (
 	controllerName = "elasticsearch-autoscaling"
 )
-
-type esClientProvider func(c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
-
-// ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch resources specifications based on autoscaling decisions.
-type ReconcileElasticsearch struct {
-	k8s.Client
-	operator.Parameters
-	esClientProvider
-	recorder       record.EventRecorder
-	licenseChecker license.Checker
-
-	// iteration is the number of times this controller has run its Reconcile method
-	iteration uint64
-}
 
 var defaultReconcile = reconcile.Result{
 	Requeue:      true,
 	RequeueAfter: 10 * time.Second,
 }
 
-// Add creates a new Elasticsearch autoscaling controller and adds it to the Manager with default RBAC.
-// The Manager will set fields on the Controller and Start it when the Manager is Started.
-func Add(mgr manager.Manager, p operator.Parameters) error {
-	r := newReconciler(mgr, p)
-	c, err := common.NewController(mgr, controllerName, r, p)
-	if err != nil {
-		return err
-	}
-	// Watch for changes on Elasticsearch clusters.
-	if err := c.Watch(
-		&source.Kind{Type: &esv1.Elasticsearch{}}, &handler.EnqueueRequestForObject{},
-	); err != nil {
-		return err
-	}
-	return nil
+// ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch resources specifications based on autoscaling decisions.
+type ReconcileElasticsearch struct {
+	k8s.Client
+	operator.Parameters
+	esClientProvider EsClientProvider
+	recorder         record.EventRecorder
+	licenseChecker   license.Checker
+
+	// iteration is the number of times this controller has run its Reconcile method
+	iteration uint64
 }
 
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileElasticsearch {
+// NewReconciler returns a new reconcile.Reconciler
+func NewReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileElasticsearch {
 	c := k8s.WrapClient(mgr.GetClient())
 	return &ReconcileElasticsearch{
 		Client:           c,
@@ -172,4 +160,58 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 	results := &reconciler.Results{}
 	return results.WithResult(defaultReconcile).WithResult(current).Aggregate()
+}
+
+func newElasticsearchClient(
+	c k8s.Client,
+	dialer net.Dialer,
+	es esv1.Elasticsearch,
+) (esclient.Client, error) {
+	url := services.ExternalServiceURL(es)
+	v, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return nil, err
+	}
+	// Get user Secret
+	var controllerUserSecret corev1.Secret
+	key := types.NamespacedName{
+		Namespace: es.Namespace,
+		Name:      esv1.InternalUsersSecret(es.Name),
+	}
+	if err := c.Get(key, &controllerUserSecret); err != nil {
+		return nil, err
+	}
+	password, ok := controllerUserSecret.Data[user.ControllerUserName]
+	if !ok {
+		return nil, fmt.Errorf("controller user %s not found in Secret %s/%s", user.ControllerUserName, key.Namespace, key.Name)
+	}
+
+	// Get public certs
+	var caSecret corev1.Secret
+	key = types.NamespacedName{
+		Namespace: es.Namespace,
+		Name:      certificates.PublicCertsSecretName(esv1.ESNamer, es.Name),
+	}
+	if err := c.Get(key, &caSecret); err != nil {
+		return nil, err
+	}
+	trustedCerts, ok := caSecret.Data[certificates.CertFileName]
+	if !ok {
+		return nil, fmt.Errorf("%s not found in Secret %s/%s", certificates.CertFileName, key.Namespace, key.Name)
+	}
+	caCerts, err := certificates.ParsePEMCerts(trustedCerts)
+	if err != nil {
+		return nil, err
+	}
+	return esclient.NewElasticsearchClient(
+		dialer,
+		url,
+		esclient.BasicAuth{
+			Name:     user.ControllerUserName,
+			Password: string(password),
+		},
+		*v,
+		caCerts,
+		esclient.Timeout(es),
+	), nil
 }

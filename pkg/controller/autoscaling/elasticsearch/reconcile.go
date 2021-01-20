@@ -2,26 +2,17 @@ package elasticsearch
 
 import (
 	"context"
-	"fmt"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
-	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/services"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/net"
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -123,60 +114,6 @@ func (r *ReconcileElasticsearch) fetchElasticsearch(
 		return true, err
 	}
 	return false, nil
-}
-
-func newElasticsearchClient(
-	c k8s.Client,
-	dialer net.Dialer,
-	es esv1.Elasticsearch,
-) (esclient.Client, error) {
-	url := services.ExternalServiceURL(es)
-	v, err := version.Parse(es.Spec.Version)
-	if err != nil {
-		return nil, err
-	}
-	// Get user Secret
-	var controllerUserSecret corev1.Secret
-	key := types.NamespacedName{
-		Namespace: es.Namespace,
-		Name:      esv1.InternalUsersSecret(es.Name),
-	}
-	if err := c.Get(key, &controllerUserSecret); err != nil {
-		return nil, err
-	}
-	password, ok := controllerUserSecret.Data[user.ControllerUserName]
-	if !ok {
-		return nil, fmt.Errorf("controller user %s not found in Secret %s/%s", user.ControllerUserName, key.Namespace, key.Name)
-	}
-
-	// Get public certs
-	var caSecret corev1.Secret
-	key = types.NamespacedName{
-		Namespace: es.Namespace,
-		Name:      certificates.PublicCertsSecretName(esv1.ESNamer, es.Name),
-	}
-	if err := c.Get(key, &caSecret); err != nil {
-		return nil, err
-	}
-	trustedCerts, ok := caSecret.Data[certificates.CertFileName]
-	if !ok {
-		return nil, fmt.Errorf("%s not found in Secret %s/%s", certificates.CertFileName, key.Namespace, key.Name)
-	}
-	caCerts, err := certificates.ParsePEMCerts(trustedCerts)
-	if err != nil {
-		return nil, err
-	}
-	return esclient.NewElasticsearchClient(
-		dialer,
-		url,
-		esclient.BasicAuth{
-			Name:     user.ControllerUserName,
-			Password: string(password),
-		},
-		*v,
-		caCerts,
-		esclient.Timeout(es),
-	), nil
 }
 
 // removeContainer remove a container from a slice and return the removed container if found.
