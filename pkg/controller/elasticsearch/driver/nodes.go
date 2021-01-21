@@ -43,7 +43,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	results := &reconciler.Results{}
 
 	// If some nodeSets are managed by the autoscaler, wait for them to be updated.
-	if ok, err := resourcesAutoscaled(d.ES); err != nil {
+	if ok, err := autoscaledResourcesSynced(d.ES); err != nil {
 		return results.WithError(fmt.Errorf("StatefulSet recreation: %w", err))
 	} else if !ok {
 		return results.WithResult(defaultRequeue)

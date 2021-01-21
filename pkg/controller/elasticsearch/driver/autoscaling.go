@@ -9,10 +9,11 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 )
 
-// resourcesAutoscaled checks that the autoscaler controller has updated the resources
-// if autoscaling is enabled. This is to avoid situations where resources have been manually
-// deleted or replaced by an external event.
-func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
+// autoscaledResourcesSynced checks that the autoscaler controller has updated the resources
+// when autoscaling is enabled. This is to avoid situations where resources have been manually
+// deleted or replaced by an external event. The Elasticsearch controller should then wait for
+// the Elasticsearch autoscaling controller to update again the resources in the NodeSets.
+func autoscaledResourcesSynced(es esv1.Elasticsearch) (bool, error) {
 	if !es.IsAutoscalingDefined() {
 		return true, nil
 	}
@@ -32,7 +33,7 @@ func resourcesAutoscaled(es esv1.Elasticsearch) (bool, error) {
 		}
 		if nodeSetAutoscalingSpec == nil {
 			// This nodeSet is not managed by an autoscaling configuration
-			log.Info("NodeSet not managed by an autoscaling controller", "nodeset", nodeSet.Name)
+			log.V(1).Info("NodeSet not managed by an autoscaling controller", "nodeset", nodeSet.Name)
 			continue
 		}
 
