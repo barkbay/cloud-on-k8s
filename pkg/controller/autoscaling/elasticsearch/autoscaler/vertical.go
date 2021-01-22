@@ -17,8 +17,8 @@ import (
 var giga = int64(1024 * 1024 * 1024)
 
 // nodeResources computes the desired amount of memory and storage for a node managed by a given AutoscalingPolicySpec.
-func (ctx *Context) nodeResources(minNodesCount int64, currentStorage resource.Quantity) resources.ResourcesSpecification {
-	nodeResources := resources.ResourcesSpecification{}
+func (ctx *Context) nodeResources(minNodesCount int64, currentStorage resource.Quantity) resources.NodeResources {
+	nodeResources := resources.NodeResources{}
 
 	// Compute desired memory quantity for the nodes managed by this AutoscalingPolicySpec.
 	if !ctx.RequiredCapacity.Node.Memory.IsEmpty() {

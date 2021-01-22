@@ -25,7 +25,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 	tests := []struct {
 		name                   string
 		args                   args
-		wantNamedTierResources *resources.NamedTierResources
+		wantNamedTierResources *resources.NodeSetsResources
 		wantErr                bool
 	}{
 		{
@@ -63,10 +63,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 					AutoscalingResources:   esv1.AutoscalingResources{Storage: &esv1.QuantityRange{Min: resource.MustParse("7Gi"), Max: resource.MustParse("50Gi")}}},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &resources.NamedTierResources{
+			wantNamedTierResources: &resources.NodeSetsResources{
 				Name:             "aspec",
 				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: resources.ResourcesSpecification{
+				NodeResources: resources.NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
 					},
@@ -104,10 +104,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 				},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &resources.NamedTierResources{
+			wantNamedTierResources: &resources.NodeSetsResources{
 				Name:             "aspec",
 				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: resources.ResourcesSpecification{
+				NodeResources: resources.NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory:  resource.MustParse("32Gi"),
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
@@ -146,10 +146,10 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 				},
 				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantNamedTierResources: &resources.NamedTierResources{
+			wantNamedTierResources: &resources.NodeSetsResources{
 				Name:             "aspec",
 				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
-				ResourcesSpecification: resources.ResourcesSpecification{
+				NodeResources: resources.NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory: resource.MustParse("32Gi"),
 					},

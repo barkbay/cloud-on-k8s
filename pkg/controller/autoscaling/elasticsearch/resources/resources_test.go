@@ -24,7 +24,7 @@ func TestResourcesSpecification_MaxMerge(t *testing.T) {
 	type args struct {
 		other        corev1.ResourceRequirements
 		resourceName corev1.ResourceName
-		want         ResourcesSpecification
+		want         NodeResources
 	}
 	tests := []struct {
 		name   string
@@ -53,7 +53,7 @@ func TestResourcesSpecification_MaxMerge(t *testing.T) {
 					},
 				},
 				resourceName: corev1.ResourceMemory,
-				want: ResourcesSpecification{
+				want: NodeResources{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory: resource.MustParse("8Gi"),
 					},
@@ -88,7 +88,7 @@ func TestResourcesSpecification_MaxMerge(t *testing.T) {
 					},
 				},
 				resourceName: corev1.ResourceMemory,
-				want: ResourcesSpecification{
+				want: NodeResources{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory: resource.MustParse("8Gi"),
 					},
@@ -102,7 +102,7 @@ func TestResourcesSpecification_MaxMerge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &ResourcesSpecification{
+			rs := &NodeResources{
 				Limits:   tt.fields.Limits,
 				Requests: tt.fields.Requests,
 			}
@@ -117,7 +117,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 	type fields struct {
 		Name                   string
 		NodeSetNodeCount       NodeSetNodeCountList
-		ResourcesSpecification ResourcesSpecification
+		ResourcesSpecification NodeResources
 	}
 	type args struct {
 		nodeSet esv1.NodeSet
@@ -134,7 +134,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -146,7 +146,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -158,7 +158,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 6}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -170,7 +170,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("1Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -182,7 +182,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("8000m")},
 				},
 			},
@@ -194,7 +194,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceStorage: resource.MustParse("2Gi"), corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -206,7 +206,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("4Gi"), corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -218,7 +218,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("4Gi")},
 				},
 			},
@@ -230,7 +230,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("8Gi")},
 				},
 			},
@@ -242,7 +242,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceCPU: resource.MustParse("2000m")},
 				},
 			},
@@ -254,7 +254,7 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 			fields: fields{
 				Name:             "data-inject",
 				NodeSetNodeCount: NodeSetNodeCountList{NodeSetNodeCount{Name: "nodeset-1", NodeCount: 3}, NodeSetNodeCount{Name: "nodeset-2", NodeCount: 5}},
-				ResourcesSpecification: ResourcesSpecification{
+				ResourcesSpecification: NodeResources{
 					Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceCPU: resource.MustParse("4000m")},
 				},
 			},
@@ -264,18 +264,18 @@ func TestNamedTierResources_IsUsedBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ntr := NamedTierResources{
-				Name:                   tt.fields.Name,
-				NodeSetNodeCount:       tt.fields.NodeSetNodeCount,
-				ResourcesSpecification: tt.fields.ResourcesSpecification,
+			ntr := NodeSetsResources{
+				Name:             tt.fields.Name,
+				NodeSetNodeCount: tt.fields.NodeSetNodeCount,
+				NodeResources:    tt.fields.ResourcesSpecification,
 			}
 			got, err := ntr.IsUsedBy(esv1.ElasticsearchContainerName, tt.args.nodeSet)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NamedTierResources.IsUsedBy() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NodeSetsResources.IsUsedBy() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("NamedTierResources.IsUsedBy() = %v, want %v", got, tt.want)
+				t.Errorf("NodeSetsResources.IsUsedBy() = %v, want %v", got, tt.want)
 			}
 		})
 	}

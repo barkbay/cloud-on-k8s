@@ -52,26 +52,26 @@ func (s *Status) ImportExistingResources(log logr.Logger, c k8s.Client, as esv1.
 			AutoscalingPolicyStatus{
 				Name:                   autoscalingPolicy.Name,
 				NodeSetNodeCount:       resources.NodeSetNodeCount,
-				ResourcesSpecification: resources.ResourcesSpecification,
+				ResourcesSpecification: resources.NodeResources,
 			})
 	}
 	return nil
 }
 
-// namedTierResourcesFromStatefulSets creates NamedTierResources from existing StatefulSets
+// namedTierResourcesFromStatefulSets creates NodeSetsResources from existing StatefulSets
 func namedTierResourcesFromStatefulSets(
 	c k8s.Client,
 	es esv1.Elasticsearch,
 	autoscalingPolicySpec esv1.AutoscalingPolicySpec,
 	nodeSets []string,
-) (*resources.NamedTierResources, error) {
-	namedTierResources := resources.NamedTierResources{
+) (*resources.NodeSetsResources, error) {
+	namedTierResources := resources.NodeSetsResources{
 		Name: autoscalingPolicySpec.Name,
 	}
 	found := false
 	// For each nodeSet:
 	// 1. we try to get the corresponding StatefulSet
-	// 2. we build a NamedTierResources from the max. resources of each StatefulSet
+	// 2. we build a NodeSetsResources from the max. resources of each StatefulSet
 	for _, nodeSetName := range nodeSets {
 		statefulSetName := esv1.StatefulSet(es.Name, nodeSetName)
 		statefulSet := appsv1.StatefulSet{}

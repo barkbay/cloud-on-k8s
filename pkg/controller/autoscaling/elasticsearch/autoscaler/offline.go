@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetOfflineNodeSetsResources attempts to create or restore resources.NamedTierResources without an actual autoscaling
+// GetOfflineNodeSetsResources attempts to create or restore resources.NodeSetsResources without an actual autoscaling
 // decision from Elasticsearch. It ensures that even if no decision has been returned by the autoscaling API then
 // the NodeSets still respect the min. and max. resource requirements specified by the user.
 // If resources are within the min. and max. boundaries then they are left untouched.
@@ -22,10 +22,10 @@ func GetOfflineNodeSetsResources(
 	nodeSets []string,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	actualAutoscalingStatus status.Status,
-) resources.NamedTierResources {
+) resources.NodeSetsResources {
 	actualNamedTierResources, hasNamedTierResources := actualAutoscalingStatus.GetNamedTierResources(autoscalingSpec.Name)
 
-	var namedTierResources resources.NamedTierResources
+	var namedTierResources resources.NodeSetsResources
 	var expectedNodeCount int32
 	if !hasNamedTierResources {
 		// There's no current status for this nodeSet, this happens when the Elasticsearch cluster does not exist.
@@ -69,11 +69,11 @@ func GetOfflineNodeSetsResources(
 // If user removed the limits while offline we are assuming that it wants to take back control on the resources.
 func nodeSetResourcesFromStatus(
 	actualAutoscalingStatus status.Status,
-	actualNamedTierResources resources.NamedTierResources,
+	actualNamedTierResources resources.NodeSetsResources,
 	autoscalingSpec esv1.AutoscalingPolicySpec,
 	nodeSets []string,
-) resources.NamedTierResources {
-	namedTierResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+) resources.NodeSetsResources {
+	namedTierResources := resources.NewNodeSetsResources(autoscalingSpec.Name, nodeSets)
 	// Ensure memory settings are in the allowed limit range.
 	if autoscalingSpec.IsMemoryDefined() {
 		if actualNamedTierResources.HasRequest(corev1.ResourceMemory) {
@@ -104,8 +104,8 @@ func nodeSetResourcesFromStatus(
 }
 
 // newMinNodeSetResources returns a NodeSetResources with minimums values
-func newMinNodeSetResources(autoscalingSpec esv1.AutoscalingPolicySpec, nodeSets []string) resources.NamedTierResources {
-	namedTierResources := resources.NewNamedTierResources(autoscalingSpec.Name, nodeSets)
+func newMinNodeSetResources(autoscalingSpec esv1.AutoscalingPolicySpec, nodeSets []string) resources.NodeSetsResources {
+	namedTierResources := resources.NewNodeSetsResources(autoscalingSpec.Name, nodeSets)
 	if autoscalingSpec.IsCPUDefined() {
 		namedTierResources.SetRequest(corev1.ResourceCPU, autoscalingSpec.CPU.Min.DeepCopy())
 	}

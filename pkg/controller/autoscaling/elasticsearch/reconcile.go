@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// reconcileElasticsearch updates the resources in the NodeSets of an Elasticsearch spec according to the NamedTierResources
+// reconcileElasticsearch updates the resources in the NodeSets of an Elasticsearch spec according to the NodeSetsResources
 // computed by the autoscaling algorithm. It also updates the autoscaling status annotation.
 func reconcileElasticsearch(
 	log logr.Logger,

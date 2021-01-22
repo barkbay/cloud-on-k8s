@@ -51,7 +51,7 @@ func autoscaledResourcesSynced(es esv1.Elasticsearch) (bool, error) {
 		if !inSync {
 			log.Info("NodeSet managed by the autoscaling controller but not in sync",
 				"nodeset", nodeSet.Name,
-				"expected", s.ResourcesSpecification,
+				"expected", s.NodeResources,
 			)
 			return false, nil
 		}

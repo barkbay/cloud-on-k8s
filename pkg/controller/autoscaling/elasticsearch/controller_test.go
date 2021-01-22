@@ -262,10 +262,10 @@ func statusesEqual(t *testing.T, got, want esv1.Elasticsearch) {
 		require.NotNil(t, gotPolicyStatus, "Autoscaling policy not found")
 		require.ElementsMatch(t, gotPolicyStatus.NodeSetNodeCount, wantPolicyStatus.NodeSetNodeCount)
 		for resource := range wantPolicyStatus.ResourcesSpecification.Requests {
-			require.True(t, resources.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
+			require.True(t, resources.ResourceEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
 		}
 		for resource := range wantPolicyStatus.ResourcesSpecification.Limits {
-			require.True(t, resources.ResourcesEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
+			require.True(t, resources.ResourceEqual(resource, wantPolicyStatus.ResourcesSpecification.Requests, gotPolicyStatus.ResourcesSpecification.Requests))
 		}
 	}
 

@@ -13,8 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetScaleDecision calculates the resources to be required by NodeSets managed by a same autoscaling policy.
-func (ctx *Context) GetScaleDecision() resources.NamedTierResources {
+// GetResources calculates the resources to be required by NodeSets managed by a same autoscaling policy.
+func (ctx *Context) GetResources() resources.NodeSetsResources {
 	// 1. Scale vertically
 	desiredNodeResources := ctx.scaleVertically()
 	ctx.Log.Info(
@@ -31,9 +31,9 @@ func (ctx *Context) GetScaleDecision() resources.NamedTierResources {
 	return ctx.scaleHorizontally(ctx.RequiredCapacity.Total, desiredNodeResources)
 }
 
-// scaleVertically computes the desired state for a node given the requested capacity from ES and the AutoscalingSpec specified by the user.
-// It attempts to scale all the resources vertically until the expectations are met.
-func (ctx *Context) scaleVertically() resources.ResourcesSpecification {
+// scaleVertically computes the desired resources for a node given the requested capacity from ES and the AutoscalingSpec
+// specified by the user. It attempts to scale all the resources vertically until the expectations are met.
+func (ctx *Context) scaleVertically() resources.NodeResources {
 	// All resources can be computed "from scratch", without knowing the previous values.
 	// It is not true for storage. Storage can't be scaled down, current storage capacity must be considered as an hard min. limit.
 	// This limit must be taken into consideration when computing the desired resources.

@@ -131,7 +131,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 		}
 
 		// Get the decision from the Elasticsearch API
-		var nodeSetsResources resources.NamedTierResources
+		var nodeSetsResources resources.NodeSetsResources
 		switch capacity, hasCapacity := decisions.Policies[autoscalingPolicy.Name]; hasCapacity && !capacity.RequiredCapacity.IsEmpty() {
 		case false:
 			// We didn't receive a decision for this tier, or the decision is empty. We can only ensure that resources are within the allowed ranges.
@@ -159,7 +159,7 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 				RequiredCapacity:        capacity.RequiredCapacity,
 				StatusBuilder:           statusBuilder,
 			}
-			nodeSetsResources = ctx.GetScaleDecision()
+			nodeSetsResources = ctx.GetResources()
 		}
 		// Add the result to the list of the next resources
 		nextNodeSetsResources = append(nextNodeSetsResources, nodeSetsResources)

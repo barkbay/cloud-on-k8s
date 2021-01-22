@@ -16,8 +16,8 @@ import (
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func (ctx *Context) scaleHorizontally(
 	totalRequiredCapacity client.Capacity, // total required resources, at the tier level.
-	nodeCapacity resources.ResourcesSpecification, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
-) resources.NamedTierResources {
+	nodeCapacity resources.NodeResources, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
+) resources.NodeSetsResources {
 	minNodes := int(ctx.AutoscalingSpec.NodeCount.Min)
 	maxNodes := int(ctx.AutoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
@@ -38,8 +38,8 @@ func (ctx *Context) scaleHorizontally(
 		"required_capacity", totalRequiredCapacity,
 	)
 
-	nodeSetsResources := resources.NewNamedTierResources(ctx.AutoscalingSpec.Name, ctx.NodeSets.Names())
-	nodeSetsResources.ResourcesSpecification = nodeCapacity
+	nodeSetsResources := resources.NewNodeSetsResources(ctx.AutoscalingSpec.Name, ctx.NodeSets.Names())
+	nodeSetsResources.NodeResources = nodeCapacity
 	fnm := NewFairNodesManager(ctx.Log, nodeSetsResources.NodeSetNodeCount)
 	for totalNodes > 0 {
 		fnm.AddNode()

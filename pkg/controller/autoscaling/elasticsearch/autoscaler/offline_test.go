@@ -28,7 +28,7 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want resources.NamedTierResources
+		want resources.NodeSetsResources
 	}{
 		{
 			name: "Do not scale down storage",
@@ -38,12 +38,12 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
-					ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
+					ResourcesSpecification: resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
 			},
-			want: resources.NamedTierResources{
-				Name:                   "my-autoscaling-policy",
-				NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
-				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}},
+			want: resources.NodeSetsResources{
+				Name:             "my-autoscaling-policy",
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
+				NodeResources:    resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}},
 			},
 		},
 		{
@@ -54,12 +54,12 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
-					ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
+					ResourcesSpecification: resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
 			},
-			want: resources.NamedTierResources{
-				Name:                   "my-autoscaling-policy",
-				NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
-				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("50Gi" /* memory should be increased */), corev1.ResourceStorage: q("35Gi")}},
+			want: resources.NodeSetsResources{
+				Name:             "my-autoscaling-policy",
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
+				NodeResources:    resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("50Gi" /* memory should be increased */), corev1.ResourceStorage: q("35Gi")}},
 			},
 		},
 		{
@@ -70,12 +70,12 @@ func TestGetOfflineNodeSetsResources(t *testing.T) {
 				actualAutoscalingStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
 					Name:                   "my-autoscaling-policy",
 					NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 3}, {Name: "region-b", NodeCount: 3}},
-					ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
+					ResourcesSpecification: resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}}}}},
 			},
-			want: resources.NamedTierResources{
-				Name:                   "my-autoscaling-policy",
-				NodeSetNodeCount:       []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 2}, {Name: "region-b", NodeCount: 2}, {Name: "region-new", NodeCount: 2}},
-				ResourcesSpecification: resources.ResourcesSpecification{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}},
+			want: resources.NodeSetsResources{
+				Name:             "my-autoscaling-policy",
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "region-a", NodeCount: 2}, {Name: "region-b", NodeCount: 2}, {Name: "region-new", NodeCount: 2}},
+				NodeResources:    resources.NodeResources{Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: q("3Gi"), corev1.ResourceStorage: q("35Gi")}},
 			},
 		},
 	}
