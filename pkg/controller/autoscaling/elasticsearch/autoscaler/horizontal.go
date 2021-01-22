@@ -21,12 +21,15 @@ func (ctx *Context) scaleHorizontally(
 	minNodes := int(ctx.AutoscalingSpec.NodeCount.Min)
 	maxNodes := int(ctx.AutoscalingSpec.NodeCount.Max)
 	nodeToAdd := 0
-	if !totalRequiredCapacity.Memory.IsZero() && nodeCapacity.HasRequest(corev1.ResourceMemory) {
+
+	// Scale horizontally to match memory requirements
+	if !totalRequiredCapacity.Memory.IsZero() {
 		nodeMemory := nodeCapacity.GetRequest(corev1.ResourceMemory)
 		nodeToAdd = ctx.getNodesToAdd(nodeMemory.Value(), totalRequiredCapacity.Memory.Value(), minNodes, maxNodes, string(corev1.ResourceMemory))
 	}
 
-	if !totalRequiredCapacity.Storage.IsZero() && nodeCapacity.HasRequest(corev1.ResourceStorage) {
+	// Scale horizontally to match storage requirements
+	if !totalRequiredCapacity.Storage.IsZero() {
 		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
 		nodeToAdd = max(nodeToAdd, ctx.getNodesToAdd(nodeStorage.Value(), totalRequiredCapacity.Storage.Value(), minNodes, maxNodes, string(corev1.ResourceStorage)))
 	}
@@ -49,9 +52,9 @@ func (ctx *Context) scaleHorizontally(
 	return nodeSetsResources
 }
 
-// getNodesToAdd calculates the number of nodes to add in order to comply with capacity requested by Elasticsearch.
+// getNodesToAdd calculates the number of nodes to add in order to comply with the capacity requested by Elasticsearch.
 func (ctx *Context) getNodesToAdd(
-	nodeResourceCapacity int64, // resource capacity of a single node, for example the node memory
+	nodeResourceCapacity int64, // resource capacity of a single node, for example the memory of a node in the tier
 	totalRequiredCapacity int64, // required capacity at the tier level
 	minNodes, maxNodes int, // min and max number of nodes in this tier, as specified by the user the autoscaling spec.
 	resourceName string, // used for logging and in events

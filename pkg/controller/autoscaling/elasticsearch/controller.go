@@ -43,7 +43,7 @@ const (
 
 var defaultReconcile = reconcile.Result{
 	Requeue:      true,
-	RequeueAfter: 10 * time.Second,
+	RequeueAfter: 60 * time.Second,
 }
 
 // ReconcileElasticsearch reconciles autoscaling policies and Elasticsearch resources specifications based on autoscaling decisions.
