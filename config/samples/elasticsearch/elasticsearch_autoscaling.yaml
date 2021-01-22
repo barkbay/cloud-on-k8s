@@ -1,151 +1,57 @@
+---
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
-  name: elasticsearch-sample
+  name: autoscaling-sample
   annotations:
-    elasticsearch.alpha.elastic.co/autoscaling-spec: '[
-          {
-              "name": "mdi",
-              "roles": [ "master", "data", "ingest" ],
-              "minAllowed" : {
-                "count" : 1,
-                "cpu" : "1",
-                "memory" : "2Gi",
-                "storage" : "5Gi"
-              },
-              "maxAllowed" : {
-                "count" : 3,
-                "cpu" : "3",
-                "memory" : "4Gi",
-                "storage" : "10Gi"
+    elasticsearch.alpha.elastic.co/autoscaling-spec: >
+    '{
+        "policies": [{
+            "name": "di",
+            "roles": ["data", "ingest" , "transform"],
+            "deciders": {
+              "proactive_storage": {
+                  "forecast_window": "5m"
               }
-          },
-          {
-              "name": "ml",
-              "roles": [ "ml" ],
-              "minAllowed" : {
-                "count" : 1,
-                "cpu" : "1",
-                "memory" : "2Gi",
-                "storage" : "5Gi"
-              },
-              "maxAllowed" : {
-                "count" : 5,
-                "cpu" : "3",
-                "memory" : "4Gi",
-                "storage" : "10Gi"
-              }
-          }
-      ]'
+            },
+            "resources": {
+                "nodeCount": { "min": 3, "max": 8 },
+                "cpu": { "min": 2, "max": 8 },
+                "memory": { "min": "2Gi", "max": "16Gi" },
+                "storage": { "min": "64Gi", "max": "512Gi" }
+            }
+        },
+        {
+            "name": "ml",
+            "roles": ["ml"],
+            "deciders": {
+                "ml": {
+                    "down_scale_delay": "10m"
+                }
+            },
+            "resources": {
+                "nodeCount": { "min": 1, "max": 9 },
+                "cpu": { "min": 1, "max": 4 },
+                "memory": { "min": "2Gi", "max": "8Gi" }
+            }
+        }]
+    }'
 spec:
   version: 7.11.0
-  image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0-SNAPSHOT
   nodeSets:
-    - name: data-zone-b
+    - name: master
       count: 1
       config:
-        node.attr.zone: europe-west1-b
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "master", "data", "ingest" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-b
-    - name: data-zone-c
-      count: 1
+        node:
+          roles: [ "master" ]
+          store.allow_mmap: false
+    - name: di
       config:
-        node.attr.zone: europe-west1-c
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "master", "data", "ingest" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-c
-    - name: data-zone-d
-      count: 1
+        node:
+          roles: [ "data", "ingest", "transform" ]
+          store.allow_mmap: false
+    - name: ml
       config:
-        node.attr.zone: europe-west1-d
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "master", "data", "ingest" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-d
-    - name: ml-zone-b
-      count: 1
-      config:
-        node.attr.zone: europe-west1-b
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "ml" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-b
-    - name: ml-zone-c
-      count: 1
-      config:
-        node.attr.zone: europe-west1-c
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "ml" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-c
-    - name: ml-zone-d
-      count: 1
-      config:
-        node.attr.zone: europe-west1-d
-        cluster.routing.allocation.awareness.attributes: zone
-        node.roles: [ "ml" ]
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: failure-domain.beta.kubernetes.io/zone
-                        operator: In
-                        values:
-                          - europe-west1-d
+        node:
+          roles: [ "ml" ]
+          store.allow_mmap: false
