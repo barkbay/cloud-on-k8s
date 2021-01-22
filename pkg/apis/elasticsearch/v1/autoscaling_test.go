@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,9 +20,11 @@ func TestResourcePolicies_Validate(t *testing.T) {
 	tests := []struct {
 		name            string
 		autoscalingSpec string
-		nodeSets        map[string][]string
-		wantError       bool
-		expectedError   string
+		// NodeSet name -> roles
+		nodeSets      map[string][]string
+		volumeClaims  []string
+		wantError     bool
+		expectedError string
 	}{
 		{
 			name:      "ML must be in a dedicated autoscaling policy",
@@ -451,6 +455,68 @@ func TestResourcePolicies_Validate(t *testing.T) {
 }
 `,
 		},
+		{
+			name:         "Default volume claim",
+			wantError:    false,
+			nodeSets:     map[string][]string{"ml": {"ml"}},
+			volumeClaims: []string{"elasticsearch-data"},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+		},
+		{
+			name:         "Not the default volume claim",
+			wantError:    true,
+			nodeSets:     map[string][]string{"ml": {"ml"}},
+			volumeClaims: []string{"volume1"},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+			expectedError: "autoscaling expects only one volume claim named elasticsearch-data",
+		},
+		{
+			name:         "More than one volume claim",
+			wantError:    true,
+			nodeSets:     map[string][]string{"ml": {"ml"}},
+			volumeClaims: []string{"volume1", "volume2"},
+			autoscalingSpec: `
+{
+	 "policies" : [{
+		  "name": "ml_policy",
+		  "roles": [ "ml" ],
+		  "resources" : {
+			"nodeCount" : { "min" : 1 , "max" : 2 },
+			"cpu" : { "min" : 1 , "max" : 1 },
+			"memory" : { "min" : "2Gi" , "max" : "2Gi" },
+			"storage" : { "min" : "5Gi" , "max" : "10Gi" }
+		  }
+		}]
+}
+`,
+			expectedError: "autoscaling expects only one volume claim named elasticsearch-data",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -469,9 +535,11 @@ func TestResourcePolicies_Validate(t *testing.T) {
 				if roles != nil {
 					cfg = commonv1.NewConfig(map[string]interface{}{"node.roles": roles})
 				}
+				volumeClaimTemplates := volumeClaimTemplates(tt.volumeClaims)
 				nodeSet := NodeSet{
-					Name:   nodeSetName,
-					Config: &cfg,
+					Name:                 nodeSetName,
+					Config:               &cfg,
+					VolumeClaimTemplates: volumeClaimTemplates,
 				}
 				es.Spec.NodeSets = append(es.Spec.NodeSets, nodeSet)
 			}
@@ -492,6 +560,18 @@ func TestResourcePolicies_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func volumeClaimTemplates(volumeClaims []string) []corev1.PersistentVolumeClaim {
+	volumeClaimTemplates := make([]corev1.PersistentVolumeClaim, len(volumeClaims))
+	for i := range volumeClaims {
+		volumeClaimTemplates[i] = corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: volumeClaims[i],
+			},
+		}
+	}
+	return volumeClaimTemplates
 }
 
 func TestAutoscalingSpec_findByRoles(t *testing.T) {

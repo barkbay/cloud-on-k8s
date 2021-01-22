@@ -6,7 +6,6 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,13 +47,13 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
 						2,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
 					),
 				},
 				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -83,7 +82,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						map[string]corev1.ResourceRequirements{"elasticsearch": {
 							Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("32Gi")},
 						}},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
@@ -91,7 +90,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						map[string]corev1.ResourceRequirements{"elasticsearch": {
 							Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("24Gi")},
 						}},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
 					),
 				},
 				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -164,13 +163,13 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
 						2,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi"), "other": resource.MustParse("10Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi"), "other": resource.MustParse("10Gi")},
 					),
 				},
 				es:                    esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -188,7 +187,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",

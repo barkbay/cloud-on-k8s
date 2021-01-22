@@ -74,6 +74,8 @@ type NodeInfo struct {
 	Name string `json:"name"`
 }
 
+// IsEmpty returns true if all the resource values are empty (no values in the API response).
+// 0 is considered as a value since deciders are allowed to return 0 to fully scale down a tier.
 func (rc PolicyCapacityInfo) IsEmpty() bool {
 	return rc.Node.IsEmpty() && rc.Total.IsEmpty()
 }

@@ -7,7 +7,6 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,12 +15,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ImportExistingResources attempts to infer the resources to use in a tier if:
-// The tier is not in the Status: it can be the case if:
-//  * The cluster was manually managed and user want to manage resources with the autoscaling controller. In that case
+// ImportExistingResources attempts to infer the resources to use in a tier if an autoscaling policy  is not in the Status.
+// It can be the case if:
+//  * The cluster was manually managed and the user wants to manage resources with the autoscaling controller. In that case
 //    we want to be able to set some good default resources even if the autoscaling API is not responding.
-// * The Elasticsearch has been replaced and the status annotation is lost.
-func (s *Status) ImportExistingResources(log logr.Logger, c k8s.Client, as esv1.AutoscalingSpec, namedTiers esv1.AutoscaledNodeSets) error {
+// * The Elasticsearch has been replaced and the status annotation has been lost.
+func (s *Status) ImportExistingResources(
+	log logr.Logger,
+	c k8s.Client,
+	as esv1.AutoscalingSpec,
+	namedTiers esv1.AutoscaledNodeSets,
+) error {
 	for _, autoscalingPolicy := range as.AutoscalingPolicySpecs {
 		if _, inStatus := s.GetNamedTierResources(autoscalingPolicy.Name); inStatus {
 			// This autoscaling policy is already managed and we have some resources in the Status.
@@ -125,7 +129,7 @@ func namedTierResourcesFromStatefulSets(
 	return &namedTierResources, nil
 }
 
-// getElasticsearchDataVolumeQuantity returns the volume claim quantity for the volume.ElasticsearchDataVolumeName volume
+// getElasticsearchDataVolumeQuantity returns the volume claim quantity for the esv1.ElasticsearchDataVolumeName volume
 func getElasticsearchDataVolumeQuantity(statefulSet appsv1.StatefulSet) (*resource.Quantity, error) {
 	if len(statefulSet.Spec.VolumeClaimTemplates) > 1 {
 		// We do not support nodeSets with more than one volume.
@@ -134,7 +138,7 @@ func getElasticsearchDataVolumeQuantity(statefulSet appsv1.StatefulSet) (*resour
 
 	if len(statefulSet.Spec.VolumeClaimTemplates) == 1 {
 		volumeClaimTemplate := statefulSet.Spec.VolumeClaimTemplates[0]
-		if volumeClaimTemplate.Name != volume.ElasticsearchDataVolumeName {
+		if volumeClaimTemplate.Name != esv1.ElasticsearchDataVolumeName {
 			return nil, fmt.Errorf("autoscaling only support nodeSet with the default volume claim")
 		}
 		ssetStorageRequest, ssetHasStorageRequest := volumeClaimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]

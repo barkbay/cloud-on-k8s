@@ -70,8 +70,8 @@ func NewReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 	}
 }
 
-// Reconcile updates the ResourceRequirements and PersistentVolumeClaim fields of the elasticsearch container in each
-// NodeSet managed by an autoscaling policy. ResourceRequirements is updated according to the result of the Elasticsearch
+// Reconcile updates the ResourceRequirements and PersistentVolumeClaim fields for each elasticsearch container in a
+// NodeSet managed by an autoscaling policy. ResourceRequirements are updated according to the response of the Elasticsearch
 // _autoscaling/capacity API and given the constraints provided by the user in the autoscaling specification.
 func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := common.NewReconciliationContext(&r.iteration, r.Tracer, controllerName, "es_name", request)
@@ -148,7 +148,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)
 
-	// Import existing resources in the actual Status
+	// Import existing resources in the actual Status if the cluster is managed by some autoscaling policies but
+	// the status annotation does not exist.
 	if err := autoscalingStatus.ImportExistingResources(log, r.Client, autoscalingSpecification, namedTiers); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -350,7 +349,7 @@ func (nsb *nodeSetBuilder) build() esv1.NodeSet {
 		nodeSet.VolumeClaimTemplates = append(nodeSet.VolumeClaimTemplates,
 			corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: volume.ElasticsearchDataVolumeName,
+					Name: esv1.ElasticsearchDataVolumeName,
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					Resources: corev1.ResourceRequirements{

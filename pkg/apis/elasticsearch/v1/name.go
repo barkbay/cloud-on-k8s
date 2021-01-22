@@ -36,6 +36,9 @@ const (
 	remoteCaNameSuffix = "remote-ca"
 
 	controllerRevisionHashLen = 10
+
+	// Default name for the data volume name.
+	ElasticsearchDataVolumeName = "elasticsearch-data"
 )
 
 var (

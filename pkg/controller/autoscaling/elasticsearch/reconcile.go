@@ -2,12 +2,16 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +34,7 @@ func reconcileElasticsearch(
 		name := es.Spec.NodeSets[i].Name
 		nodeSetResources, ok := nextResourcesByNodeSet[name]
 		if !ok {
+			// No desired resources returned for this NodeSet, leave it untouched.
 			log.V(1).Info("Skipping nodeset update", "nodeset", name)
 			continue
 		}
@@ -56,31 +61,18 @@ func reconcileElasticsearch(
 		// Update memory requests and limits
 		if nodeSetResources.HasRequest(corev1.ResourceMemory) {
 			container.Resources.Requests[corev1.ResourceMemory] = nodeSetResources.GetRequest(corev1.ResourceMemory)
-			//TODO: apply request/memory ratio
 			container.Resources.Limits[corev1.ResourceMemory] = nodeSetResources.GetRequest(corev1.ResourceMemory)
 		}
 		if nodeSetResources.HasRequest(corev1.ResourceCPU) {
 			container.Resources.Requests[corev1.ResourceCPU] = nodeSetResources.GetRequest(corev1.ResourceCPU)
-			//TODO: apply request/memory ratio
 		}
 
 		if nodeSetResources.HasRequest(corev1.ResourceStorage) {
-			// Update storage claim
-			if len(es.Spec.NodeSets[i].VolumeClaimTemplates) == 0 {
-				es.Spec.NodeSets[i].VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*volume.DefaultDataVolumeClaim.DeepCopy()}
+			nextStorage, err := newVolumeClaimTemplate(nodeSetResources.GetRequest(corev1.ResourceStorage), es.Spec.NodeSets[i])
+			if err != nil {
+				return err
 			}
-			for _, claimTemplate := range es.Spec.NodeSets[i].VolumeClaimTemplates {
-				if claimTemplate.Name == volume.ElasticsearchDataVolumeName {
-					// Storage may have been managed outside of the scope of the autoscaler, we still want to ensure here that
-					// we are not scaling down the storage capacity.
-					nextStorage := nodeSetResources.GetRequest(corev1.ResourceStorage)
-					actualStorage, hasStorage := claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
-					if hasStorage && actualStorage.Cmp(nextStorage) > 0 {
-						continue
-					}
-					claimTemplate.Spec.Resources.Requests[corev1.ResourceStorage] = nextStorage
-				}
-			}
+			es.Spec.NodeSets[i].VolumeClaimTemplates = nextStorage
 		}
 
 		// Add the container to other containers
@@ -95,6 +87,29 @@ func reconcileElasticsearch(
 
 	// Update autoscaling status
 	return status.UpdateAutoscalingStatus(es, statusBuilder, nextClusterResources, actualAutoscalingStatus)
+}
+
+func newVolumeClaimTemplate(storageQuantity resource.Quantity, nodeSet esv1.NodeSet) ([]corev1.PersistentVolumeClaim, error) {
+	if !esv1.HasOnlyDefaultPersistentVolumeClaim(nodeSet) {
+		return nil, fmt.Errorf(esv1.UnexpectedVolumeClaimError)
+	}
+	return []corev1.PersistentVolumeClaim{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: esv1.ElasticsearchDataVolumeName,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					corev1.ReadWriteOnce,
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: storageQuantity,
+					},
+				},
+			},
+		},
+	}, nil
 }
 
 func (r *ReconcileElasticsearch) fetchElasticsearch(

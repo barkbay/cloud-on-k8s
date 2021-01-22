@@ -18,7 +18,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
+const (
+	ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
+
+	UnexpectedVolumeClaimError = "autoscaling expects only one volume claim named " + ElasticsearchDataVolumeName
+)
 
 var (
 	ElasticsearchMinAutoscalingVersion = version.From(7, 11, 0)
@@ -230,8 +234,9 @@ func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetC
 	return namedTiersSet, nil
 }
 
-// GetMLNodesCount computes the total number of ML nodes which can be deployed in the cluster and the maximum memory size.
-func (as AutoscalingSpec) GetMLNodesCount() (nodes int32, maxMemory string, err error) {
+// GetMLNodesSettings computes the total number of ML nodes which can be deployed in the cluster and the maximum memory size
+// of each node in the ML tier.
+func (as AutoscalingSpec) GetMLNodesSettings() (nodes int32, maxMemory string, err error) {
 	var maxMemoryAsInt int64
 	for _, nodeSet := range as.Elasticsearch.Spec.NodeSets {
 		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
@@ -358,7 +363,28 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 		}
 	}
 
+	// Only default volume claim is supported
+	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {
+		if !HasOnlyDefaultPersistentVolumeClaim(nodeSet) {
+			errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(i), nodeSet.VolumeClaimTemplates, UnexpectedVolumeClaimError))
+		}
+	}
+
 	return errs
+}
+
+func HasOnlyDefaultPersistentVolumeClaim(nodeSet NodeSet) bool {
+	volumeClaimTemplates := len(nodeSet.VolumeClaimTemplates)
+	switch len(nodeSet.VolumeClaimTemplates) {
+	case 0:
+		return true
+	case 1:
+		if volumeClaimTemplates == 1 && nodeSet.VolumeClaimTemplates[0].Name != ElasticsearchDataVolumeName {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 // containsStringSlice returns true if an ordered slice is included in a slice of slice.
