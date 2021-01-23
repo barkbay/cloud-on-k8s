@@ -18,8 +18,8 @@ type MachineLearningSettings struct {
 
 // SettingsGroup is a group of persistent settings.
 type MLSettingsGroup struct {
-	MaxLazyMLNodes              int32  `json:"xpack.ml.max_lazy_ml_nodes"`
 	MaxMemory                   string `json:"xpack.ml.max_ml_node_size"`
+	MaxLazyMLNodes              int32  `json:"xpack.ml.max_lazy_ml_nodes"`
 	UseAutoMachineMemoryPercent bool   `json:"xpack.ml.use_auto_machine_memory_percent"`
 }
 
