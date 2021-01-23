@@ -142,8 +142,8 @@ func (r *ReconcileElasticsearch) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Compute named tiers
-	namedTiers, namedTiersErr := autoscalingSpecification.GetAutoscaledNodeSets()
-	if namedTiersErr != nil {
+	namedTiers, err := autoscalingSpecification.GetAutoscaledNodeSets()
+	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 	log.V(1).Info("Named tiers", "named_tiers", namedTiers)

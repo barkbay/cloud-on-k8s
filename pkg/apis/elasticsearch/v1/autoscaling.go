@@ -215,7 +215,7 @@ type NodeSetConfigError struct {
 }
 
 // GetAutoscaledNodeSets retrieves the name of all the autoscaling policies in the Elasticsearch manifest and the associated NodeSets.
-func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, *NodeSetConfigError) {
+func (as AutoscalingSpec) GetAutoscaledNodeSets() (AutoscaledNodeSets, error) {
 	namedTiersSet := make(AutoscaledNodeSets)
 	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {
 		resourcePolicy, err := as.GetAutoscalingSpecFor(nodeSet)
@@ -349,8 +349,8 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	}
 
 	autoscaledNodeSets, err := as.GetAutoscaledNodeSets()
-	if err != nil {
-		errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(err.Index).Child("config"), err.NodeSet.Config, fmt.Sprintf("cannot parse nodeSet configuration: %s", err.Error())))
+	if e, ok := err.(*NodeSetConfigError); ok {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(e.Index).Child("config"), e.NodeSet.Config, fmt.Sprintf("cannot parse nodeSet configuration: %s", e.Error())))
 		// We stop the validation here as the named tiers are required to go further
 		return errs
 	}
