@@ -3,11 +3,10 @@ package status
 import (
 	"fmt"
 
-	"github.com/go-logr/logr"
-
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -138,9 +137,6 @@ func getElasticsearchDataVolumeQuantity(statefulSet appsv1.StatefulSet) (*resour
 
 	if len(statefulSet.Spec.VolumeClaimTemplates) == 1 {
 		volumeClaimTemplate := statefulSet.Spec.VolumeClaimTemplates[0]
-		if volumeClaimTemplate.Name != esv1.ElasticsearchDataVolumeName {
-			return nil, fmt.Errorf("autoscaling only support nodeSet with the default volume claim")
-		}
 		ssetStorageRequest, ssetHasStorageRequest := volumeClaimTemplate.Spec.Resources.Requests[corev1.ResourceStorage]
 		if ssetHasStorageRequest {
 			return &ssetStorageRequest, nil

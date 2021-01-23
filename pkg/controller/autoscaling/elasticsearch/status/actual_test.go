@@ -6,6 +6,7 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,13 +48,13 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
 						2,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
 					),
 				},
 				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -82,7 +83,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						map[string]corev1.ResourceRequirements{"elasticsearch": {
 							Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("32Gi")},
 						}},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
@@ -90,7 +91,7 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						map[string]corev1.ResourceRequirements{"elasticsearch": {
 							Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("24Gi")},
 						}},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi")},
 					),
 				},
 				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -163,13 +164,13 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
 						2,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("10Gi"), "other": resource.MustParse("10Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("10Gi"), "other": resource.MustParse("10Gi")},
 					),
 				},
 				es:                    esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
@@ -180,14 +181,14 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 			wantNamedTierResources: nil,
 		},
 		{
-			name: "Unexpected volume claims",
+			name: "Not the default volume claims",
 			args: args{
 				statefulSets: []runtime.Object{
 					buildStatefulSet(
 						"nodeset-1",
 						3,
 						map[string]corev1.ResourceRequirements{},
-						map[string]resource.Quantity{esv1.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
+						map[string]resource.Quantity{volume.ElasticsearchDataVolumeName: resource.MustParse("5Gi")},
 					),
 					buildStatefulSet(
 						"nodeset-2",
@@ -196,12 +197,26 @@ func TestNamedTierResourcesFromStatefulSets(t *testing.T) {
 						map[string]resource.Quantity{"other": resource.MustParse("10Gi")},
 					),
 				},
-				es:                    esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
-				autoscalingPolicySpec: esv1.AutoscalingPolicySpec{NamedAutoscalingPolicy: esv1.NamedAutoscalingPolicy{Name: "aspec"}},
-				nodeSets:              []string{"nodeset-1", "nodeset-2"},
+				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname", Namespace: "esns"}},
+				autoscalingPolicySpec: esv1.AutoscalingPolicySpec{
+					NamedAutoscalingPolicy: esv1.NamedAutoscalingPolicy{Name: "aspec"},
+					AutoscalingResources: esv1.AutoscalingResources{
+						Memory:  &esv1.QuantityRange{Min: resource.MustParse("12Gi"), Max: resource.MustParse("64Gi")},
+						Storage: &esv1.QuantityRange{Min: resource.MustParse("7Gi"), Max: resource.MustParse("50Gi")},
+					},
+				},
+				nodeSets: []string{"nodeset-1", "nodeset-2"},
 			},
-			wantErr:                true,
-			wantNamedTierResources: nil,
+			wantErr: false,
+			wantNamedTierResources: &resources.NodeSetsResources{
+				Name:             "aspec",
+				NodeSetNodeCount: []resources.NodeSetNodeCount{{Name: "nodeset-1", NodeCount: 3}, {Name: "nodeset-2", NodeCount: 2}},
+				NodeResources: resources.NodeResources{
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceStorage: resource.MustParse("10Gi"),
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {

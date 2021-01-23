@@ -30,7 +30,8 @@ const (
 	UnicastHostsVolumeMountPath = "/mnt/elastic-internal/unicast-hosts"
 	UnicastHostsFile            = "unicast_hosts.txt"
 
-	ElasticsearchDataMountPath = "/usr/share/elasticsearch/data"
+	ElasticsearchDataVolumeName = "elasticsearch-data"
+	ElasticsearchDataMountPath  = "/usr/share/elasticsearch/data"
 
 	ElasticsearchLogsVolumeName = "elasticsearch-logs"
 	ElasticsearchLogsMountPath  = "/usr/share/elasticsearch/logs"

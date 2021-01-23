@@ -476,7 +476,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		},
 		{
 			name:         "Not the default volume claim",
-			wantError:    true,
+			wantError:    false,
 			nodeSets:     map[string][]string{"ml": {"ml"}},
 			volumeClaims: []string{"volume1"},
 			autoscalingSpec: `
@@ -493,7 +493,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		}]
 }
 `,
-			expectedError: "autoscaling expects only one volume claim named elasticsearch-data",
+			expectedError: "autoscaling expects only one volume claim",
 		},
 		{
 			name:         "More than one volume claim",
@@ -514,7 +514,7 @@ func TestResourcePolicies_Validate(t *testing.T) {
 		}]
 }
 `,
-			expectedError: "autoscaling expects only one volume claim named elasticsearch-data",
+			expectedError: "autoscaling expects only one volume claim",
 		},
 	}
 	for _, tt := range tests {

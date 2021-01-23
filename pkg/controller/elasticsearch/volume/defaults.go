@@ -5,7 +5,6 @@
 package volume
 
 import (
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,7 +17,7 @@ var (
 	// We default to a 1GB persistent volume, using the default storage class.
 	DefaultDataVolumeClaim = corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: esv1.ElasticsearchDataVolumeName,
+			Name: ElasticsearchDataVolumeName,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -32,7 +31,7 @@ var (
 		},
 	}
 	DefaultDataVolumeMount = corev1.VolumeMount{
-		Name:      esv1.ElasticsearchDataVolumeName,
+		Name:      ElasticsearchDataVolumeName,
 		MountPath: ElasticsearchDataMountPath,
 	}
 
@@ -56,7 +55,7 @@ var (
 // AppendDefaultDataVolumeMount appends a volume mount for the default data volume if the slice of volumes contains the default data volume.
 func AppendDefaultDataVolumeMount(mounts []corev1.VolumeMount, volumes []corev1.Volume) []corev1.VolumeMount {
 	for _, v := range volumes {
-		if v.Name == esv1.ElasticsearchDataVolumeName {
+		if v.Name == ElasticsearchDataVolumeName {
 			return append(mounts, DefaultDataVolumeMount)
 		}
 	}

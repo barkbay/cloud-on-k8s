@@ -8,6 +8,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -88,13 +89,17 @@ func reconcileElasticsearch(
 }
 
 func newVolumeClaimTemplate(storageQuantity resource.Quantity, nodeSet esv1.NodeSet) ([]corev1.PersistentVolumeClaim, error) {
-	if !esv1.HasOnlyDefaultPersistentVolumeClaim(nodeSet) {
+	onlyOneVolumeClaimTemplate, volumeClaimTemplateName := esv1.HasOnlyDefaultPersistentVolumeClaim(nodeSet)
+	if !onlyOneVolumeClaimTemplate {
 		return nil, fmt.Errorf(esv1.UnexpectedVolumeClaimError)
+	}
+	if volumeClaimTemplateName == "" {
+		volumeClaimTemplateName = volume.ElasticsearchDataVolumeName
 	}
 	return []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: esv1.ElasticsearchDataVolumeName,
+				Name: volumeClaimTemplateName,
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{

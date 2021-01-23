@@ -21,7 +21,7 @@ import (
 const (
 	ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
-	UnexpectedVolumeClaimError = "autoscaling expects only one volume claim named " + ElasticsearchDataVolumeName
+	UnexpectedVolumeClaimError = "autoscaling expects only one volume claim"
 )
 
 var (
@@ -366,7 +366,7 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 
 	// Only default volume claim is supported
 	for i, nodeSet := range as.Elasticsearch.Spec.NodeSets {
-		if !HasOnlyDefaultPersistentVolumeClaim(nodeSet) {
+		if onlyOneVolumeClaimTemplate, _ := HasOnlyDefaultPersistentVolumeClaim(nodeSet); !onlyOneVolumeClaimTemplate {
 			errs = append(errs, field.Invalid(field.NewPath("spec").Child("nodeSets").Index(i), nodeSet.VolumeClaimTemplates, UnexpectedVolumeClaimError))
 		}
 	}
@@ -374,18 +374,18 @@ func (as AutoscalingSpec) Validate() field.ErrorList {
 	return errs
 }
 
-func HasOnlyDefaultPersistentVolumeClaim(nodeSet NodeSet) bool {
-	volumeClaimTemplates := len(nodeSet.VolumeClaimTemplates)
+func HasOnlyDefaultPersistentVolumeClaim(nodeSet NodeSet) (bool, string) {
+	//volumeClaimTemplates := len(nodeSet.VolumeClaimTemplates)
 	switch len(nodeSet.VolumeClaimTemplates) {
 	case 0:
-		return true
+		return true, ""
 	case 1:
-		if volumeClaimTemplates == 1 && nodeSet.VolumeClaimTemplates[0].Name != ElasticsearchDataVolumeName {
+		/*if volumeClaimTemplates == 1 && nodeSet.VolumeClaimTemplates[0].Name != ElasticsearchDataVolumeName {
 			return false
-		}
-		return true
+		}*/
+		return true, nodeSet.VolumeClaimTemplates[0].Name
 	}
-	return false
+	return false, ""
 }
 
 // containsStringSlice returns true if an ordered slice is included in a slice of slice.
