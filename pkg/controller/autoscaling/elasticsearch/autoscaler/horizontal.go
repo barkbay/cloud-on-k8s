@@ -9,17 +9,16 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	corev1 "k8s.io/api/core/v1"
 )
 
 // scaleHorizontally adds or removes nodes in a set of nodeSet to match the requested capacity in a tier.
 func (ctx *Context) scaleHorizontally(
-	totalRequiredCapacity client.Capacity, // total required resources, at the tier level.
 	nodeCapacity resources.NodeResources, // resources for each node in the tier/policy, as computed by the vertical autoscaler.
 ) resources.NodeSetsResources {
 	minNodes := int(ctx.AutoscalingSpec.NodeCount.Min)
 	maxNodes := int(ctx.AutoscalingSpec.NodeCount.Max)
+	totalRequiredCapacity := ctx.RequiredCapacity.Total // total required resources, at the tier level.
 	nodeToAdd := 0
 
 	// Scale horizontally to match memory requirements
@@ -59,13 +58,15 @@ func (ctx *Context) getNodesToAdd(
 	minNodes, maxNodes int, // min and max number of nodes in this tier, as specified by the user the autoscaling spec.
 	resourceName string, // used for logging and in events
 ) int {
-	minResourceQuantity := int64(minNodes) * (nodeResourceCapacity)
+	// minResourceQuantity is the resource quantity in the tier before scaling horizontally.
+	minResourceQuantity := int64(minNodes) * nodeResourceCapacity
 	// resourceDelta holds the resource needed to comply with what is requested by Elasticsearch.
 	resourceDelta := totalRequiredCapacity - minResourceQuantity
+	// getNodeDelta translates resourceDelta into a number of nodes.
 	nodeToAdd := getNodeDelta(resourceDelta, nodeResourceCapacity)
 
 	if minNodes+nodeToAdd > maxNodes {
-		// Elasticsearch requested more resource quantity per node than allowed.
+		// We would need to exceed the node count limit to fulfil the resource requirement.
 		ctx.Log.Info(
 			fmt.Sprintf("Can't provide total required %s", resourceName),
 			"policy", ctx.AutoscalingSpec.Name,
@@ -77,7 +78,7 @@ func (ctx *Context) getNodesToAdd(
 			"max_count", maxNodes,
 		)
 
-		// Update the autoscaling status accordingly
+		// Also surface this situation in the status.
 		ctx.StatusBuilder.
 			ForPolicy(ctx.AutoscalingSpec.Name).
 			WithEvent(
@@ -90,7 +91,8 @@ func (ctx *Context) getNodesToAdd(
 	return nodeToAdd
 }
 
-// getNodeDelta computes the nodes to be added given a delta (the additional amount of resource needed) and the individual capacity a single node.
+// getNodeDelta computes the nodes to be added given a delta (the additional amount of resource needed)
+// and the individual capacity a single node.
 func getNodeDelta(delta, nodeCapacity int64) int {
 	nodeToAdd := 0
 	if delta < 0 {

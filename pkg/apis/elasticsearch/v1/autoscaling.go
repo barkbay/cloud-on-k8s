@@ -88,8 +88,9 @@ type AutoscalingPolicySpec struct {
 // AutoscalingResources models the limits, submitted by the user, for the supported resources.
 // Only the node count range is mandatory. For other resources, a limit range is required only
 // if the Elasticsearch autoscaling capacity API returns a requirement for a given resource.
-// For example, the memory limit range is only required if the autoscaling API answer returns a memory requirement.
-// If there is no limit range then the resource specification in the nodeSet specification is left untouched.
+// For example, the memory limit range is only required if the autoscaling API response contains a memory requirement.
+// If there is no limit range for a resource, and if that resource is not mandatory, then the resources in the NodeSets
+// managed by the autoscaling policy are left untouched.
 type AutoscalingResources struct {
 	CPU       *QuantityRange `json:"cpu,omitempty"`
 	Memory    *QuantityRange `json:"memory,omitempty"`

@@ -38,9 +38,9 @@ func NewFairNodesManager(log logr.Logger, nodeSetNodeCount []resources.NodeSetNo
 	return fnm
 }
 
-// AddNode selects the nodeSet with the highest priority and increases by one the value its Count field.
-// Priority is defined as the nodeSet with the lowest Count value or the first nodeSet in the alphabetical order if
-// several NodeSets have the same Count value.
+// AddNode selects the nodeSet with the highest priority and increases by one the value of its NodeCount field.
+// Priority is defined as the nodeSet with the lowest NodeCount value, or the first nodeSet in the alphabetical order if
+// several NodeSets have the same NodeCount value.
 func (fnm *FairNodesManager) AddNode() {
 	// Peak the first element, this is the one with the less nodes
 	fnm.nodeSetNodeCountList[0].NodeCount++

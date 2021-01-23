@@ -54,12 +54,14 @@ func (ctx *Context) nodeResources(minNodesCount int64, currentStorage resource.Q
 
 	// If no memory has been returned by the autoscaling API, but the user has expressed the intent to manage memory
 	// using the autoscaling specification then we derive the memory from the storage if available.
+	// See https://github.com/elastic/cloud-on-k8s/issues/4076
 	if !nodeResources.HasRequest(corev1.ResourceMemory) && ctx.AutoscalingSpec.IsMemoryDefined() &&
 		ctx.AutoscalingSpec.IsStorageDefined() && nodeResources.HasRequest(corev1.ResourceStorage) {
 		nodeResources.SetRequest(corev1.ResourceMemory, memoryFromStorage(nodeResources.GetRequest(corev1.ResourceStorage), *ctx.AutoscalingSpec.Storage, *ctx.AutoscalingSpec.Memory))
 	}
 
 	// Same as above, if CPU limits have been expressed by the user in the autoscaling specification then we adjust CPU request according to the memory request.
+	// See https://github.com/elastic/cloud-on-k8s/issues/4021
 	if ctx.AutoscalingSpec.IsCPUDefined() && ctx.AutoscalingSpec.IsMemoryDefined() && nodeResources.HasRequest(corev1.ResourceMemory) {
 		nodeResources.SetRequest(corev1.ResourceCPU, cpuFromMemory(nodeResources.GetRequest(corev1.ResourceMemory), *ctx.AutoscalingSpec.Memory, *ctx.AutoscalingSpec.CPU))
 	}
@@ -67,8 +69,9 @@ func (ctx *Context) nodeResources(minNodesCount int64, currentStorage resource.Q
 	return nodeResources
 }
 
-// getResourceValue calculates the desired quantity for a specific resource to be assigned to a node in a tier, according
-// to the required value from the Elasticsearch API and the resource constraints (limits) expressed by the user.
+// getResourceValue calculates the desired quantity for a specific resource for a node in a tier. This value is
+// calculated according to the required value from the Elasticsearch autoscaling API and the resource constraints (limits)
+// set by the user in the autoscaling specification.
 func (ctx *Context) getResourceValue(
 	autoscalingPolicyName, resourceType string,
 	nodeRequired *client.CapacityValue, // node required capacity as returned by the Elasticsearch API
@@ -81,7 +84,7 @@ func (ctx *Context) getResourceValue(
 		return resourceToQuantity(min.Value())
 	}
 
-	// Surface the condition where resource is exhausted.
+	// Surface the situation where a resource is exhausted.
 	if nodeRequired.Value() > max.Value() {
 		// Elasticsearch requested more capacity per node than allowed by the user
 		err := fmt.Errorf("node required %s is greater than the maximum one", resourceType)
@@ -92,7 +95,7 @@ func (ctx *Context) getResourceValue(
 			"required_"+resourceType, nodeRequired,
 			"max_allowed_memory", max.Value(),
 		)
-		// Update the autoscaling status accordingly
+		// Also update the autoscaling status accordingly
 		ctx.StatusBuilder.
 			ForPolicy(autoscalingPolicyName).
 			WithEvent(
@@ -117,13 +120,14 @@ func (ctx *Context) getResourceValue(
 	// Try to round up the Gb value
 	nodeResource = roundUp(nodeResource, giga)
 
-	// Set desired memory capacity within the allowed range
+	// Always ensure that the calculated resource quantity is at least equal to the min. limit provided by the user.
 	if nodeResource < min.Value() {
-		// The amount of memory requested by Elasticsearch is less than the min. allowed value
 		nodeResource = min.Value()
 	}
+
+	// Resource has been rounded up or scaled up to meet the tier requirements. We need to check that those operations
+	// do not result in a resource quantity which is greater than the max. limit set by the user.
 	if nodeResource > max.Value() {
-		// The amount of memory requested by Elasticsearch is more than the max. allowed value
 		nodeResource = max.Value()
 	}
 
@@ -152,6 +156,7 @@ func max64(x int64, others ...int64) int64 {
 	return max
 }
 
+// roundUp rounds a value up to an other one.
 func roundUp(v, n int64) int64 {
 	r := v % n
 	if r == 0 {

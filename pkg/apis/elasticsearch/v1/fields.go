@@ -13,12 +13,13 @@ const (
 	DiscoveryZenHostsProvider = "discovery.zen.hosts_provider" // ES < 7.X
 	DiscoverySeedProviders    = "discovery.seed_providers"     // ES >= 7.X
 
-	// XPackMLUseAutoMachineMemoryPercent lets ML calculate machine’s memory that can be used
-	// for running machine learning analytics processes automatically.
+	// XPackMLUseAutoMachineMemoryPercent allows ML to calculate automatically the memory that can be used
+	// to run machine learning analytics processes.
 	// It is set to true automatically for ML nodes when autoscaling is enabled.
 	XPackMLUseAutoMachineMemoryPercent = "xpack.ml.use_auto_machine_memory_percent"
 
-	// WatermarkEnableForSingleDataNode is automatically enabled with autoscaling to allow single node data cluster to autoscale.
+	// WatermarkEnableForSingleDataNode is automatically enabled with autoscaling to allow single data node cluster to
+	// scale automatically.
 	WatermarkEnableForSingleDataNode = "cluster.routing.allocation.disk.watermark.enable_for_single_data_node"
 
 	NetworkHost        = "network.host"

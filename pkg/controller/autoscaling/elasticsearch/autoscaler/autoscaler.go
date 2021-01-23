@@ -13,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetResources calculates the resources to be required by NodeSets managed by a same autoscaling policy.
+// GetResources calculates the resources required by all the NodeSets managed by a same autoscaling policy.
 func (ctx *Context) GetResources() resources.NodeSetsResources {
-	// 1. Scale vertically
+	// 1. Scale vertically, calculating the resources for each node managed by the autoscaling policy in the context.
 	desiredNodeResources := ctx.scaleVertically()
 	ctx.Log.Info(
 		"Vertical autoscaler",
@@ -27,16 +27,17 @@ func (ctx *Context) GetResources() resources.NodeSetsResources {
 		"required_capacity", ctx.RequiredCapacity,
 	)
 
-	// 2. Scale horizontally
-	return ctx.scaleHorizontally(ctx.RequiredCapacity.Total, desiredNodeResources)
+	// 2. Scale horizontally by adding nodes to meet the resource requirements.
+	return ctx.scaleHorizontally(desiredNodeResources)
 }
 
-// scaleVertically computes the desired resources for a node given the requested capacity from ES and the AutoscalingSpec
-// specified by the user. It attempts to scale all the resources vertically until the expectations are met.
+// scaleVertically calculates the desired resources for all the nodes managed a same autoscaling policy, given the requested
+// capacity returned by the Elasticsearch autoscaling API and the AutoscalingSpec specified by the user.
+// It attempts to scale all the resources vertically until the expectations are met.
 func (ctx *Context) scaleVertically() resources.NodeResources {
 	// All resources can be computed "from scratch", without knowing the previous values.
-	// It is not true for storage. Storage can't be scaled down, current storage capacity must be considered as an hard min. limit.
-	// This limit must be taken into consideration when computing the desired resources.
+	// This is however not true for storage. Storage can't be scaled down, current storage capacity must be considered
+	// as an hard min. limit. This storage limit must be taken into consideration when computing the desired resources.
 	currentStorage := getStorage(ctx.AutoscalingSpec, ctx.ActualAutoscalingStatus)
 	return ctx.nodeResources(
 		int64(ctx.AutoscalingSpec.NodeCount.Min),

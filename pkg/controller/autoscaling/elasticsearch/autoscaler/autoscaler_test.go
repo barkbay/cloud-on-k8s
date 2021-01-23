@@ -33,7 +33,7 @@ func Test_applyScaleDecision(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Scale both horizontally to fulfil storage capacity request",
+			name: "Scale both vertically and horizontally to fulfil storage capacity request",
 			args: args{
 				currentNodeSets: defaultNodeSets,
 				nodeSetsStatus: status.Status{AutoscalingPolicyStatuses: []status.AutoscalingPolicyStatus{{
