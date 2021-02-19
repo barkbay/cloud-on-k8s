@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/set"
@@ -17,7 +18,11 @@ import (
 
 const ElasticsearchAutoscalingSpecAnnotationName = "elasticsearch.alpha.elastic.co/autoscaling-spec"
 
-var errNodeRolesNotSet = errors.New("node.roles must be set")
+var (
+	defaultSyncPeriod = 60 * time.Second
+
+	errNodeRolesNotSet = errors.New("node.roles must be set")
+)
 
 // -- Elasticsearch Autoscaling API structures
 
@@ -41,9 +46,42 @@ type AutoscalingPolicy struct {
 // +kubebuilder:object:generate=false
 type AutoscalingSpec struct {
 	AutoscalingPolicySpecs AutoscalingPolicySpecs `json:"policies"`
+
+	SyncPeriod *SyncPeriod `json:"syncPeriod"`
+
 	// Elasticsearch is stored in the autoscaling spec for convenience. It should be removed once the autoscaling spec is
 	// fully part of the Elasticsearch specification.
 	Elasticsearch Elasticsearch `json:"-"`
+}
+
+// SyncPeriod is an alias on time.Duration which offers (de)serialization.
+type SyncPeriod struct {
+	time.Duration
+}
+
+func (sp SyncPeriod) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sp.String())
+}
+
+func (sp *SyncPeriod) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		sp.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		sp.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
 }
 
 // +kubebuilder:object:generate=false
@@ -150,6 +188,14 @@ func (aps AutoscalingPolicySpec) IsCPUDefined() bool {
 // IsStorageDefined returns true if the user specified storage limits.
 func (aps AutoscalingPolicySpec) IsStorageDefined() bool {
 	return aps.Storage != nil
+}
+
+// GetSyncPeriodOrDefault returns the sync period as specified by the user in the autoscaling specification or the default value.
+func (as AutoscalingSpec) GetSyncPeriodOrDefault() time.Duration {
+	if as.SyncPeriod != nil {
+		return as.SyncPeriod.Duration
+	}
+	return defaultSyncPeriod
 }
 
 // findByRoles returns the autoscaling specification associated with a set of roles or nil if not found.
