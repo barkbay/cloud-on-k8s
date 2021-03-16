@@ -44,7 +44,28 @@ func ESPodTemplate(resources corev1.ResourceRequirements) corev1.PodTemplateSpec
 // Builder to create Elasticsearch clusters
 type Builder struct {
 	Elasticsearch esv1.Elasticsearch
-	MutatedFrom   *Builder
+
+	// ExpectedNodeSets is used to compare the deployed resources with the expected ones. This is only to be used in
+	// situations where the Elasticsearch resource is modified by an external mechanism, like the autoscaling controller.
+	// In such a situation the actual resources may diverge from what was originally specified in the builder.
+	ExpectedNodeSets []esv1.NodeSet
+
+	MutatedFrom *Builder
+}
+
+func (b Builder) GetExpectedNodeSets() []esv1.NodeSet {
+	if b.ExpectedNodeSets != nil {
+		return b.ExpectedNodeSets
+	}
+	return b.Elasticsearch.Spec.NodeSets
+}
+
+func (b Builder) ExpectedNodeCount() int {
+	count := 0
+	for _, topoElem := range b.GetExpectedNodeSets() {
+		count += int(topoElem.Count)
+	}
+	return count
 }
 
 var _ test.Builder = Builder{}
@@ -78,6 +99,19 @@ func newBuilder(name, randSuffix string) Builder {
 	}.
 		WithSuffix(randSuffix).
 		WithLabel(run.TestNameLabel, name)
+}
+
+func (b Builder) WithAnnotation(key, value string) Builder {
+	if b.Elasticsearch.ObjectMeta.Annotations == nil {
+		b.Elasticsearch.ObjectMeta.Annotations = make(map[string]string)
+	}
+	b.Elasticsearch.ObjectMeta.Annotations[key] = value
+	return b
+}
+
+func (b Builder) WithExpectedNodeSets(expectedNodeSets []esv1.NodeSet) Builder {
+	b.ExpectedNodeSets = expectedNodeSets
+	return b
 }
 
 func (b Builder) WithSuffix(suffix string) Builder {
@@ -252,6 +286,14 @@ func (b Builder) WithNodeSet(nodeSet esv1.NodeSet) Builder {
 		nodeSet.PodTemplate.Labels = map[string]string{}
 	}
 	nodeSet.PodTemplate.Labels[run.TestNameLabel] = b.Elasticsearch.Labels[run.TestNameLabel]
+
+	// If a nodeSet with the same name already exists, remove it
+	for i := range b.Elasticsearch.Spec.NodeSets {
+		if b.Elasticsearch.Spec.NodeSets[i].Name == nodeSet.Name {
+			b.Elasticsearch.Spec.NodeSets[i] = nodeSet
+			return b.WithDefaultPersistentVolumes()
+		}
+	}
 
 	b.Elasticsearch.Spec.NodeSets = append(b.Elasticsearch.Spec.NodeSets, nodeSet)
 	return b.WithDefaultPersistentVolumes()
