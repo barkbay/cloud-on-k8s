@@ -23,6 +23,11 @@ const (
 
 // DeploymentStatus represents status information about a deployment.
 type DeploymentStatus struct {
+	// Replicas is the number of replicas in the Deployment.
+	// +optional
+	Replicas int32 `json:"replicas"`
+	// LabelSelector is the label selector used to find all pods.
+	LabelSelector string `json:"labelSelector,omitempty"`
 	// AvailableNodes is the number of available replicas in the deployment.
 	AvailableNodes int32 `json:"availableNodes,omitempty"`
 	// Version of the stack resource currently running. During version upgrades, multiple versions may run

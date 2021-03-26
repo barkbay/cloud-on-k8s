@@ -3995,6 +3995,13 @@ spec:
             health:
               description: Health of the deployment.
               type: string
+            labelSelector:
+              description: LabelSelector is the label selector used to find all pods.
+              type: string
+            replicas:
+              description: Replicas is the number of replicas in the Deployment.
+              format: int32
+              type: integer
             service:
               description: ExternalService is the name of the service associated to the Enterprise Search Pods.
               type: string

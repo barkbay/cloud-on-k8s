@@ -19,8 +19,6 @@ spec:
     - kb
     singular: kibana
   scope: Namespaced
-  subresources:
-    status: {}
   version: v1
   versions:
   - additionalPrinterColumns:
@@ -4020,6 +4018,13 @@ spec:
               health:
                 description: Health of the deployment.
                 type: string
+              labelSelector:
+                description: LabelSelector is the label selector used to find all pods.
+                type: string
+              replicas:
+                description: Replicas is the number of replicas in the Deployment.
+                format: int32
+                type: integer
               version:
                 description: 'Version of the stack resource currently running. During version upgrades, multiple versions may run in parallel: this value specifies the lowest version currently running.'
                 type: string
@@ -4027,6 +4032,12 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      scale:
+        labelSelectorPath: .status.labelSelector
+        specReplicasPath: .spec.count
+        statusReplicasPath: .status.replicas
+      status: {}
   - additionalPrinterColumns:
     - JSONPath: .status.health
       name: health
@@ -8022,6 +8033,8 @@ spec:
         type: object
     served: true
     storage: false
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

@@ -7,6 +7,8 @@ package common
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
@@ -21,6 +23,17 @@ import (
 // Unknown fields are inherited from current.
 func DeploymentStatus(current commonv1.DeploymentStatus, dep appsv1.Deployment, pods []corev1.Pod, versionLabel string) commonv1.DeploymentStatus {
 	status := *current.DeepCopy()
+	if dep.Spec.Replicas != nil {
+		status.Replicas = *dep.Spec.Replicas
+	}
+	if dep.Spec.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+		if err != nil {
+			log.Error(err, "Error retrieving Deployment labels")
+		} else {
+			status.LabelSelector = selector.String()
+		}
+	}
 	status.AvailableNodes = dep.Status.AvailableReplicas
 	status.Version = LowestVersionFromPods(status.Version, pods, versionLabel)
 	status.Health = commonv1.RedHealth

@@ -4035,6 +4035,13 @@ spec:
               kibanaAssociationStatus:
                 description: KibanaAssociationStatus is the status of any auto-linking to Kibana.
                 type: string
+              labelSelector:
+                description: LabelSelector is the label selector used to find all pods.
+                type: string
+              replicas:
+                description: Replicas is the number of replicas in the Deployment.
+                format: int32
+                type: integer
               secretTokenSecret:
                 description: SecretTokenSecretName is the name of the Secret that contains the secret token
                 type: string
