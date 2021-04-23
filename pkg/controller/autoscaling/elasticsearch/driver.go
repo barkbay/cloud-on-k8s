@@ -176,15 +176,20 @@ func (r *ReconcileElasticsearch) attemptOnlineReconciliation(
 			if !canDecide(log, autoscalingPolicyResult.RequiredCapacity, autoscalingPolicy, statusBuilder) {
 				continue
 			}
-			ctx := autoscaler.Context{
-				Log:                      log,
-				AutoscalingSpec:          autoscalingPolicy,
-				NodeSets:                 nodeSetList,
-				CurrentAutoscalingStatus: currentAutoscalingStatus,
-				AutoscalingPolicyResult:  autoscalingPolicyResult,
-				StatusBuilder:            statusBuilder,
+			autoscalingCtx, err := autoscaler.NewContext(
+				r.Client,
+				autoscalingSpec.Elasticsearch,
+				log,
+				autoscalingPolicy,
+				nodeSetList,
+				currentAutoscalingStatus,
+				autoscalingPolicyResult,
+				statusBuilder,
+			)
+			if err != nil {
+				return reconcile.Result{}, err
 			}
-			nodeSetsResources = ctx.GetResources()
+			nodeSetsResources = autoscalingCtx.GetResources()
 		} else {
 			// We didn't receive a required capacity for this tier, or the response is empty. We can only ensure that resources are within the allowed ranges.
 			log.V(1).Info(
