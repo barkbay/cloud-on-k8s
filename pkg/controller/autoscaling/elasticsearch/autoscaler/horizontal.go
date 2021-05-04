@@ -7,6 +7,8 @@ package autoscaler
 import (
 	"fmt"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/resources"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/autoscaling/elasticsearch/status"
 	corev1 "k8s.io/api/core/v1"
@@ -31,8 +33,7 @@ func (ctx *Context) scaleHorizontally(
 
 	// Scale horizontally to match storage requirements
 	if !totalRequiredCapacity.Storage.IsZero() {
-		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
-		nodesToAdd = max(nodesToAdd, ctx.getNodesToAdd(nodeStorage.Value(), totalRequiredCapacity.Storage.Value(), ctx.AutoscalingSpec.NodeCountRange.Min, ctx.AutoscalingSpec.NodeCountRange.Max, string(corev1.ResourceStorage)))
+		nodesToAdd = max(nodesToAdd, ctx.getNodesToAddForStorage(nodeCapacity, totalRequiredCapacity.Storage))
 	}
 
 	totalNodes := nodesToAdd + ctx.AutoscalingSpec.NodeCountRange.Min
@@ -47,6 +48,69 @@ func (ctx *Context) scaleHorizontally(
 	distributeFairly(nodeSetsResources.NodeSetNodeCount, totalNodes)
 
 	return nodeSetsResources
+}
+
+// getNodesToAddForStorage calculates the number of nodes to be added to the min. one in order to comply with the storage capacity.
+// Because the Elasticsearch storage deciders require at least the total observed storage capacity we need to handle the following situation:
+// * the volume capacity of the provisioned volume is greater than the one claimed.
+// * the volume capacity of the provisioned volume is greater than the max storage capacity specified by the user.
+// To We scale horizontally only if total required capacity is greater than the observed one.
+func (ctx *Context) getNodesToAddForStorage(
+	nodeCapacity resources.NodeResources,
+	requiredTotalStorageCapacity *client.AutoscalingCapacity,
+) int32 {
+	totalCurrentCapacity := ctx.AutoscalingPolicyResult.CurrentCapacity.Total // total capacity as observed by Elasticsearch
+	currentNodes := len(ctx.AutoscalingPolicyResult.CurrentNodes)
+	if totalCurrentCapacity.Storage.Value() > int64(currentNodes)*ctx.AutoscalingSpec.StorageRange.Max.Value() {
+		// The current storage capacity exceeds the maximum expected one. Since other other resources maybe scaled linearly
+		// according to the storage capacity it may lead to an ineffective scaling of other resources.
+		// See https://github.com/elastic/cloud-on-k8s/issues/4469
+		ctx.Log.Info(
+			"Current total storage capacity is greater than the one specified in the autoscaling specification.",
+			"policy", ctx.AutoscalingSpec.Name,
+			"scope", "tier",
+			"resource", "storage",
+			"current_total_storage_capacity", totalCurrentCapacity.Storage.Value(),
+			"max_storage_capacity_per_node", ctx.AutoscalingSpec.StorageRange.Max.Value(),
+			"current_node_count", currentNodes,
+		)
+
+		// Also surface this situation in the status.
+		ctx.StatusBuilder.
+			ForPolicy(ctx.AutoscalingSpec.Name).
+			RecordEvent(
+				status.UnexpectedStorageCapacity,
+				fmt.Sprintf(
+					"Current total storage capacity is %d, it is greater than the maximum expected one: %d (%d nodes * %d)",
+					totalCurrentCapacity.Storage.Value(),
+					int64(currentNodes)*ctx.AutoscalingSpec.StorageRange.Max.Value(),
+					currentNodes,
+					ctx.AutoscalingSpec.StorageRange.Max.Value(),
+				),
+			)
+	}
+
+	currentResources, hasStatus := ctx.CurrentAutoscalingStatus.CurrentResourcesForPolicy(ctx.AutoscalingSpec.Name)
+	if !hasStatus ||
+		requiredTotalStorageCapacity.Value() > totalCurrentCapacity.Storage.Value() {
+		// We are in one of the following situation:
+		// * The status is empty, this might happen if the autoscaling controller never ran on this cluster.
+		// * The total required capacity (at the policy level) is greater than the observed capacity, we should scale up.
+		nodeStorage := nodeCapacity.GetRequest(corev1.ResourceStorage)
+		return ctx.getNodesToAdd(
+			nodeStorage.Value(),
+			requiredTotalStorageCapacity.Value(),
+			ctx.AutoscalingSpec.NodeCountRange.Min,
+			ctx.AutoscalingSpec.NodeCountRange.Max,
+			string(corev1.ResourceStorage),
+		)
+	}
+
+	// No need to scale up, return the same number of extra nodes to be added.
+	if currentResources.NodeSetNodeCount.TotalNodeCount() > ctx.AutoscalingSpec.NodeCountRange.Min {
+		return currentResources.NodeSetNodeCount.TotalNodeCount() - ctx.AutoscalingSpec.NodeCountRange.Min
+	}
+	return 0
 }
 
 // getNodesToAdd calculates the number of nodes to add in order to comply with the capacity requested by Elasticsearch.
