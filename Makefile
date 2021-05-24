@@ -98,7 +98,7 @@ go-generate:
 generate-crds: go-generate controller-gen
 	# Generate webhook manifest
 	# Webhook definitions exist in both pkg/apis and pkg/controller/elasticsearch/validation
-	$(CONTROLLER_GEN) webhook object:headerFile=./hack/boilerplate.go.txt paths=./pkg/apis/... paths=./pkg/controller/elasticsearch/validation/...
+	$(CONTROLLER_GEN) webhook object:headerFile=./hack/boilerplate.go.txt paths=./pkg/apis/... paths=./pkg/controller/elasticsearch/validation/... paths=./pkg/controller/vacate/webhook/...
 	# Generate manifests e.g. CRD, RBAC etc.
 	$(CONTROLLER_GEN) crd:crdVersions=v1beta1 paths="./pkg/apis/..." output:crd:artifacts:config=config/crds/bases
 	# apply patches to work around some CRD generation issues, and merge them into a single file

@@ -301,6 +301,48 @@ webhooks:
     - UPDATE
     resources:
     - kibanas
+- admissionReviewVersions:
+    - v1
+    - v1beta1
+  clientConfig:
+    service:
+      name: {{ include "eck-operator.webhookServiceName" . }}
+      namespace: {{ .Release.Namespace }}
+      path: /elastic-pvc-blocker-k8s-elastic-co-v1-elasticsearch
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: elastic-pvc-blocker.k8s.elastic.co
+  rules:
+    - apiGroups:
+        - ""
+      apiVersions:
+        - v1
+      operations:
+        - CREATE
+      resources:
+        - persistentvolumeclaims
+  sideEffects: None
+- admissionReviewVersions:
+    - v1
+    - v1beta1
+  clientConfig:
+    service:
+      name: {{ include "eck-operator.webhookServiceName" . }}
+      namespace: {{ .Release.Namespace }}
+      path: /elastic-pod-blocker-k8s-elastic-co-v1-elasticsearch
+  failurePolicy: Ignore # a bit complicated to set Fail here ... chicken ... eggs ... TODO: use https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#matching-requests-objectselector
+  matchPolicy: Exact
+  name: elastic-pod-blocker.k8s.elastic.co
+  rules:
+    - apiGroups:
+        - ""
+      apiVersions:
+        - v1
+      operations:
+        - CREATE
+      resources:
+        - pods
+  sideEffects: None
 ---
 apiVersion: v1
 kind: Service

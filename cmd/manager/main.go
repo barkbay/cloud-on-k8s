@@ -50,6 +50,8 @@ import (
 	licensetrial "github.com/elastic/cloud-on-k8s/pkg/controller/license/trial"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/maps"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/remoteca"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/vacate"
+	vacate_webhook "github.com/elastic/cloud-on-k8s/pkg/controller/vacate/webhook"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/webhook"
 	"github.com/elastic/cloud-on-k8s/pkg/dev"
 	"github.com/elastic/cloud-on-k8s/pkg/dev/portforward"
@@ -677,6 +679,7 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 		{name: "BEAT-KB", registerFunc: associationctl.AddBeatKibana},
 		{name: "AGENT-ES", registerFunc: associationctl.AddAgentES},
 		{name: "EMS-ES", registerFunc: associationctl.AddMapsES},
+		{name: "VACATE-ES", registerFunc: vacate.AddVacateES},
 	}
 
 	for _, c := range assocControllers {
@@ -785,6 +788,9 @@ func setupWebhook(mgr manager.Manager, certRotation certificates.RotationParams,
 
 	// esv1 validating webhook is wired up differently, in order to access the k8s client
 	esvalidation.RegisterWebhook(mgr, validateStorageClass)
+
+	vacate_webhook.RegisterPodBlockerWebhook(mgr)
+	vacate_webhook.RegisterPVCBlockerWebhook(mgr)
 
 	// wait for the secret to be populated in the local filesystem before returning
 	interval := time.Second * 1

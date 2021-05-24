@@ -179,6 +179,7 @@ RBAC permissions
   - endpoints
   - events
   - persistentvolumeclaims
+  - persistentvolumes
   - secrets
   - services
   - configmaps
