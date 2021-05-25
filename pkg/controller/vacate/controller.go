@@ -48,6 +48,8 @@ const (
 	VacatedPVAnnotationName = "elasticsearch.k8s.elastic.co/vacated"
 	// VacatedFromPVAnnotationName is the name of the relocated PVC
 	VacatedFromPVAnnotationName = "elasticsearch.k8s.elastic.co/vacated-from"
+
+	OriginalPolicyPVAnnotationName = "elasticsearch.k8s.elastic.co/original-policy"
 )
 
 var (
@@ -202,13 +204,13 @@ func doReconcile(
 	}
 
 	// Remove unnecessary temporary NodeSets
-	for actualNodeSet := range actualTemporaryNodeSets {
+	/*for actualNodeSet := range actualTemporaryNodeSets {
 		_, isExpected := expectedNodeSets[actualNodeSet]
 		if !isExpected {
 			esUpdated = true
 			removeNodeSet(es, actualNodeSet)
 		}
-	}
+	}*/
 
 	if esUpdated {
 		if err := r.Client.Update(ctx, es); err != nil {
@@ -262,6 +264,7 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 	}
 
 	for _, pv := range pvs.Items {
+		pv := pv
 		if len(pv.Annotations) == 0 {
 			continue
 		}
@@ -315,7 +318,13 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 				return true, err
 			}
 
-			// 2. Create PVC for new Pod
+			// 2. Bind PVC
+			requeue, err := bindPV(k, adoptPVC, &pv)
+			if err != nil || requeue {
+				return requeue, err
+			}
+
+			// 3. Create PVC for new Pod
 			log.Info("Create PVC for new volume double")
 			newSpec := pvc.Spec.DeepCopy()
 			newSpec.VolumeName = ""
@@ -336,8 +345,28 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 	return
 }
 
-func bindPV(k k8s.Client, pvName, pvcName string) error {
-
+func bindPV(k k8s.Client, pvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) (bool, error) {
+	// Patch the PV
+	pv.Spec.ClaimRef.UID = pvc.UID
+	pv.Spec.ClaimRef.Name = pvc.Name
+	pv.Spec.ClaimRef.Namespace = pvc.Namespace
+	pv.Spec.ClaimRef.ResourceVersion = pvc.ResourceVersion
+	// Set default delete policy
+	if policy, exists := pv.Annotations[OriginalPolicyPVAnnotationName]; exists {
+		switch policy {
+		case string(v1.PersistentVolumeReclaimRecycle):
+			pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRecycle
+		case string(v1.PersistentVolumeReclaimDelete):
+			pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimDelete
+		}
+	}
+	// Remove annotations
+	delete(pvc.Annotations, VacatedFromPVAnnotationName)
+	delete(pvc.Annotations, OriginalPolicyPVAnnotationName)
+	if err := k.Update(context.Background(), pv); err != nil {
+		return true, err
+	}
+	return false, nil
 }
 
 func pvcExists(k k8s.Client, namespace, name, uid string) (bool, error) {
@@ -381,12 +410,13 @@ func patchPV(k k8s.Client, pvc v1.PersistentVolumeClaim) error {
 		return err
 	}
 	updated := false
-	if pv.Spec.PersistentVolumeReclaimPolicy != v1.PersistentVolumeReclaimRetain {
-		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
-		updated = true
-	}
 	if pv.Annotations == nil {
 		pv.Annotations = make(map[string]string)
+	}
+	if pv.Spec.PersistentVolumeReclaimPolicy != v1.PersistentVolumeReclaimRetain {
+		pv.Annotations[OriginalPolicyPVAnnotationName] = string(pv.Spec.PersistentVolumeReclaimPolicy)
+		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
+		updated = true
 	}
 	if _, hasFormerPVC := pv.Annotations[VacatedFromPVAnnotationName]; !hasFormerPVC {
 		// Serialize PVC
