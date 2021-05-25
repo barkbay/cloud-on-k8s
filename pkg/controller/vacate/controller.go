@@ -6,10 +6,15 @@ package vacate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/vacate/webhook"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/volume"
 
@@ -39,8 +44,10 @@ const (
 
 	AnnotationName = "elasticsearch.k8s.elastic.co/vacated-pvc"
 
-	// VacatedPVAnnotationName is the name of the replaced PVC
-	VacatedPVAnnotationName = "elasticsearch.k8s.elastic.co/vacate-from"
+	// VacatedPVAnnotationName is the label used to mention that a PV is vacated
+	VacatedPVAnnotationName = "elasticsearch.k8s.elastic.co/vacated"
+	// VacatedFromPVAnnotationName is the name of the relocated PVC
+	VacatedFromPVAnnotationName = "elasticsearch.k8s.elastic.co/vacated-from"
 )
 
 var (
@@ -106,6 +113,25 @@ func (r *ReconcileVacate) Reconcile(ctx context.Context, request reconcile.Reque
 	return doReconcile(ctx, r, &es)
 }
 
+func getNodeSetAndOrdinal(es string, pvc v1.PersistentVolumeClaim) (string, int64, error) {
+	// Ordinal to be vacated
+	ordinalPos := strings.LastIndex(pvc.Name, "-")
+	ordinalAsString := pvc.Name[ordinalPos+1:]
+	ordinalAsInt, err := strconv.ParseInt(ordinalAsString, 10, 32)
+	if err != nil {
+		return "", 0, err
+	}
+	// Get sset name
+	sset, exists := pvc.Labels[esv1label.StatefulSetNameLabelName]
+	if !exists {
+		return "", 0, fmt.Errorf("cannot vacate because of missing annotation %s on PVC %s", esv1label.StatefulSetNameLabelName, pvc.Name)
+	}
+	// Get original nodeSet name, sored in the suffix (a bit hacky)
+	prefix := fmt.Sprintf("%s-es-", es)
+	nodeSetName := strings.TrimPrefix(sset, prefix)
+	return nodeSetName, ordinalAsInt, nil
+}
+
 func doReconcile(
 	ctx context.Context,
 	r *ReconcileVacate,
@@ -125,7 +151,7 @@ func doReconcile(
 	// Patch underlying PV
 	for _, pvc := range pvcList.Items {
 		// Get PV name
-		err := patchPV(r.Client, string(pvc.UID), pvc.Spec.VolumeName)
+		err := patchPV(r.Client, pvc)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -150,21 +176,10 @@ func doReconcile(
 		if _, exists := actualTemporaryNodeSets[pvc.Name]; exists {
 			continue
 		}
-		// Ordinal to be vacated
-		ordinalPos := strings.LastIndex(pvc.Name, "-")
-		ordinalAsString := pvc.Name[ordinalPos+1:]
-		ordinalAsInt, err := strconv.ParseInt(ordinalAsString, 10, 32)
+		nodeSetName, ordinalAsInt, err := getNodeSetAndOrdinal(es.Name, pvc)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		// Get sset name
-		sset, exists := pvc.Labels[esv1label.StatefulSetNameLabelName]
-		if !exists {
-			return reconcile.Result{}, fmt.Errorf("cannot vacate because of missing annotation %s on PVC %s", esv1label.StatefulSetNameLabelName, pvc.Name)
-		}
-		// Get original nodeSet name, sored in the suffix (a bit hacky)
-		prefix := fmt.Sprintf("%s-es-", es.Name)
-		nodeSetName := strings.TrimPrefix(sset, prefix)
 
 		// Build expected nodeSet name
 		tmpNodeSetname := fmt.Sprintf("vacate-%s-%d", nodeSetName, ordinalAsInt)
@@ -195,14 +210,157 @@ func doReconcile(
 		}
 	}
 
-	if !esUpdated {
-		return reconcile.Result{}, nil
+	if esUpdated {
+		if err := r.Client.Update(ctx, es); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
-	if err := r.Client.Update(ctx, es); err != nil {
+	// Phase 2 : delete PVC and POD
+	for _, pvc := range pvcList.Items {
+		pvc := pvc
+		err := r.Client.Delete(context.TODO(), &pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		// Infer POD name
+		nodeSet, ordinal, err := getNodeSetAndOrdinal(es.Name, pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		sset := esv1.StatefulSet(es.Name, nodeSet)
+		podName := fmt.Sprintf("%s-%d", sset, ordinal)
+		err = r.Client.Delete(context.TODO(), &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: pvc.Namespace,
+			},
+		})
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Phase 3 attempt to recreate PVCs
+	requeue, err := recreatePVC(r.Client)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	if requeue {
+		return defaultRequeue, nil
+	}
+
 	return reconcile.Result{}, nil
+}
+
+func recreatePVC(k k8s.Client) (requeue bool, err error) {
+	// List PV waiting to be adopted
+	pvs := &v1.PersistentVolumeList{}
+	if err := k.List(context.TODO(), pvs); err != nil {
+		return false, err
+	}
+
+	for _, pv := range pvs.Items {
+		if len(pv.Annotations) == 0 {
+			continue
+		}
+		if pvcAsJSON, hasFormerPVC := pv.Annotations[VacatedFromPVAnnotationName]; hasFormerPVC {
+			log.Info("Check if new PVCs can be created")
+
+			pvc := &v1.PersistentVolumeClaim{}
+			err := json.Unmarshal([]byte(pvcAsJSON), pvc)
+			if err != nil {
+				log.Error(err, "cannot deserialize PVC")
+				return false, err
+			}
+
+			pvcStillExists, err := pvcExists(k, pvc.Namespace, pvc.Name, string(pvc.UID))
+			if err != nil {
+				return true, err
+			}
+			if pvcStillExists {
+				// Skip, but requeue later
+				requeue = true
+				continue
+			}
+
+			// Recreate the 2 PVCs
+			// TODO: Check if we can also let the sst controller recreates them, it might be a bit slower though
+			clusterName := pvc.Labels[esv1label.ClusterNameLabelName]
+			nodeSetName, ordinalAsInt, err := getNodeSetAndOrdinal(clusterName, *pvc)
+			if err != nil {
+				return true, err
+			}
+			tmpNodeSetname := fmt.Sprintf("vacate-%s-%d", nodeSetName, ordinalAsInt)
+			newPVCName := fmt.Sprintf("elasticsearch-data-elasticsearch-sample-es-%s-0", tmpNodeSetname)
+
+			// 1. Create PVC for stunt double (the one which adopts the former volume)
+			adoptPVC := &v1.PersistentVolumeClaim{}
+			if err := k.Get(context.TODO(), types.NamespacedName{Name: newPVCName, Namespace: pvc.Namespace}, adoptPVC); errors.IsNotFound(err) {
+				log.Info("Create PVC for stunt double")
+				adoptPVC = &v1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        newPVCName,
+						Namespace:   pvc.Namespace,
+						Annotations: map[string]string{webhook.TrustMeAnnotation: "true"},
+					},
+					Spec: pvc.Spec,
+				}
+				err = k.Create(context.TODO(), adoptPVC)
+				if err != nil {
+					return false, err
+				}
+			} else if err != nil {
+				return true, err
+			}
+
+			// 2. Create PVC for new Pod
+			log.Info("Create PVC for new volume double")
+			newSpec := pvc.Spec.DeepCopy()
+			newSpec.VolumeName = ""
+			newPVC2 := &v1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        newPVCName,
+					Namespace:   pvc.Namespace,
+					Annotations: map[string]string{webhook.TrustMeAnnotation: "true"},
+				},
+				Spec: *newSpec,
+			}
+			err = k.Create(context.TODO(), newPVC2)
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+	return
+}
+
+func bindPV(k k8s.Client, pvName, pvcName string) error {
+
+}
+
+func pvcExists(k k8s.Client, namespace, name, uid string) (bool, error) {
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	// Check if former PVC still exists
+	pvc := &v1.PersistentVolumeClaim{}
+	if err := k.Get(context.TODO(), key, pvc); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("PVC does not exist anymore", "pvc", name, "uid", uid)
+			return false, nil
+		}
+		return false, err
+	}
+	// PVC exists, check uid
+	if string(pvc.UID) == uid {
+		return true, nil
+	}
+	// UIDs differ
+	log.Info("PVC does not exist anymore", "pvc", name, "uid", uid)
+	return false, nil
 }
 
 func removeNodeSet(es *esv1.Elasticsearch, set string) {
@@ -214,10 +372,10 @@ func removeNodeSet(es *esv1.Elasticsearch, set string) {
 	}
 }
 
-func patchPV(k k8s.Client, pvcUID, pvName string) error {
+func patchPV(k k8s.Client, pvc v1.PersistentVolumeClaim) error {
 	pv := &v1.PersistentVolume{}
 	err := k.Get(context.TODO(), types.NamespacedName{
-		Name: pvName,
+		Name: pvc.Spec.VolumeName,
 	}, pv)
 	if err != nil {
 		return err
@@ -230,8 +388,13 @@ func patchPV(k k8s.Client, pvcUID, pvName string) error {
 	if pv.Annotations == nil {
 		pv.Annotations = make(map[string]string)
 	}
-	if _, hasFormerPVC := pv.Annotations["elasticsearch.k8s.elastic.co/vacate-from"]; !hasFormerPVC {
-		pv.Annotations["elasticsearch.k8s.elastic.co/vacate-from"] = pvcUID
+	if _, hasFormerPVC := pv.Annotations[VacatedFromPVAnnotationName]; !hasFormerPVC {
+		// Serialize PVC
+		asJSON, err := json.Marshal(pvc)
+		if err != nil {
+			return err
+		}
+		pv.Annotations[VacatedFromPVAnnotationName] = string(asJSON)
 		updated = true
 	}
 
@@ -263,7 +426,7 @@ func copyNodeSet(es *esv1.Elasticsearch, nodeSet, newName string) (esv1.NodeSet,
 				if vct.Annotations == nil {
 					vct.Annotations = make(map[string]string)
 				}
-				vct.Annotations["delay-creation"] = "true"
+				vct.Annotations[webhook.DelayAnnotation] = "true"
 				deepCopy.VolumeClaimTemplates[j] = vct
 			}
 			deepCopy.PodTemplate.Annotations[AnnotationName] = "true"
