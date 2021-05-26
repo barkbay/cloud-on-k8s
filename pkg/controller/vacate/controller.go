@@ -304,9 +304,9 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 				log.Info("Create PVC for stunt double")
 				adoptPVC = &v1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        newPVCName,
-						Namespace:   pvc.Namespace,
-						Annotations: map[string]string{webhook.TrustMeAnnotation: "true"},
+						Name:            newPVCName,
+						Namespace:       pvc.Namespace,
+						OwnerReferences: pvc.OwnerReferences,
 					},
 					Spec: pvc.Spec,
 				}
@@ -326,17 +326,21 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 
 			// 3. Create PVC for new Pod
 			log.Info("Create PVC for new volume double")
+			// Clear volume name
 			newSpec := pvc.Spec.DeepCopy()
 			newSpec.VolumeName = ""
-			newPVC2 := &v1.PersistentVolumeClaim{
+			newPVC := &v1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        newPVCName,
-					Namespace:   pvc.Namespace,
-					Annotations: map[string]string{webhook.TrustMeAnnotation: "true"},
+					Name:            pvc.Name,
+					Namespace:       pvc.Namespace,
+					OwnerReferences: pvc.OwnerReferences,
 				},
 				Spec: *newSpec,
 			}
-			err = k.Create(context.TODO(), newPVC2)
+			err = k.Create(context.TODO(), newPVC)
+			if errors.IsConflict(err) {
+				return false, nil
+			}
 			if err != nil {
 				return false, err
 			}
