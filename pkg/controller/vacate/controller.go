@@ -204,13 +204,13 @@ func doReconcile(
 	}
 
 	// Remove unnecessary temporary NodeSets
-	/*for actualNodeSet := range actualTemporaryNodeSets {
+	for actualNodeSet := range actualTemporaryNodeSets {
 		_, isExpected := expectedNodeSets[actualNodeSet]
 		if !isExpected {
 			esUpdated = true
 			removeNodeSet(es, actualNodeSet)
 		}
-	}*/
+	}
 
 	if esUpdated {
 		if err := r.Client.Update(ctx, es); err != nil {
