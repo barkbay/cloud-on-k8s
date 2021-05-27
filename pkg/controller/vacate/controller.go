@@ -128,7 +128,7 @@ func getNodeSetAndOrdinal(es string, pvc v1.PersistentVolumeClaim) (string, int6
 	if !exists {
 		return "", 0, fmt.Errorf("cannot vacate because of missing annotation %s on PVC %s", esv1label.StatefulSetNameLabelName, pvc.Name)
 	}
-	// Get original nodeSet name, sored in the suffix (a bit hacky)
+	// Get original nodeSet name, sored in the suffix
 	prefix := fmt.Sprintf("%s-es-", es)
 	nodeSetName := strings.TrimPrefix(sset, prefix)
 	return nodeSetName, ordinalAsInt, nil
@@ -307,6 +307,9 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 						Name:            newPVCName,
 						Namespace:       pvc.Namespace,
 						OwnerReferences: pvc.OwnerReferences,
+						Labels: map[string]string{
+							esv1label.ClusterNameLabelName: clusterName,
+						},
 					},
 					Spec: pvc.Spec,
 				}
@@ -325,7 +328,7 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 			}
 
 			// 3. Create PVC for new Pod
-			log.Info("Create PVC for new volume double")
+			log.Info("Create PVC to get a clean PV")
 			// Clear volume name
 			newSpec := pvc.Spec.DeepCopy()
 			newSpec.VolumeName = ""
@@ -334,6 +337,9 @@ func recreatePVC(k k8s.Client) (requeue bool, err error) {
 					Name:            pvc.Name,
 					Namespace:       pvc.Namespace,
 					OwnerReferences: pvc.OwnerReferences,
+					Labels: map[string]string{
+						esv1label.ClusterNameLabelName: clusterName,
+					},
 				},
 				Spec: *newSpec,
 			}

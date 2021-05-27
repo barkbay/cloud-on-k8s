@@ -322,6 +322,30 @@ webhooks:
       resources:
         - persistentvolumeclaims
   sideEffects: None
+- admissionReviewVersions:
+    - v1
+    - v1beta1
+  clientConfig:
+    service:
+      name: {{ include "eck-operator.webhookServiceName" . }}
+      namespace: {{ .Release.Namespace }}
+      path: /elastic-pod-az-k8s-elastic-co-v1-elasticsearch
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: elastic-pod-blocker.k8s.elastic.co
+  objectSelector:
+    matchLabels:
+      common.k8s.elastic.co/type: elasticsearch
+  rules:
+    - apiGroups:
+        - ""
+      apiVersions:
+        - v1
+      operations:
+        - CREATE
+      resources:
+        - pods
+  sideEffects: None
 ---
 apiVersion: v1
 kind: Service

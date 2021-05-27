@@ -789,7 +789,7 @@ func setupWebhook(mgr manager.Manager, certRotation certificates.RotationParams,
 	// esv1 validating webhook is wired up differently, in order to access the k8s client
 	esvalidation.RegisterWebhook(mgr, validateStorageClass)
 
-	vacate_webhook.RegisterPodBlockerWebhook(mgr)
+	vacate_webhook.RegisterPodVacateAZWebhook(mgr)
 	vacate_webhook.RegisterPVCBlockerWebhook(mgr)
 
 	// wait for the secret to be populated in the local filesystem before returning

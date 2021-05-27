@@ -23,7 +23,6 @@ var (
 )
 
 // +kubebuilder:webhook:path="/elastic-pvc-blocker-k8s-elastic-co-v1-elasticsearch",mutating=false,failurePolicy=Fail,groups="",resources=persistentvolumeclaims,verbs=create,versions=v1,name=elastic-pvc-blocker.k8s.elastic.co,sideEffects=None,admissionReviewVersions=v1;v1beta1,matchPolicy=Exact
-
 const (
 	pvcBlockerWebhookPath = "/elastic-pvc-blocker-k8s-elastic-co-v1-elasticsearch"
 )
