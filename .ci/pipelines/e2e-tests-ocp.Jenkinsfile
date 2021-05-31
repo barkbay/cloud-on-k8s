@@ -1,6 +1,6 @@
 // This library overrides the default checkout behavior to enable sleep+retries if there are errors
 // Added to help overcome some recurring github connection issues
-@Library('apm@current') _
+//@Library('apm@current') _
 
 def failedTests = []
 def lib
@@ -66,23 +66,6 @@ pipeline {
     }
 
     post {
-        unsuccessful {
-            script {
-                if (params.SEND_NOTIFICATIONS) {
-                    Set<String> filter = new HashSet<>()
-                    filter.addAll(failedTests)
-                    def msg = lib.generateSlackMessage("E2E tests in OCP failed!", env.BUILD_URL, filter)
-
-                    slackSend(
-                        channel: '#cloud-k8s',
-                        color: 'danger',
-                        message: msg,
-                        tokenCredentialId: 'cloud-ci-slack-integration-token',
-                        failOnError: true
-                    )
-                }
-            }
-        }
         cleanup {
             script {
                 sh ".ci/setenvconfig cleanup/ocp $ocpVersion"

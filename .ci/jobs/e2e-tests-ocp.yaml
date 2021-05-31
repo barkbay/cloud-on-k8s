@@ -11,20 +11,22 @@
       - string:
           name: JKS_PARAM_OPERATOR_IMAGE
           description: "ECK Docker image"
+          default: "docker.elastic.co/eck-snapshots/eck-operator:1.7.0-SNAPSHOT-2021-05-31-b28ef329"
       - string:
           name: OCP_VERSION
           description: "OCP version to test. If left empty will be defaulted to one of the supported versions"
+          default: "4.5.37"
       - bool:
           name: SEND_NOTIFICATIONS
-          default: true
+          default: false
           description: "Specified if job should send notifications to Slack. Enabled by default."
     pipeline-scm:
       scm:
         - git:
-            url: https://github.com/elastic/cloud-on-k8s
+            url: https://github.com/barkbay/cloud-on-k8s
             branches:
-              - ${branch_specifier}
+              - 'e2e/debug/ocp4-ci'
             credentials-id: 'f6c7695a-671e-4f4f-a331-acdce44ff9ba'
-            refspec: ${branch_specifier}
+            refspec: 'e2e/debug/ocp4-ci'
       script-path: .ci/pipelines/e2e-tests-ocp.Jenkinsfile
       lightweight-checkout: false
