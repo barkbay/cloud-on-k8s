@@ -434,7 +434,7 @@ func (d *OcpDriver) runInstallerCommand(action string) error {
 		-e GOOGLE_APPLICATION_CREDENTIALS={{.GCloudCredsPath}} \
 		-e HOME=/home \
 		{{.OCPToolsDockerImage}} \
-		/openshift-install {{.Action}} cluster --dir /home/{{.ClusterStateDirBase}}`)
+		/openshift-install --log-level debug {{.Action}} cluster --dir /home/{{.ClusterStateDirBase}}`)
 	return cmd.AsTemplate(params).Run()
 }
 
