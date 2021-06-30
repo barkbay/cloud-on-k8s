@@ -6,10 +6,13 @@ package certificates
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
@@ -173,11 +176,11 @@ func ensureInternalSelfSignedCertificateSecretContents(
 	secretWasChanged := false
 
 	// verify that the secret contains a parsable private key, create if it does not exist
-	var privateKey *rsa.PrivateKey
+	var privateKey crypto.Signer
 	needsNewPrivateKey := true //nolint:ifshort
 	if privateKeyData, ok := secret.Data[KeyFileName]; ok {
 		storedPrivateKey, err := ParsePEMPrivateKey(privateKeyData)
-		if err != nil {
+		if err != nil || !samePrivateKeyType(ca.PrivateKey, storedPrivateKey) {
 			log.Error(err, "Unable to parse stored private key", "namespace", secret.Namespace, "secret_name", secret.Name)
 		} else {
 			needsNewPrivateKey = false
@@ -187,14 +190,17 @@ func ensureInternalSelfSignedCertificateSecretContents(
 
 	// if we need a new private key, generate it
 	if needsNewPrivateKey {
-		generatedPrivateKey, err := rsa.GenerateKey(cryptorand.Reader, 2048)
+		generatedPrivateKey, err := generateKey(ca.PrivateKey)
 		if err != nil {
-			return secretWasChanged, err
+			return false, err
 		}
-
+		encodedPEM, err := EncodePEMPrivateKey(generatedPrivateKey)
+		if err != nil {
+			return false, err
+		}
+		secret.Data[KeyFileName] = encodedPEM
 		privateKey = generatedPrivateKey
 		secretWasChanged = true
-		secret.Data[KeyFileName] = EncodePEMPrivateKey(*privateKey)
 	}
 
 	// check if the existing cert should be re-issued
@@ -235,6 +241,26 @@ func ensureInternalSelfSignedCertificateSecretContents(
 	}
 
 	return secretWasChanged, nil
+}
+
+// generateKey generates a new private key using the same implementation than the CA.
+func generateKey(caSigner crypto.Signer) (crypto.Signer, error) {
+	switch k := caSigner.(type) {
+	case *rsa.PrivateKey:
+		return rsa.GenerateKey(cryptorand.Reader, 2048)
+	case *ecdsa.PrivateKey:
+		// re-use the same curve
+		return ecdsa.GenerateKey(k.PublicKey.Curve, cryptorand.Reader)
+	default:
+		return nil, fmt.Errorf("unsupported CA private key: %T", caSigner)
+	}
+}
+
+func samePrivateKeyType(caSigner, certSigner crypto.Signer) bool {
+	if caSigner == nil || certSigner == nil {
+		return false
+	}
+	return reflect.TypeOf(caSigner) == reflect.TypeOf(certSigner)
 }
 
 // shouldIssueNewHTTPCertificate returns true if we should issue a new HTTP certificate.

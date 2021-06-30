@@ -133,7 +133,7 @@ func Test_ensureTransportCertificatesSecretContentsForPod(t *testing.T) {
 			name: "no cert in the secret",
 			secret: &corev1.Secret{
 				Data: map[string][]byte{
-					PodKeyFileName(testPod.Name): certificates.EncodePEMPrivateKey(*testRSAPrivateKey),
+					PodKeyFileName(testPod.Name): testPEMPrivateKey,
 				},
 			},
 			assertions: func(t *testing.T, before corev1.Secret, after corev1.Secret) {
@@ -149,7 +149,7 @@ func Test_ensureTransportCertificatesSecretContentsForPod(t *testing.T) {
 			name: "cert does not belong to the key in the secret",
 			secret: &corev1.Secret{
 				Data: map[string][]byte{
-					PodKeyFileName(testPod.Name):  certificates.EncodePEMPrivateKey(*testRSAPrivateKey),
+					PodKeyFileName(testPod.Name):  testPEMPrivateKey,
 					PodCertFileName(testPod.Name): certificates.EncodePEMCert(testCA.Cert.Raw),
 				},
 			},
@@ -167,7 +167,7 @@ func Test_ensureTransportCertificatesSecretContentsForPod(t *testing.T) {
 			name: "invalid cert in the secret",
 			secret: &corev1.Secret{
 				Data: map[string][]byte{
-					PodKeyFileName(testPod.Name):  certificates.EncodePEMPrivateKey(*testRSAPrivateKey),
+					PodKeyFileName(testPod.Name):  testPEMPrivateKey,
 					PodCertFileName(testPod.Name): []byte("invalid"),
 				},
 			},
@@ -185,7 +185,7 @@ func Test_ensureTransportCertificatesSecretContentsForPod(t *testing.T) {
 			name: "valid data should not require updating",
 			secret: &corev1.Secret{
 				Data: map[string][]byte{
-					PodKeyFileName(testPod.Name):  certificates.EncodePEMPrivateKey(*testRSAPrivateKey),
+					PodKeyFileName(testPod.Name):  testPEMPrivateKey,
 					PodCertFileName(testPod.Name): pemCert,
 				},
 			},

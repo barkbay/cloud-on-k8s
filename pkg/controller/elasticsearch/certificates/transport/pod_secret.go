@@ -5,6 +5,7 @@
 package transport
 
 import (
+	"crypto"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -39,7 +40,7 @@ func ensureTransportCertificatesSecretContentsForPod(
 	rotationParams certificates.RotationParams,
 ) error {
 	// verify that the secret contains a parsable private key, create if it does not exist
-	var privateKey *rsa.PrivateKey
+	var privateKey crypto.Signer
 	needsNewPrivateKey := true //nolint:ifshort
 	if privateKeyData, ok := secret.Data[PodKeyFileName(pod.Name)]; ok {
 		storedPrivateKey, err := certificates.ParsePEMPrivateKey(privateKeyData)
@@ -60,7 +61,11 @@ func ensureTransportCertificatesSecretContentsForPod(
 		}
 
 		privateKey = generatedPrivateKey
-		secret.Data[PodKeyFileName(pod.Name)] = certificates.EncodePEMPrivateKey(*privateKey)
+		pemPrivateKey, err := certificates.EncodePEMPrivateKey(privateKey)
+		if err != nil {
+			return err
+		}
+		secret.Data[PodKeyFileName(pod.Name)] = pemPrivateKey
 	}
 
 	if shouldIssueNewCertificate(es, *secret, pod, privateKey, ca, rotationParams.RotateBefore) {
@@ -111,7 +116,7 @@ func shouldIssueNewCertificate(
 	es esv1.Elasticsearch,
 	secret corev1.Secret,
 	pod corev1.Pod,
-	privateKey *rsa.PrivateKey,
+	privateKey crypto.Signer,
 	ca *certificates.CA,
 	certReconcileBefore time.Duration,
 ) bool {
@@ -129,8 +134,7 @@ func shouldIssueNewCertificate(
 		return true
 	}
 
-	publicKey, publicKeyOk := cert.PublicKey.(*rsa.PublicKey)
-	if !publicKeyOk || publicKey.N.Cmp(privateKey.PublicKey.N) != 0 || publicKey.E != privateKey.PublicKey.E {
+	if !certificates.PrivateMatchesPublicKey(cert.PublicKey, privateKey) {
 		log.Info(
 			"Certificate belongs do a different public key, should issue new",
 			"namespace", pod.Namespace,

@@ -6,4 +6,4 @@
 
 package license
 
-var publicKeyBytes []byte
+//var publicKeyBytes []byte

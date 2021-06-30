@@ -32,6 +32,7 @@ var (
 	testCA                       *certificates.CA
 	testCABytes                  []byte
 	testRSAPrivateKey            *rsa.PrivateKey
+	testPEMPrivateKey            []byte
 	testCSRBytes                 []byte
 	testCSR                      *x509.CertificateRequest
 	validatedCertificateTemplate *certificates.ValidatedCertificateTemplate
@@ -79,6 +80,10 @@ func init() {
 	block, _ := pem.Decode([]byte(testPemPrivateKey))
 	if testRSAPrivateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
 		panic("Failed to parse private key: " + err.Error())
+	}
+
+	if testPEMPrivateKey, err = certificates.EncodePEMPrivateKey(testRSAPrivateKey); err != nil {
+		panic("Failed to encode private key: " + err.Error())
 	}
 
 	if testCA, err = certificates.NewSelfSignedCA(certificates.CABuilderOptions{
@@ -158,7 +163,7 @@ func newtransportCertsSecretBuilder(esName string, nodeSetName string) *transpor
 func (tcb *transportCertsSecretBuilder) forPodIndices(indices ...int) *transportCertsSecretBuilder {
 	for _, index := range indices {
 		podName := sset.PodName(tcb.statefulset, int32(index))
-		tcb.data[PodKeyFileName(podName)] = certificates.EncodePEMPrivateKey(*testRSAPrivateKey)
+		tcb.data[PodKeyFileName(podName)] = testPEMPrivateKey
 		tcb.data[PodCertFileName(podName)] = pemCert
 	}
 	return tcb

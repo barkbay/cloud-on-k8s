@@ -6,9 +6,12 @@ package certificates
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -51,16 +54,37 @@ func EncodePEMCert(certBlocks ...[]byte) []byte {
 }
 
 // EncodePEMPrivateKey encodes the given private key in the PEM format
-func EncodePEMPrivateKey(privateKey rsa.PrivateKey) []byte {
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(&privateKey),
-	})
+func EncodePEMPrivateKey(privateKey crypto.Signer) ([]byte, error) {
+	pemBlock, err := pemBlockForKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(pemBlock), nil
+}
+
+func pemBlockForKey(privateKey interface{}) (*pem.Block, error) {
+	switch k := privateKey.(type) {
+	case *rsa.PrivateKey:
+		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}, nil
+	case *ecdsa.PrivateKey:
+		b, err := x509.MarshalECPrivateKey(k)
+		if err != nil {
+			return nil, err
+		}
+		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}, nil
+	default:
+		// attempt PKCS#8 format
+		b, err := x509.MarshalPKCS8PrivateKey(k)
+		if err != nil {
+			return nil, err
+		}
+		return &pem.Block{Type: "PRIVATE KEY", Bytes: b}, nil
+	}
 }
 
 // ParsePEMPrivateKey parses the given private key in the PEM format
 // ErrEncryptedPrivateKey is returned as an error if the private key is encrypted.
-func ParsePEMPrivateKey(pemData []byte) (*rsa.PrivateKey, error) {
+func ParsePEMPrivateKey(pemData []byte) (crypto.Signer, error) {
 	block, _ := pem.Decode(pemData)
 	if block == nil {
 		return nil, errors.New("failed to parse PEM block containing private key")
@@ -74,9 +98,15 @@ func ParsePEMPrivateKey(pemData []byte) (*rsa.PrivateKey, error) {
 		return parsePKCS8PrivateKey(block.Bytes)
 	case block.Type == "RSA PRIVATE KEY" && len(block.Headers) == 0:
 		return x509.ParsePKCS1PrivateKey(block.Bytes)
+	case block.Type == "EC PRIVATE KEY":
+		return parseECPrivateKey(block.Bytes)
 	default:
 		return nil, errors.New("expected PEM block to contain an RSA private key")
 	}
+}
+
+func parseECPrivateKey(block []byte) (*ecdsa.PrivateKey, error) {
+	return x509.ParseECPrivateKey(block)
 }
 
 func parsePKCS8PrivateKey(block []byte) (*rsa.PrivateKey, error) {
@@ -108,15 +138,14 @@ func GetPrimaryCertificate(pemBytes []byte) (*x509.Certificate, error) {
 }
 
 // PrivateMatchesPublicKey returns true if the public and private keys correspond to each other.
-func PrivateMatchesPublicKey(publicKey interface{}, privateKey rsa.PrivateKey) bool {
-	pubKey, ok := publicKey.(*rsa.PublicKey)
-	if !ok {
-		log.Error(errors.New("Public key is not an RSA public key"), "")
+func PrivateMatchesPublicKey(publicKey crypto.PublicKey, privateKey crypto.Signer) bool {
+	switch k := publicKey.(type) {
+	case *rsa.PublicKey:
+		return k.Equal(privateKey.Public())
+	case *ecdsa.PublicKey:
+		return k.Equal(privateKey.Public())
+	default:
+		log.Error(fmt.Errorf("unsupported public key type: %T", publicKey), "")
 		return false
 	}
-	// check that public and private keys share the same modulus and exponent
-	if pubKey.N.Cmp(privateKey.N) != 0 || pubKey.E != privateKey.E {
-		return false
-	}
-	return true
 }
