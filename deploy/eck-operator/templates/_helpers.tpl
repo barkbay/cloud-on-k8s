@@ -178,6 +178,7 @@ updating docs/operating-eck/eck-permissions.asciidoc file.
   - ""
   resources:
   - endpoints
+  - nodes
   verbs:
   - get
   - list

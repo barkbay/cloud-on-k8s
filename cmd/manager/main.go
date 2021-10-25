@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/webhook/topology"
+
 	"github.com/elastic/cloud-on-k8s/pkg/about"
 	agentv1alpha1 "github.com/elastic/cloud-on-k8s/pkg/apis/agent/v1alpha1"
 	apmv1 "github.com/elastic/cloud-on-k8s/pkg/apis/apm/v1"
@@ -817,6 +819,8 @@ func setupWebhook(mgr manager.Manager, certRotation certificates.RotationParams,
 
 	// esv1 validating webhook is wired up differently, in order to access the k8s client
 	esvalidation.RegisterWebhook(mgr, validateStorageClass)
+
+	topology.RegisterPodBindingWebhook(mgr, validateStorageClass)
 
 	// wait for the secret to be populated in the local filesystem before returning
 	interval := time.Second * 1
