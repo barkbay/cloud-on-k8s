@@ -16,6 +16,7 @@ data:
     ca-cert-rotate-before: {{ .Values.config.caRotateBefore }}
     cert-validity: {{ .Values.config.certificatesValidity }}
     cert-rotate-before: {{ .Values.config.certificatesRotateBefore }}
+    exposed-node-labels: {{ .Values.config.exposedNodeLabels }}
     set-default-security-context: {{ .Values.config.setDefaultSecurityContext }}
     kube-client-timeout: {{ .Values.config.kubeClientTimeout }}
     elasticsearch-client-timeout: {{ .Values.config.elasticsearchClientTimeout }}

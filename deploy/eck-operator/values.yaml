@@ -155,6 +155,8 @@ config:
   # certificatesRotateBefore defines when to rotate a certificate that is due to expire.
   certificatesRotateBefore: 24h
 
+  exposedNodeLabels: "topology.kubernetes.io/*,failure-domain.beta.kubernetes.io/*"
+
   # setDefaultSecurityContext determines whether a default security context is set on application containers created by the operator.
   setDefaultSecurityContext: true
 

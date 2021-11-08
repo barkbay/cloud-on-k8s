@@ -213,6 +213,11 @@ func Command() *cobra.Command {
 		false,
 		"Enables a validating webhook server in the operator process.",
 	)
+	cmd.Flags().StringSlice(
+		operator.ExposedNodeLabels,
+		[]string{},
+		"Define the list of node labels which can be injected into Elasticsearch Pods as annotations, empty by default",
+	)
 	cmd.Flags().String(
 		operator.IPFamilyFlag,
 		"",
