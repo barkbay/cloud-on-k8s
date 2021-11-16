@@ -36,7 +36,7 @@ func NewShardMigration(es esv1.Elasticsearch, c esclient.Client, s esclient.Shar
 }
 
 // ReconcileShutdowns migrates data away from the leaving nodes or removes any allocation filtering if no nodes are leaving.
-func (sm *ShardMigration) ReconcileShutdowns(ctx context.Context, leavingNodes []string) error {
+func (sm *ShardMigration) ReconcileShutdowns(ctx context.Context, leavingNodes shutdown.NodesToShutdown) error {
 	return migrateData(ctx, sm.es, sm.c, leavingNodes)
 }
 
@@ -83,12 +83,12 @@ func migrateData(
 	ctx context.Context,
 	es esv1.Elasticsearch,
 	allocationSetter esclient.AllocationSetter,
-	leavingNodes []string,
+	leavingNodes shutdown.NodesToShutdown,
 ) error {
 	// compute the expected exclusion value
 	exclusions := "none_excluded"
 	if len(leavingNodes) > 0 {
-		exclusions = strings.Join(leavingNodes, ",")
+		exclusions = strings.Join(leavingNodes.Names(), ",")
 	}
 	log.Info("Setting routing allocation excludes", "namespace", es.Namespace, "es_name", es.Name, "value", exclusions)
 	return allocationSetter.ExcludeFromShardAllocation(ctx, exclusions)

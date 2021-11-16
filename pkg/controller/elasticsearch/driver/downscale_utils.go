@@ -6,6 +6,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 
@@ -84,10 +85,16 @@ func (d ssetDownscale) leavingNodeNames() []string {
 }
 
 // leavingNodeNames returns the names of all nodes that should leave the cluster (across StatefulSets).
-func leavingNodeNames(downscales []ssetDownscale) []string {
-	leavingNodes := []string{}
+func leavingNodeNames(esResourceVersion string, downscales []ssetDownscale) shutdown.NodesToShutdown {
+	var leavingNodes shutdown.NodesToShutdown
 	for _, d := range downscales {
-		leavingNodes = append(leavingNodes, d.leavingNodeNames()...)
+		leavingNodeNames := d.leavingNodeNames()
+		for _, leavingNodeName := range leavingNodeNames {
+			leavingNodes = append(leavingNodes, shutdown.NodeToShutdown{
+				Name:   leavingNodeName,
+				Reason: fmt.Sprintf("es-v%s-sst-v%s", esResourceVersion, d.statefulSet.ResourceVersion),
+			})
+		}
 	}
 	return leavingNodes
 }

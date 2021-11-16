@@ -66,7 +66,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 		results.WithError(err)
 	}
 	logger := log.WithValues("namespace", d.ES.Namespace, "es_name", d.ES.Name)
-	nodeShutdown := shutdown.NewNodeShutdown(esClient, nodeNameToID, esclient.Restart, d.ES.ResourceVersion, logger)
+	nodeShutdown := shutdown.NewNodeShutdown(esClient, nodeNameToID, esclient.Restart, logger)
 
 	// Get the list of pods currently existing in the StatefulSetList
 	currentPods, err := statefulSets.GetActualPods(d.Client)
@@ -120,7 +120,7 @@ type rollingUpgradeCtx struct {
 	reconcileState  *reconcile.State
 	expectedMasters []string
 	actualMasters   []corev1.Pod
-	podsToUpgrade   []corev1.Pod
+	podsToUpgrade   []PodToUpgrade
 	healthyPods     map[string]corev1.Pod
 	numberOfPods    int
 }
@@ -134,7 +134,7 @@ func newRollingUpgrade(
 	nodeShutdown *shutdown.NodeShutdown,
 	expectedMaster []string,
 	actualMasters []corev1.Pod,
-	podsToUpgrade []corev1.Pod,
+	podsToUpgrade []PodToUpgrade,
 	healthyPods map[string]corev1.Pod,
 	numberOfPods int,
 ) rollingUpgradeCtx {
@@ -155,6 +155,41 @@ func newRollingUpgrade(
 		healthyPods:     healthyPods,
 		numberOfPods:    numberOfPods,
 	}
+}
+
+type PodToUpgrade struct {
+	ResourceVersion string
+	Pod             corev1.Pod
+}
+
+type PodsToUpgrade []PodToUpgrade
+
+func (p PodsToUpgrade) ToPods() []corev1.Pod {
+	pods := make([]corev1.Pod, len(p))
+	for i := range p {
+		pods[i] = p[i].Pod
+	}
+	return pods
+}
+
+func (p PodsToUpgrade) ToNodesToShutdown() shutdown.NodesToShutdown {
+	nodesToShutdown := make(shutdown.NodesToShutdown, len(p))
+	for i := range p {
+		if p[i].Pod.Status.Phase != corev1.PodRunning {
+			// There is no point in trying to shut down a Pod that is not running.
+			// Basing this off of the cached Kubernetes client's world view opens up a few edge
+			// cases where a Pod might in fact already be running but the client's cache is not yet
+			// up to date. But the trade-off made here i.e. accepting an ungraceful shutdown in these
+			// edge case vs. being able to automatically unblock configuration rollouts that are blocked
+			// due to misconfiguration, for example unfulfillable node selectors, seems worth it.
+			continue
+		}
+		nodesToShutdown[i] = shutdown.NodeToShutdown{
+			Name:   p[i].Pod.Name,
+			Reason: p[i].ResourceVersion,
+		}
+	}
+	return nodesToShutdown
 }
 
 func (ctx rollingUpgradeCtx) run() ([]corev1.Pod, error) {
@@ -200,8 +235,8 @@ func healthyPods(
 func podsToUpgrade(
 	client k8s.Client,
 	statefulSets sset.StatefulSetList,
-) ([]corev1.Pod, error) {
-	var toUpgrade []corev1.Pod
+) (PodsToUpgrade, error) {
+	var toUpgrade []PodToUpgrade
 	for _, statefulSet := range statefulSets {
 		if statefulSet.Status.UpdateRevision == "" {
 			// no upgrade scheduled
@@ -224,7 +259,11 @@ func podsToUpgrade(
 				continue
 			}
 			if sset.PodRevision(pod) != statefulSet.Status.UpdateRevision {
-				toUpgrade = append(toUpgrade, pod)
+				// embed statefulSet.ResourceVersion for audit
+				toUpgrade = append(toUpgrade, PodToUpgrade{
+					ResourceVersion: statefulSet.Status.UpdateRevision,
+					Pod:             pod,
+				})
 			}
 		}
 	}
@@ -344,26 +383,13 @@ func (ctx *rollingUpgradeCtx) readyToDelete(pod corev1.Pod) (bool, error) {
 	return response.Status == esclient.ShutdownComplete, nil
 }
 
-func (ctx *rollingUpgradeCtx) requestNodeRestarts(podsToRestart []corev1.Pod) error {
-	var podNames []string //nolint:prealloc
-	for _, p := range podsToRestart {
-		if p.Status.Phase != corev1.PodRunning {
-			// There is no point in trying to shut down a Pod that is not running.
-			// Basing this off of the cached Kubernetes client's world view opens up a few edge
-			// cases where a Pod might in fact already be running but the client's cache is not yet
-			// up to date. But the trade-off made here i.e. accepting an ungraceful shutdown in these
-			// edge case vs. being able to automatically unblock configuration rollouts that are blocked
-			// due to misconfiguration, for example unfulfillable node selectors, seems worth it.
-			continue
-		}
-		podNames = append(podNames, p.Name)
-	}
+func (ctx *rollingUpgradeCtx) requestNodeRestarts(podsToRestart PodsToUpgrade) error {
 	// Note that ReconcileShutdowns would cancel ongoing shutdowns when called with no podNames
 	// this is however not the case in the rolling upgrade logic where we exit early if no pod needs to be rotated.
-	return ctx.nodeShutdown.ReconcileShutdowns(ctx.parentCtx, podNames)
+	return ctx.nodeShutdown.ReconcileShutdowns(ctx.parentCtx, podsToRestart.ToNodesToShutdown())
 }
 
-func (ctx *rollingUpgradeCtx) prepareClusterForNodeRestart(podsToUpgrade []corev1.Pod) error {
+func (ctx *rollingUpgradeCtx) prepareClusterForNodeRestart(podsToUpgrade []PodToUpgrade) error {
 	if supportsNodeShutdown(ctx.esClient.Version()) {
 		return ctx.requestNodeRestarts(podsToUpgrade)
 	}

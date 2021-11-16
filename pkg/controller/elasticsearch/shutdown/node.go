@@ -19,7 +19,6 @@ import (
 type NodeShutdown struct {
 	c           esclient.Client
 	typ         esclient.ShutdownType
-	reason      string
 	podToNodeID map[string]string
 	shutdowns   map[string]esclient.NodeShutdown
 	once        sync.Once
@@ -28,15 +27,28 @@ type NodeShutdown struct {
 
 var _ Interface = &NodeShutdown{}
 
+type NodeToShutdown struct {
+	Name   string
+	Reason string
+}
+
+func (n NodesToShutdown) Names() []string {
+	names := make([]string, len(n))
+	for i := range n {
+		names[i] = n[i].Name
+	}
+	return names
+}
+
+type NodesToShutdown []NodeToShutdown
+
 // NewNodeShutdown creates a new NodeShutdown struct restricted to one type of shutdown (typ); podToNodeID is mapping from
-// K8s Pod name to Elasticsearch node ID; reason is an arbitrary bit of metadata that will be attached to each node shutdown
-// request in Elasticsearch and can help tracking and auditing shutdown requests.
-func NewNodeShutdown(c esclient.Client, podToNodeID map[string]string, typ esclient.ShutdownType, reason string, l logr.Logger) *NodeShutdown {
+// K8s Pod name to Elasticsearch node ID.
+func NewNodeShutdown(c esclient.Client, podToNodeID map[string]string, typ esclient.ShutdownType, l logr.Logger) *NodeShutdown {
 	return &NodeShutdown{
 		c:           c,
 		typ:         typ,
 		podToNodeID: podToNodeID,
-		reason:      reason,
 		log:         l,
 	}
 }
@@ -70,7 +82,7 @@ func (ns *NodeShutdown) lookupNodeID(podName string) (string, error) {
 
 // ReconcileShutdowns retrieves ongoing shutdowns and based on the given node names either cancels or creates new
 // shutdowns.
-func (ns *NodeShutdown) ReconcileShutdowns(ctx context.Context, leavingNodes []string) error {
+func (ns *NodeShutdown) ReconcileShutdowns(ctx context.Context, leavingNodes NodesToShutdown) error {
 	if err := ns.initOnce(ctx); err != nil {
 		return err
 	}
@@ -80,7 +92,7 @@ func (ns *NodeShutdown) ReconcileShutdowns(ctx context.Context, leavingNodes []s
 	}
 
 	for _, node := range leavingNodes {
-		nodeID, err := ns.lookupNodeID(node)
+		nodeID, err := ns.lookupNodeID(node.Name)
 		if err != nil {
 			return err
 		}
@@ -88,7 +100,7 @@ func (ns *NodeShutdown) ReconcileShutdowns(ctx context.Context, leavingNodes []s
 			continue
 		}
 		ns.log.V(1).Info("Requesting shutdown", "type", ns.typ, "node", node, "node_id", nodeID)
-		if err := ns.c.PutShutdown(ctx, nodeID, ns.typ, ns.reason); err != nil {
+		if err := ns.c.PutShutdown(ctx, nodeID, ns.typ, node.Reason); err != nil {
 			return fmt.Errorf("on put shutdown %w", err)
 		}
 		shutdown, err := ns.c.GetShutdown(ctx, &nodeID)

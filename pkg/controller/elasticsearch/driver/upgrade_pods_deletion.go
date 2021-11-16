@@ -30,7 +30,7 @@ func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 	allowedDeletions, maxUnavailableReached := ctx.getAllowedDeletions()
 
 	// Step 1. Sort the Pods to get the ones with the higher priority
-	candidates := make([]corev1.Pod, len(ctx.podsToUpgrade)) // work on a copy in order to have no side effect
+	candidates := make([]PodToUpgrade, len(ctx.podsToUpgrade)) // work on a copy in order to have no side effect
 	copy(candidates, ctx.podsToUpgrade)
 	sortCandidates(candidates)
 
@@ -52,7 +52,7 @@ func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 	)
 	podsToDelete, err := applyPredicates(predicateContext, candidates, maxUnavailableReached, allowedDeletions)
 	if err != nil {
-		return podsToDelete, err
+		return podsToDelete.ToPods(), err
 	}
 
 	if len(podsToDelete) == 0 {
@@ -61,26 +61,26 @@ func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 			"es_name", ctx.ES.Name,
 			"namespace", ctx.ES.Namespace,
 		)
-		return podsToDelete, nil
+		return podsToDelete.ToPods(), nil
 	}
 
 	if err := ctx.prepareClusterForNodeRestart(podsToDelete); err != nil {
-		return podsToDelete, err
+		return podsToDelete.ToPods(), err
 	}
 	// TODO: If master is changed into a data node (or the opposite) it must be excluded or we should update m_m_n
 	deletedPods := []corev1.Pod{}
 	for _, podToDelete := range podsToDelete {
-		if err := ctx.handleMasterScaleChange(podToDelete); err != nil {
+		if err := ctx.handleMasterScaleChange(podToDelete.Pod); err != nil {
 			return deletedPods, err
 		}
-		if readyToDelete, err := ctx.readyToDelete(podToDelete); err != nil || !readyToDelete {
+		if readyToDelete, err := ctx.readyToDelete(podToDelete.Pod); err != nil || !readyToDelete {
 			return deletedPods, err
 		}
 
-		if err := deletePod(ctx.client, ctx.ES, podToDelete, ctx.expectations); err != nil {
+		if err := deletePod(ctx.client, ctx.ES, podToDelete.Pod, ctx.expectations); err != nil {
 			return deletedPods, err
 		}
-		deletedPods = append(deletedPods, podToDelete)
+		deletedPods = append(deletedPods, podToDelete.Pod)
 	}
 	return deletedPods, nil
 }
@@ -108,23 +108,23 @@ func (ctx *rollingUpgradeCtx) getAllowedDeletions() (int, bool) {
 // we want to update the data nodes first. After that pods are sorted by stateful set name
 // then reverse ordinal order
 // TODO: Add some priority to unhealthy (bootlooping) Pods
-func sortCandidates(allPods []corev1.Pod) {
+func sortCandidates(allPods []PodToUpgrade) {
 	sort.Slice(allPods, func(i, j int) bool {
 		pod1 := allPods[i]
 		pod2 := allPods[j]
 		// check if either is a master node. masters come after all other roles
-		if label.IsMasterNode(pod1) && !label.IsMasterNode(pod2) {
+		if label.IsMasterNode(pod1.Pod) && !label.IsMasterNode(pod2.Pod) {
 			return false
 		}
-		if !label.IsMasterNode(pod1) && label.IsMasterNode(pod2) {
+		if !label.IsMasterNode(pod1.Pod) && label.IsMasterNode(pod2.Pod) {
 			return true
 		}
 		// neither or both are masters, use the reverse name function
-		ssetName1, ord1, err := sset.StatefulSetName(pod1.Name)
+		ssetName1, ord1, err := sset.StatefulSetName(pod1.Pod.Name)
 		if err != nil {
 			return false
 		}
-		ssetName2, ord2, err := sset.StatefulSetName(pod2.Name)
+		ssetName2, ord2, err := sset.StatefulSetName(pod2.Pod.Name)
 		if err != nil {
 			return false
 		}

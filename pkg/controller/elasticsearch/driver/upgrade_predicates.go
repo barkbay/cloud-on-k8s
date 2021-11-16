@@ -20,7 +20,7 @@ type PredicateContext struct {
 	masterNodesNames       []string
 	actualMasters          []corev1.Pod
 	healthyPods            map[string]corev1.Pod
-	toUpdate               []corev1.Pod
+	toUpdate               []PodToUpgrade
 	esState                ESState
 	shardLister            client.ShardLister
 	masterUpdateInProgress bool
@@ -58,7 +58,7 @@ func NewPredicateContext(
 	state ESState,
 	shardLister client.ShardLister,
 	healthyPods map[string]corev1.Pod,
-	podsToUpgrade []corev1.Pod,
+	podsToUpgrade []PodToUpgrade,
 	masterNodesNames []string,
 	actualMasters []corev1.Pod,
 	numberOfPods int,
@@ -76,12 +76,12 @@ func NewPredicateContext(
 	}
 }
 
-func applyPredicates(ctx PredicateContext, candidates []corev1.Pod, maxUnavailableReached bool, allowedDeletions int) (deletedPods []corev1.Pod, err error) {
+func applyPredicates(ctx PredicateContext, candidates []PodToUpgrade, maxUnavailableReached bool, allowedDeletions int) (deletedPods PodsToUpgrade, err error) {
 	var failedPredicates failedPredicates
 
 Loop:
 	for _, candidate := range candidates {
-		switch predicateErr, err := runPredicates(ctx, candidate, deletedPods, maxUnavailableReached); {
+		switch predicateErr, err := runPredicates(ctx, candidate.Pod, deletedPods.ToPods(), maxUnavailableReached); {
 		case err != nil:
 			return deletedPods, err
 		case predicateErr != nil:
@@ -89,12 +89,12 @@ Loop:
 			failedPredicates = append(failedPredicates, *predicateErr)
 		default:
 			candidate := candidate
-			if label.IsMasterNode(candidate) || willBecomeMasterNode(candidate.Name, ctx.masterNodesNames) {
+			if label.IsMasterNode(candidate.Pod) || willBecomeMasterNode(candidate.Pod.Name, ctx.masterNodesNames) {
 				// It is a mutation on an already existing or future master.
 				ctx.masterUpdateInProgress = true
 			}
 			// Remove from healthy nodes if it was there
-			delete(ctx.healthyPods, candidate.Name)
+			delete(ctx.healthyPods, candidate.Pod.Name)
 			// Append to the deletedPods list
 			deletedPods = append(deletedPods, candidate)
 			allowedDeletions--
@@ -364,20 +364,20 @@ var predicates = [...]Predicate{
 				return true, nil
 			}
 			for _, pod := range context.toUpdate {
-				if candidate.Name == pod.Name {
+				if candidate.Name == pod.Pod.Name {
 					continue
 				}
-				if label.IsMasterNode(pod) {
+				if label.IsMasterNode(pod.Pod) {
 					// There are some other masters to upgrades, allow this one to be deleted
 					return true, nil
 				}
 			}
 			// This is the last master, check if all data nodes are up to date
 			for _, pod := range context.toUpdate {
-				if candidate.Name == pod.Name {
+				if candidate.Name == pod.Pod.Name {
 					continue
 				}
-				if label.IsDataNode(pod) {
+				if label.IsDataNode(pod.Pod) {
 					// There's still a data node to update
 					return false, nil
 				}

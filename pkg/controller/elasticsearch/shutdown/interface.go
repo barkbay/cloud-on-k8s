@@ -22,7 +22,7 @@ type NodeShutdownStatus struct {
 type Interface interface {
 	// ReconcileShutdowns retrieves ongoing shutdowns and based on the given node names either cancels or creates new
 	// shutdowns.
-	ReconcileShutdowns(ctx context.Context, leavingNodes []string) error
+	ReconcileShutdowns(ctx context.Context, leavingNodes NodesToShutdown) error
 	// ShutdownStatus returns the current shutdown status for the given node. It returns an error if no shutdown is in
 	// progress.
 	ShutdownStatus(ctx context.Context, podName string) (NodeShutdownStatus, error)

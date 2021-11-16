@@ -24,7 +24,7 @@ func (d *defaultDriver) MaybeForceUpgrade(statefulSets sset.StatefulSetList) (bo
 	if err != nil {
 		return false, err
 	}
-	return d.maybeForceUpgradePods(actualPods, podsToUpgrade)
+	return d.maybeForceUpgradePods(actualPods, podsToUpgrade.ToPods())
 }
 
 // maybeForceUpgradePods may attempt a forced upgrade of all podsToUpgrade if allowed to,
