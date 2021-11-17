@@ -8,6 +8,9 @@ import (
 	"context"
 	"net/http"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 	admissionv1 "k8s.io/api/admission/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,10 +18,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
 
 // +kubebuilder:webhook:path=/validate-elasticsearch-k8s-elastic-co-v1-elasticsearch,mutating=false,failurePolicy=ignore,groups=elasticsearch.k8s.elastic.co,resources=elasticsearches,verbs=create;update,versions=v1,name=elastic-es-validation-v1.k8s.elastic.co,sideEffects=None,admissionReviewVersions=v1;v1beta1,matchPolicy=Exact
@@ -29,10 +28,11 @@ const (
 
 var eslog = ulog.Log.WithName("es-validation")
 
-func RegisterWebhook(mgr ctrl.Manager, validateStorageClass bool) {
+func RegisterWebhook(mgr ctrl.Manager, validateStorageClass bool, exposedNodeLabels NodeLabels) {
 	wh := &validatingWebhook{
 		client:               mgr.GetClient(),
 		validateStorageClass: validateStorageClass,
+		exposedNodeLabels:    exposedNodeLabels,
 	}
 	eslog.Info("Registering Elasticsearch validating webhook", "path", webhookPath)
 	mgr.GetWebhookServer().Register(webhookPath, &webhook.Admission{Handler: wh})
@@ -42,6 +42,7 @@ type validatingWebhook struct {
 	client               k8s.Client
 	decoder              *admission.Decoder
 	validateStorageClass bool
+	exposedNodeLabels    NodeLabels
 }
 
 var _ admission.DecoderInjector = &validatingWebhook{}
@@ -54,7 +55,7 @@ func (wh *validatingWebhook) InjectDecoder(d *admission.Decoder) error {
 
 func (wh *validatingWebhook) validateCreate(es esv1.Elasticsearch) error {
 	eslog.V(1).Info("validate create", "name", es.Name)
-	return ValidateElasticsearch(es)
+	return ValidateElasticsearch(es, wh.exposedNodeLabels)
 }
 
 func (wh *validatingWebhook) validateUpdate(prev esv1.Elasticsearch, curr esv1.Elasticsearch) error {
@@ -71,7 +72,7 @@ func (wh *validatingWebhook) validateUpdate(prev esv1.Elasticsearch, curr esv1.E
 			schema.GroupKind{Group: "elasticsearch.k8s.elastic.co", Kind: esv1.Kind},
 			curr.Name, errs)
 	}
-	return ValidateElasticsearch(curr)
+	return ValidateElasticsearch(curr, wh.exposedNodeLabels)
 }
 
 func (wh *validatingWebhook) Handle(_ context.Context, req admission.Request) admission.Response {
@@ -104,8 +105,8 @@ func (wh *validatingWebhook) Handle(_ context.Context, req admission.Request) ad
 	return admission.Allowed("")
 }
 
-func ValidateElasticsearch(es esv1.Elasticsearch) error {
-	errs := check(es, validations)
+func ValidateElasticsearch(es esv1.Elasticsearch, exposedNodeLabels NodeLabels) error {
+	errs := check(es, validations(exposedNodeLabels))
 	if len(errs) > 0 {
 		return apierrors.NewInvalid(
 			schema.GroupKind{Group: "elasticsearch.k8s.elastic.co", Kind: esv1.Kind},

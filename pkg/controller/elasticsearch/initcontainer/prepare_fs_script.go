@@ -21,6 +21,10 @@ type TemplateParams struct {
 	// ChownToElasticsearch are paths that need to be chowned to the Elasticsearch user/group.
 	ChownToElasticsearch []string
 
+	// ExpectedAnnotations are the annotations expected on the Pod. Init script waits until these annotations are set by
+	// the operator.
+	ExpectedAnnotations *string
+
 	// InitContainerTransportCertificatesSecretVolumeMountPath is the path to the volume in the init container that
 	// contains the transport certificates.
 	InitContainerTransportCertificatesSecretVolumeMountPath string
@@ -57,6 +61,17 @@ var scriptTemplate = template.Must(template.New("").Parse(
 	`#!/usr/bin/env bash
 
 	set -eu
+
+	function annotations_exist() {
+	  expected_annotations=("$@")
+	  for expected_annotation in "${expected_annotations[@]}"; do
+		annotation_exists=$(grep -c "^${expected_annotation}=" /mnt/elastic-internal/downward-api/annotations)
+		if [ "${annotation_exists}" -eq 0 ]; then
+			return 1
+		fi
+	  done
+	  return 0
+	}
 
 	# the operator only works with the default ES distribution
 	license=/usr/share/elasticsearch/LICENSE.txt
@@ -166,6 +181,15 @@ var scriptTemplate = template.Must(template.New("").Parse(
 
 	echo "Certs linking duration: $(duration $ln_start) sec."
 
+    {{ if .ExpectedAnnotations }}
+	echo "Waiting for for following annotations to be set on Pod:"
+	declare -a expected_annotations
+    expected_annotations=({{ .ExpectedAnnotations }})
+    for expected_annotation in "${expected_annotations[@]}"; do
+    echo " * ${expected_annotation}"
+    done
+  	while ! annotations_exist "${expected_annotations[@]}"; do sleep 2; done
+    {{ end }}
 	######################
 	#         End        #
 	######################

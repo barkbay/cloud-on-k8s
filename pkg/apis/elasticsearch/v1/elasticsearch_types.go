@@ -20,6 +20,8 @@ import (
 
 const (
 	ElasticsearchContainerName = "elasticsearch"
+	// ExpectedPodsAnnotationsAnnotation contain an optional list of expected annotations on the Elasticsearch Pods.
+	ExpectedPodsAnnotationsAnnotation = "eck.k8s.elastic.co/downward-node-labels"
 	// SuspendAnnotation allows users to annotate the Elasticsearch resource with the names of Pods they want to suspend
 	// for debugging purposes.
 	SuspendAnnotation = "eck.k8s.elastic.co/suspend"
@@ -450,6 +452,21 @@ type Elasticsearch struct {
 	Spec       ElasticsearchSpec                                 `json:"spec,omitempty"`
 	Status     ElasticsearchStatus                               `json:"status,omitempty"`
 	AssocConfs map[types.NamespacedName]commonv1.AssociationConf `json:"-"`
+}
+
+// ExpectedPodsAnnotations returns a set of expected of annotations on the Elasticsearch Pods
+func (es Elasticsearch) ExpectedPodsAnnotations() []string {
+	expectedAnnotations, exist := es.Annotations[ExpectedPodsAnnotationsAnnotation]
+	expectedAnnotations = strings.TrimSpace(expectedAnnotations)
+	if !exist || expectedAnnotations == "" {
+		return nil
+	}
+	return strings.Split(expectedAnnotations, ",")
+}
+
+// HasExpectedPodsAnnotations returns true if some annotations are expected on the Elasticsearch Pods
+func (es Elasticsearch) HasExpectedPodsAnnotations() bool {
+	return len(es.ExpectedPodsAnnotations()) > 0
 }
 
 // IsMarkedForDeletion returns true if the Elasticsearch is going to be deleted
