@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -45,44 +44,50 @@ func annotatePodsWithNodeLabels(ctx context.Context, c k8s.Client, es esv1.Elast
 	span, ctx := apm.StartSpan(ctx, "annotate_pods_with_node_labels", tracing.SpanTypeApp)
 	defer span.End()
 	results := reconciler.NewResult(ctx)
+	if !es.HasExpectedPodsAnnotations() {
+		return results
+	}
 	actualPods, err := sset.GetActualPodsForCluster(c, es)
 	if err != nil {
-		results.WithError(err)
+		return results.WithError(err)
 	}
 	for _, pod := range actualPods {
-		if scheduled, nodeName := isPodScheduled(&pod); scheduled {
-			node := &corev1.Node{}
-			if err := c.Get(context.Background(), types.NamespacedName{Name: nodeName}, node); err != nil {
-				results.WithError(err)
-				continue
-			}
-			// Get the missing annotations.
-			podAnnotations, err := getPodAnnotations(&pod, es.ExpectedPodsAnnotations(), node.Labels)
-			if err != nil {
-				results.WithError(err)
-				continue
-			}
-			// Stop early if there is no annotation to set.
-			if len(podAnnotations) == 0 {
-				continue
-			}
-			log.Info("Setting Pod annotations from node labels", "err", err, "namespace", es.Namespace, "es_name", es.Name, "pod", pod.Name, "annotations", podAnnotations)
-			mergePatch, err := json.Marshal(map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"annotations": podAnnotations,
-				},
-			})
-			if err != nil {
-				results.WithError(err)
-				continue
-			}
-			if err := c.Patch(context.Background(), &pod, client.RawPatch(types.StrategicMergePatchType, mergePatch)); err != nil && !errors.IsNotFound(err) {
-				results.WithError(err)
-				continue
-			}
-		}
+		results.WithError(annotatePodWithNodeLabels(c, pod, es))
 	}
 	return results
+}
+
+func annotatePodWithNodeLabels(c k8s.Client, pod corev1.Pod, es esv1.Elasticsearch) error {
+	scheduled, nodeName := isPodScheduled(&pod)
+	if !scheduled {
+		return nil
+	}
+	node := &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: nodeName}, node); err != nil {
+		return err
+	}
+	// Get the missing annotations.
+	podAnnotations, err := getPodAnnotations(&pod, es.ExpectedPodsAnnotations(), node.Labels)
+	if err != nil {
+		return err
+	}
+	// Stop early if there is no annotation to set.
+	if len(podAnnotations) == 0 {
+		return nil
+	}
+	log.Info("Setting Pod annotations from node labels", "err", err, "namespace", es.Namespace, "es_name", es.Name, "pod", pod.Name, "annotations", podAnnotations)
+	mergePatch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"annotations": podAnnotations,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if err := c.Patch(context.Background(), &pod, client.RawPatch(types.StrategicMergePatchType, mergePatch)); err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
 
 // getPodAnnotations returns missing annotations, and their values, expected on a given Pod.

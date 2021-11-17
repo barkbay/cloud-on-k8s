@@ -61,7 +61,7 @@ var scriptTemplate = template.Must(template.New("").Parse(
 	`#!/usr/bin/env bash
 
 	set -eu
-
+{{ if .ExpectedAnnotations }}
 	function annotations_exist() {
 	  expected_annotations=("$@")
 	  for expected_annotation in "${expected_annotations[@]}"; do
@@ -72,7 +72,7 @@ var scriptTemplate = template.Must(template.New("").Parse(
 	  done
 	  return 0
 	}
-
+{{ end }}
 	# the operator only works with the default ES distribution
 	license=/usr/share/elasticsearch/LICENSE.txt
 	if [[ ! -f $license || $(grep -Exc "ELASTIC LICENSE AGREEMENT|Elastic License 2.0" $license) -ne 1 ]]; then
@@ -180,16 +180,14 @@ var scriptTemplate = template.Must(template.New("").Parse(
 	ln -sf $CERT_SOURCE_PATH $CERT_TARGET_PATH
 
 	echo "Certs linking duration: $(duration $ln_start) sec."
-
-    {{ if .ExpectedAnnotations }}
-	echo "Waiting for for following annotations to be set on Pod:"
+{{ if .ExpectedAnnotations }}
+	echo "Waiting for the following annotations to be set on Pod: {{ .ExpectedAnnotations }}"
+	ln_start=$(date +%s)
 	declare -a expected_annotations
     expected_annotations=({{ .ExpectedAnnotations }})
-    for expected_annotation in "${expected_annotations[@]}"; do
-    echo " * ${expected_annotation}"
-    done
   	while ! annotations_exist "${expected_annotations[@]}"; do sleep 2; done
-    {{ end }}
+	echo "Waiting for annotations duration: $(duration $ln_start) sec."
+{{ end }}
 	######################
 	#         End        #
 	######################
