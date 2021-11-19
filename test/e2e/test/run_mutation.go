@@ -70,8 +70,8 @@ func RunMutationsWhileWatching(t *testing.T, creationBuilders []Builder, mutatio
 	}
 
 	// Delete using the original builder (so that we can use it as a mutation builder as well)
-	for _, toCreate := range creationBuilders {
-		steps = steps.WithSteps(toCreate.DeletionTestSteps(k))
+	for _, _ = range creationBuilders {
+		//steps = steps.WithSteps(toCreate.DeletionTestSteps(k))
 	}
 
 	steps.RunSequential(t)

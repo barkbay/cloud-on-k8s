@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
@@ -25,6 +26,8 @@ import (
 const (
 	continuousHealthCheckTimeout = 5 * time.Second
 )
+
+var log = logf.Log.WithName("e2e-elasticsearch")
 
 // clusterUnavailabilityThreshold is the accepted duration for the cluster to temporarily not respond to requests
 // (eg. during leader elections in the middle of a rolling upgrade).
@@ -86,12 +89,18 @@ func (b Builder) MutationTestSteps(k *test.K8sClient) test.StepList {
 	return test.StepList{
 		test.Step{
 			Name: "Give Elasticsearch some time to allocate internal indices",
-			Test: func(_ *testing.T) {
+			Test: func(t *testing.T) {
 				// TODO remove this step once https://github.com/elastic/cloud-on-k8s/issues/5040 does not apply anymore
+				client, err := NewElasticsearchClient(b.Elasticsearch, k)
+				require.NoError(t, err)
+				log.Info("Shards before time.Sleep(...)")
+				printShards(client)
 				time.Sleep(30 * time.Second)
+				log.Info("Shards after time.Sleep(...)")
+				printShards(client)
 			},
 			Skip: func() bool {
-				return version.MustParse(b.Elasticsearch.Spec.Version).LT(version.MinFor(7, 16, 0))
+				return false
 			},
 		},
 		test.Step{
@@ -150,7 +159,21 @@ func (b Builder) MutationTestSteps(k *test.K8sClient) test.StepList {
 					return NewElasticsearchClient(b.Elasticsearch, k)
 				}),
 			},
-		})
+		}.WithStep(
+			test.Step{
+				Name: "Print shards at the end",
+				Test: func(t *testing.T) {
+					// TODO remove this step once https://github.com/elastic/cloud-on-k8s/issues/5040 does not apply anymore
+					client, err := NewElasticsearchClient(b.Elasticsearch, k)
+					require.NoError(t, err)
+					log.Info("Shards")
+					printShards(client)
+				},
+				Skip: func() bool {
+					return false
+				},
+			},
+		))
 }
 
 func IsRollingUpgradeFromOneDataNode(b Builder) bool {
@@ -244,12 +267,20 @@ func (hc *ContinuousHealthCheck) Start() {
 				clusterUnavailability.markAvailable()
 				if health.Status == esv1.ElasticsearchRedHealth {
 					hc.AppendErr(errors.New("cluster health red"))
+					printShards(client)
 					continue
 				}
 				hc.SuccessCount++
 			}
 		}
 	}()
+}
+
+func printShards(client esclient.Client) {
+	ctx, cancel := context.WithTimeout(context.Background(), continuousHealthCheckTimeout)
+	defer cancel()
+	shards, err := client.GetShards(ctx)
+	log.Info("Shards", "shards", shards, "error", err)
 }
 
 // Stop the health checks goroutine

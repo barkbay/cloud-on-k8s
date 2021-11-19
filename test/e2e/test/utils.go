@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	DefaultRetryDelay = 3 * time.Second
+	DefaultRetryDelay = 1 * time.Second
 )
 
 func CheckKeystoreEntries(k *K8sClient, keystoreCmd []string, expectedKeys []string, opts ...client.ListOption) Step {
