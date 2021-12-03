@@ -40,7 +40,8 @@ func AddAgentFleetServer(mgr manager.Manager, accessReviewer rbac.AccessReviewer
 		AssociationConfAnnotationNameBase:     commonv1.FleetServerConfigAnnotationNameBase,
 		AssociationResourceNameLabelName:      agent.NameLabelName,
 		AssociationResourceNamespaceLabelName: agent.NamespaceLabelName,
-		ElasticsearchUserCreation:             nil,
+
+		ElasticsearchUserCreation: nil,
 	})
 }
 

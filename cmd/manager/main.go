@@ -58,7 +58,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/container"
 	commonlicense "github.com/elastic/cloud-on-k8s/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/operator"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/predicates"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	controllerscheme "github.com/elastic/cloud-on-k8s/pkg/controller/common/scheme"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
@@ -467,9 +466,6 @@ func startOperator(ctx context.Context) error {
 
 	// configure the manager cache based on the number of managed namespaces
 	managedNamespaces := viper.GetStringSlice(operator.NamespacesFlag)
-	// initialize the managed namespace predicate to ignore events outside of the namespaces the operator is concerned with
-	predicates.ManagedNamespacePredicate = predicates.NewManagedNamespacesPredicate(managedNamespaces)
-
 	switch {
 	case len(managedNamespaces) == 0:
 		log.Info("Operator configured to manage all namespaces")
@@ -805,7 +801,7 @@ func setupWebhook(mgr manager.Manager, params operator.Parameters, clientset kub
 			os.Exit(1)
 		}
 
-		if err := webhook.Add(mgr, webhookParams, clientset, wh, predicates.ManagedNamespacePredicate); err != nil {
+		if err := webhook.Add(mgr, webhookParams, clientset, wh, params); err != nil {
 			log.Error(err, "unable to create controller", "controller", webhook.ControllerName)
 			os.Exit(1)
 		}
@@ -835,7 +831,7 @@ func setupWebhook(mgr manager.Manager, params operator.Parameters, clientset kub
 	}
 
 	// esv1 validating webhook is wired up differently, in order to access the k8s client
-    esvalidation.RegisterWebhook(mgr, params.ValidateStorageClass, params.ExposedNodeLabels)
+	esvalidation.RegisterWebhook(mgr, params.ValidateStorageClass, params.ExposedNodeLabels)
 
 	// wait for the secret to be populated in the local filesystem before returning
 	interval := time.Second * 1

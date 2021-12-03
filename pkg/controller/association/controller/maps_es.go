@@ -55,6 +55,7 @@ func AddMapsES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params o
 		AssociationConfAnnotationNameBase:     commonv1.ElasticsearchConfigAnnotationNameBase,
 		AssociationResourceNameLabelName:      eslabel.ClusterNameLabelName,
 		AssociationResourceNamespaceLabelName: eslabel.ClusterNamespaceLabelName,
+
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
 			ElasticsearchRef: func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error) {
 				return true, association.AssociationRef(), nil

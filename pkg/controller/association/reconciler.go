@@ -79,6 +79,7 @@ type AssociationInfo struct {
 	// namespace of the associated resource (eg. user secret allowing to connect Beat to Kibana will have this label
 	// pointing to the Beat resource).
 	AssociationResourceNamespaceLabelName string
+
 	// ElasticsearchUserCreation specifies settings to create an Elasticsearch user as part of the association.
 	// May be nil if no user creation is required.
 	ElasticsearchUserCreation *ElasticsearchUserCreation

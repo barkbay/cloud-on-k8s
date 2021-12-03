@@ -13,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/predicates"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/maps"
 )
@@ -171,6 +171,11 @@ func GarbageCollectSoftOwnedSecrets(c k8s.Client, deletedOwner types.NamespacedN
 	return nil
 }
 
+// IsNamespaceManaged returns true if the namespace is managed by the operator.
+func IsNamespaceManaged(namespace string, managedNamespaces []string) bool {
+	return len(managedNamespaces) == 0 || slices.Contains(managedNamespaces, namespace)
+}
+
 // GarbageCollectAllSoftOwnedOrphanSecrets iterates over all Secrets that reference a soft owner. If the owner
 // doesn't exist anymore, it deletes the secrets.
 // Should be called on operator startup, after cache warm-up, to cover cases where
@@ -189,7 +194,7 @@ func GarbageCollectAllSoftOwnedOrphanSecrets(c k8s.Client, ownerKinds map[string
 	for i := range secrets.Items {
 		secret := secrets.Items[i]
 		// ignore this secret if it's in a namespace the operator doesn't manage
-		if !predicates.IsNamespaceManaged(secret.Namespace, managedNamespaces) {
+		if !IsNamespaceManaged(secret.Namespace, managedNamespaces) {
 			continue
 		}
 		softOwner, referenced := SoftOwnerRefFromLabels(secret.Labels)
