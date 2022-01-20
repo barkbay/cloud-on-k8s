@@ -883,6 +883,30 @@ ChangeBudget defines the constraints to consider when applying changes to the El
 
 
 
+
+
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscaleoperation"]
+=== DownscaleOperation 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-inprogressoperations[$$InProgressOperations$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
+| *`nodes`* __string array__ | Nodes are the nodes scheduled to be removed by the operator.
+| *`shardMigrationStatuses`* __object (keys:string, values:xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-shardmigrationstatus[$$ShardMigrationStatus$$])__ | ShardMigrationStatuses provides more details about the shard migration process, key is the node name
+| *`stalled`* __boolean__ | Stalled represents a state where not progress can be made. It is only available for clusters managed with the shutdown API.
+|===
+
+
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-elasticsearch"]
 === Elasticsearch 
 
@@ -946,6 +970,8 @@ FileRealmSource references users to create in the Elasticsearch cluster.
 | *`SecretRef`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-secretref[$$SecretRef$$]__ | SecretName references a Kubernetes secret in the same namespace as the Elasticsearch resource. Multiple users and their roles mapping can be specified in a Kubernetes secret. The secret should contain 2 entries: - users: contain all users and the hash of their password (https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html#password-hashing-algorithms) - users_roles: contain the role to users mapping The format of those 2 entries must correspond to the expected file realm format, as specified in Elasticsearch documentation: https://www.elastic.co/guide/en/elasticsearch/reference/7.5/file-realm.html#file-realm-configuration. 
  Example: --- # File realm in ES format (from the CLI or manually assembled) kind: Secret apiVersion: v1 metadata:   name: my-filerealm stringData:   users: |-     rdeniro:$2a$10$BBJ/ILiyJ1eBTYoRKxkqbuDEdYECplvxnqQ47uiowE7yGqvCEgj9W     alpacino:$2a$10$cNwHnElYiMYZ/T3K4PvzGeJ1KbpXZp2PfoQD.gfaVdImnHOwIuBKS     jacknich:{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg=   users_roles: |-     admin:rdeniro     power_user:alpacino,jacknich     user:jacknich ---
 |===
+
+
 
 
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-logsmonitoring"]
@@ -1061,6 +1087,45 @@ RoleSource references roles to create in the Elasticsearch cluster.
 |===
 
 
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-rollingupgradeoperation"]
+=== RollingUpgradeOperation 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-inprogressoperations[$$InProgressOperations$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
+| *`nodes`* __string array__ | Nodes are the nodes that must be restarted for upgrade.
+|===
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-shardmigrationstatus"]
+=== ShardMigrationStatus 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscaleoperation[$$DownscaleOperation$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`shutdownStatus`* __string__ | 
+| *`shardsRemaining`* __integer__ | ShardsRemaining is only available for clusters managed with the shutdown API
+| *`explanation`* __string__ | SharExplanationdsRemaining is only available for clusters managed with the shutdown API
+|===
+
+
+
+
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-transportconfig"]
 === TransportConfig 
 
@@ -1116,6 +1181,24 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 |===
 
 
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upscaleoperation"]
+=== UpscaleOperation 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-inprogressoperations[$$InProgressOperations$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
+| *`nodes`* __string array__ | Nodes are the nodes scheduled to be added by the operator.
+|===
+
+
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-volumeclaimdeletepolicy"]
 === VolumeClaimDeletePolicy (string) 
 
@@ -1125,8 +1208,6 @@ VolumeClaimDeletePolicy describes the delete policy for handling PersistentVolum
 ****
 - xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-elasticsearchspec[$$ElasticsearchSpec$$]
 ****
-
-
 
 
 

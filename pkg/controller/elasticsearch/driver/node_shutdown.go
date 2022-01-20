@@ -12,19 +12,25 @@ import (
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/hints"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/migration"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/shutdown"
 )
 
-func newShutdownInterface(es esv1.Elasticsearch, client esclient.Client, state ESState) (shutdown.Interface, error) {
+func newShutdownInterface(
+	es esv1.Elasticsearch,
+	client esclient.Client,
+	state ESState,
+	statusReporter *reconcile.StatusReporter,
+) (shutdown.Interface, error) {
 	if supportsNodeShutdown(client.Version()) {
 		idLookup, err := state.NodeNameToID()
 		if err != nil {
 			return nil, err
 		}
 		logger := log.WithValues("namespace", es.Namespace, "es_name", es.Name)
-		return shutdown.NewNodeShutdown(client, idLookup, esclient.Remove, es.ResourceVersion, logger), nil
+		return shutdown.NewNodeShutdown(client, statusReporter, idLookup, esclient.Remove, es.ResourceVersion, logger), nil
 	}
-	return migration.NewShardMigration(es, client, client), nil
+	return migration.NewShardMigration(es, client, client, statusReporter.DownscaleReporter), nil
 }
 
 func supportsNodeShutdown(v version.Version) bool {

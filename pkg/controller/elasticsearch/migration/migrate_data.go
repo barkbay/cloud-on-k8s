@@ -10,6 +10,7 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/shutdown"
 	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
@@ -21,23 +22,25 @@ type ShardMigration struct {
 	es esv1.Elasticsearch
 	c  esclient.Client
 	s  esclient.ShardLister
+	d  *reconcile.DownscaleReporter
 }
 
 var _ shutdown.Interface = &ShardMigration{}
 
 // NewShardMigration creates a new ShardMigration struct that holds no other state than the arguments to this
 // constructor function.
-func NewShardMigration(es esv1.Elasticsearch, c esclient.Client, s esclient.ShardLister) shutdown.Interface {
+func NewShardMigration(es esv1.Elasticsearch, c esclient.Client, s esclient.ShardLister, d *reconcile.DownscaleReporter) shutdown.Interface {
 	return &ShardMigration{
 		es: es,
 		c:  c,
 		s:  s,
+		d:  d,
 	}
 }
 
 // ReconcileShutdowns migrates data away from the leaving nodes or removes any allocation filtering if no nodes are leaving.
 func (sm *ShardMigration) ReconcileShutdowns(ctx context.Context, leavingNodes []string) error {
-	return migrateData(ctx, sm.es, sm.c, leavingNodes)
+	return migrateData(ctx, sm.es, sm.c, leavingNodes, sm.d)
 }
 
 // ShutdownStatus returns the current shutdown status for a given Pod mimicking the node shutdown API to create a common
@@ -84,6 +87,7 @@ func migrateData(
 	es esv1.Elasticsearch,
 	allocationSetter esclient.AllocationSetter,
 	leavingNodes []string,
+	downscaleReporter *reconcile.DownscaleReporter,
 ) error {
 	// compute the expected exclusion value
 	exclusions := "none_excluded"
@@ -91,5 +95,10 @@ func migrateData(
 		exclusions = strings.Join(leavingNodes, ",")
 	}
 	log.Info("Setting routing allocation excludes", "namespace", es.Namespace, "es_name", es.Name, "value", exclusions)
-	return allocationSetter.ExcludeFromShardAllocation(ctx, exclusions)
+	if err := allocationSetter.ExcludeFromShardAllocation(ctx, exclusions); err != nil {
+		return err
+	}
+	// Update Elasticsearch resource status woth the list of ;leaving nodes.
+	downscaleReporter.RecordMigratingData(leavingNodes)
+	return nil
 }

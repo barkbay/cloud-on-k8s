@@ -86,6 +86,21 @@ func HandleUpscaleAndSpecChanges(
 	return results, nil
 }
 
+func podsToCreate(
+	actualStatefulSets, expectedStatefulSets sset.StatefulSetList,
+) []string {
+	var pods []string
+	for _, expectedStatefulSet := range expectedStatefulSets {
+		actualSset, _ := actualStatefulSets.GetByName(expectedStatefulSet.Name)
+		expectedReplicas := sset.GetReplicas(expectedStatefulSet)
+		for expectedReplicas > sset.GetReplicas(actualSset) {
+			pods = append(pods, sset.PodName(expectedStatefulSet.Name, expectedReplicas-1))
+			expectedReplicas--
+		}
+	}
+	return pods
+}
+
 func adjustResources(
 	ctx upscaleCtx,
 	actualStatefulSets sset.StatefulSetList,

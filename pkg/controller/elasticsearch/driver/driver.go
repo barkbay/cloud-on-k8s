@@ -209,6 +209,11 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	if err != nil {
 		return results.WithError(err)
 	}
+	if esReachable {
+		d.ReconcileState.ReportCondition(esv1.ElasticsearchIsReachable, corev1.ConditionTrue, fmt.Sprintf("Service %s/%s has endpoints", internalService.Namespace, internalService.Name))
+	} else {
+		d.ReconcileState.ReportCondition(esv1.ElasticsearchIsReachable, corev1.ConditionFalse, fmt.Sprintf("Service %s/%s has no endpoint", internalService.Namespace, internalService.Name))
+	}
 
 	var currentLicense esclient.License
 	if esReachable {

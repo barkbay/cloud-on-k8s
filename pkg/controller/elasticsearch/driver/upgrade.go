@@ -27,6 +27,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 	esClient esclient.Client,
 	esState ESState,
 	expectedMaster []string,
+	statusReporter *reconcile.StatusReporter,
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
@@ -66,7 +67,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 		results.WithError(err)
 	}
 	logger := log.WithValues("namespace", d.ES.Namespace, "es_name", d.ES.Name)
-	nodeShutdown := shutdown.NewNodeShutdown(esClient, nodeNameToID, esclient.Restart, d.ES.ResourceVersion, logger)
+	nodeShutdown := shutdown.NewNodeShutdown(esClient, statusReporter, nodeNameToID, esclient.Restart, d.ES.ResourceVersion, logger)
 
 	// Get the list of pods currently existing in the StatefulSetList
 	currentPods, err := statefulSets.GetActualPods(d.Client)

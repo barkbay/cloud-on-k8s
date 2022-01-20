@@ -436,7 +436,7 @@ var (
 // ShardMigration is the status of shards that are being migrated away from a node that goes through a shutdown.
 type ShardMigration struct {
 	Status          ShutdownStatus `json:"status"`
-	ShardsRemaining int            `json:"shards_remaining"`
+	ShardsRemaining int            `json:"shard_migrations_remaining"`
 	Explanation     string         `json:"explanation"`
 }
 
@@ -478,4 +478,16 @@ type ShutdownRequest struct {
 // ShutdownResponse is the response wrapper for retrieving the status of ongoing node shutdowns from Elasticsearch.
 type ShutdownResponse struct {
 	Nodes []NodeShutdown `json:"nodes"`
+}
+
+func (s *ShutdownResponse) ContainsNodeWithStatus(status ShutdownStatus) bool {
+	if s == nil || len(s.Nodes) == 0 {
+		return false
+	}
+	for _, node := range s.Nodes {
+		if node.Status == ShutdownStalled {
+			return true
+		}
+	}
+	return false
 }
