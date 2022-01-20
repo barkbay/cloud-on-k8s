@@ -26,6 +26,7 @@ var log = ulog.Log.WithName("elasticsearch-controller")
 // Elasticsearch resource for status updates.
 type State struct {
 	*events.Recorder
+	*StatusReporter
 	cluster esv1.Elasticsearch
 	status  esv1.ElasticsearchStatus
 	hints   hints.OrchestrationsHints
@@ -37,7 +38,17 @@ func NewState(c esv1.Elasticsearch) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &State{Recorder: events.NewRecorder(), cluster: c, status: *c.Status.DeepCopy(), hints: hints}, nil
+	return &State{
+		Recorder: events.NewRecorder(),
+		StatusReporter: &StatusReporter{
+			DownscaleReporter: &DownscaleReporter{},
+			UpscaleReporter:   &UpscaleReporter{},
+			UpgradeReporter:   &UpgradeReporter{},
+		},
+		cluster: c,
+		status:  *c.Status.DeepCopy(),
+		hints:   hints,
+	}, nil
 }
 
 // MustNewState like NewState but panics on error. Use recommended only in test code.
@@ -168,7 +179,7 @@ func (s *State) UpdateElasticsearchShutdownStalled(
 // the current status applied to its status sub-resource.
 func (s *State) Apply() ([]events.Event, *esv1.Elasticsearch) {
 	previous := s.cluster.Status
-	current := s.status
+	current := s.MergeStatusReportingWith(s.status)
 	if reflect.DeepEqual(previous, current) {
 		return s.Events(), nil
 	}

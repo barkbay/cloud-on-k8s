@@ -27,6 +27,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 	esClient esclient.Client,
 	esState ESState,
 	expectedMaster []string,
+	statusReporter *reconcile.StatusReporter,
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 

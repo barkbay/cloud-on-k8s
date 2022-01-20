@@ -43,7 +43,7 @@ func HandleDownscale(
 	}
 
 	// compute the list of StatefulSet downscales and deletions to perform
-	downscales, deletions := calculateDownscales(*downscaleState, expectedStatefulSets, actualStatefulSets)
+	downscales, deletions := calculateDownscales(*downscaleState, expectedStatefulSets, actualStatefulSets, downscaleBudgetFilter)
 
 	// remove actual StatefulSets that should not exist anymore (already downscaled to 0 in the past)
 	// this is safe thanks to expectations: we're sure 0 actual replicas means 0 corresponding pods exist
@@ -73,6 +73,22 @@ func HandleDownscale(
 	return results
 }
 
+func podsToDownscale(
+	k8sClient k8s.Client,
+	es esv1.Elasticsearch,
+	expectedStatefulSets sset.StatefulSetList,
+	actualStatefulSets sset.StatefulSetList,
+	downscaleFilter downscaleFilter,
+) ([]ssetDownscale, sset.StatefulSetList, error) {
+	downscaleState, err := newDownscaleState(k8sClient, es)
+	if err != nil {
+		return nil, nil, err
+	}
+	// compute the list of StatefulSet downscales and deletions to perform
+	downscales, deletions := calculateDownscales(*downscaleState, expectedStatefulSets, actualStatefulSets, downscaleFilter)
+	return downscales, deletions, nil
+}
+
 // deleteStatefulSets deletes the given StatefulSets along with their associated resources.
 func deleteStatefulSets(toDelete sset.StatefulSetList, k8sClient k8s.Client, es esv1.Elasticsearch) error {
 	for _, toDelete := range toDelete {
@@ -89,6 +105,7 @@ func calculateDownscales(
 	state downscaleState,
 	expectedStatefulSets sset.StatefulSetList,
 	actualStatefulSets sset.StatefulSetList,
+	downscaleFilter downscaleFilter,
 ) (downscales []ssetDownscale, deletions sset.StatefulSetList) {
 	expectedStatefulSetsNames := expectedStatefulSets.Names()
 	for _, actualSset := range actualStatefulSets {
@@ -108,25 +125,42 @@ func calculateDownscales(
 		case expectedReplicas < actualReplicas:
 			// the StatefulSet should be downscaled
 			requestedDeletes := actualReplicas - expectedReplicas
-			allowedDeletes, reason := checkDownscaleInvariants(state, actualSset, requestedDeletes)
-			if allowedDeletes == 0 {
-				ssetLogger(actualSset).V(1).Info("Cannot downscale StatefulSet", "reason", reason)
+			allowedDeletes := downscaleFilter(state, actualSset, requestedDeletes)
+			if downscaleFilter(state, actualSset, requestedDeletes) == 0 {
 				continue
 			}
-
 			downscales = append(downscales, ssetDownscale{
 				statefulSet:     actualSset,
 				initialReplicas: actualReplicas,
 				targetReplicas:  actualReplicas - allowedDeletes,
 				finalReplicas:   expectedReplicas,
 			})
-			state.recordNodeRemoval(actualSset, allowedDeletes)
 
 		default:
 			// nothing to do
 		}
 	}
 	return downscales, deletions
+}
+
+type downscaleFilter func(_ downscaleState, _ appsv1.StatefulSet, _ int32) int32
+
+// noDownscaleFilter is a filter which does no remove any Pod. It can be used to compute the full list of
+// Pods which are expected to be deleted.
+func noDownscaleFilter(_ downscaleState, _ appsv1.StatefulSet, requestedDeletes int32) int32 {
+	return requestedDeletes
+}
+
+// downscaleBudgetFilter is a filter which rely on checkDownscaleInvariants.
+// It ensures that we only downscale nodes we're allowed to.
+func downscaleBudgetFilter(state downscaleState, actualSset appsv1.StatefulSet, requestedDeletes int32) int32 {
+	allowedDeletes, reason := checkDownscaleInvariants(state, actualSset, requestedDeletes)
+	if allowedDeletes == 0 {
+		ssetLogger(actualSset).V(1).Info("Cannot downscale StatefulSet", "reason", reason)
+		return 0
+	}
+	state.recordNodeRemoval(actualSset, allowedDeletes)
+	return allowedDeletes
 }
 
 // attemptDownscale attempts to decrement the number of replicas of the given StatefulSet.
