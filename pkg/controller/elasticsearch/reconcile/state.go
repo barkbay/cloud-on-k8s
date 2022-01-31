@@ -15,7 +15,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/hints"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/observer"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
@@ -97,10 +96,14 @@ func (s *State) fetchMinRunningVersion(resourcesState ResourcesState) (*version.
 	return minPodVersion, nil
 }
 
+func (s *State) UpdateClusterHealth(clusterHealth esv1.ElasticsearchHealth) *State {
+	s.status.Health = clusterHealth
+	return s
+}
+
 func (s *State) updateWithPhase(
 	phase esv1.ElasticsearchOrchestrationPhase,
 	resourcesState ResourcesState,
-	observedState observer.State,
 ) *State {
 	s.status.AvailableNodes = int32(len(AvailableElasticsearchNodes(resourcesState.CurrentPods)))
 	s.status.Phase = phase
@@ -112,31 +115,25 @@ func (s *State) updateWithPhase(
 		s.status.Version = lowestVersion.String()
 	}
 
-	s.status.Health = esv1.ElasticsearchUnknownHealth
-	if observedState.ClusterHealth != nil && observedState.ClusterHealth.Status != "" {
-		s.status.Health = observedState.ClusterHealth.Status
-	}
 	return s
 }
 
 // UpdateElasticsearchState updates the Elasticsearch section of the state resource status based on the given pods.
 func (s *State) UpdateElasticsearchState(
 	resourcesState ResourcesState,
-	observedState observer.State,
 ) *State {
-	return s.updateWithPhase(s.status.Phase, resourcesState, observedState)
+	return s.updateWithPhase(s.status.Phase, resourcesState)
 }
 
 // UpdateElasticsearchReady marks Elasticsearch as being ready in the resource status.
 func (s *State) UpdateElasticsearchReady(
 	resourcesState ResourcesState,
-	observedState observer.State,
 ) *State {
-	return s.updateWithPhase(esv1.ElasticsearchReadyPhase, resourcesState, observedState)
+	return s.updateWithPhase(esv1.ElasticsearchReadyPhase, resourcesState)
 }
 
 // IsElasticsearchReady reports if Elasticsearch is ready.
-func (s *State) IsElasticsearchReady(observedState observer.State) bool {
+func (s *State) IsElasticsearchReady() bool {
 	return s.status.Phase == esv1.ElasticsearchReadyPhase
 }
 
@@ -151,19 +148,17 @@ func (s *State) UpdateElasticsearchApplyingChanges(pods []corev1.Pod) *State {
 // UpdateElasticsearchMigrating marks Elasticsearch as being in the data migration phase in the resource status.
 func (s *State) UpdateElasticsearchMigrating(
 	resourcesState ResourcesState,
-	observedState observer.State,
 ) *State {
 	s.AddEvent(
 		corev1.EventTypeNormal,
 		events.EventReasonDelayed,
 		"Requested topology change delayed by data migration. Ensure index settings allow node removal.",
 	)
-	return s.updateWithPhase(esv1.ElasticsearchMigratingDataPhase, resourcesState, observedState)
+	return s.updateWithPhase(esv1.ElasticsearchMigratingDataPhase, resourcesState)
 }
 
 func (s *State) UpdateElasticsearchShutdownStalled(
 	resourcesState ResourcesState,
-	observedState observer.State,
 	reasonDetail string,
 ) *State {
 	s.AddEvent(
@@ -171,7 +166,7 @@ func (s *State) UpdateElasticsearchShutdownStalled(
 		events.EventReasonStalled,
 		fmt.Sprintf("Requested topology change is stalled. User intervention maybe required if this condition persists. %s", reasonDetail),
 	)
-	return s.updateWithPhase(esv1.ElasticsearchNodeShutdownStalledPhase, resourcesState, observedState)
+	return s.updateWithPhase(esv1.ElasticsearchNodeShutdownStalledPhase, resourcesState)
 }
 
 // Apply takes the current Elasticsearch status, compares it to the previous status, and updates the status accordingly.

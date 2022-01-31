@@ -7,6 +7,8 @@ package observer
 import (
 	"context"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -19,12 +21,17 @@ type State struct {
 	ClusterHealth *esclient.Health
 }
 
-// RetrieveState returns the current Elasticsearch cluster state
-func RetrieveState(ctx context.Context, cluster types.NamespacedName, esClient esclient.Client) State {
+// RetrieveHealth returns the current Elasticsearch cluster health
+func RetrieveHealth(ctx context.Context, cluster types.NamespacedName, esClient esclient.Client) esv1.ElasticsearchHealth {
 	health, err := esClient.GetClusterHealth(ctx)
 	if err != nil {
-		log.V(1).Info("Unable to retrieve cluster health", "error", err, "namespace", cluster.Namespace, "es_name", cluster.Name)
-		return State{ClusterHealth: nil}
+		log.V(1).Info(
+			"Unable to retrieve cluster health",
+			"error", err,
+			"namespace", cluster.Namespace,
+			"es_name", cluster.Name,
+		)
+		return esv1.ElasticsearchUnknownHealth
 	}
-	return State{ClusterHealth: &health}
+	return health.Status
 }

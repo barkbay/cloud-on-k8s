@@ -61,7 +61,7 @@ func TestRetrieveState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cluster := types.NamespacedName{Namespace: "ns1", Name: "es1"}
 			esClient := fakeEsClient(!tt.wantHealth)
-			state := RetrieveState(context.Background(), cluster, esClient)
+			state := RetrieveHealth(context.Background(), cluster, esClient)
 			if tt.wantHealth {
 				require.NotNil(t, state.ClusterHealth)
 				require.Equal(t, 3, state.ClusterHealth.NumberOfNodes)

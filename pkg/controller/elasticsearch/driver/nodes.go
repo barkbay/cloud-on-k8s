@@ -8,13 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/keystore"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
@@ -22,7 +20,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/certificates/transport"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/nodespec"
-	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/observer"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/pdb"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/sset"
@@ -36,7 +33,6 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	esReachable bool,
 	esClient esclient.Client,
 	reconcileState *reconcile.State,
-	observedState observer.State,
 	resourcesState reconcile.ResourcesState,
 	keystoreResources *keystore.Resources,
 ) *reconciler.Results {
@@ -86,22 +82,14 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 
-	expectedChanges, err := d.getExpectedChanges(expectedResources.StatefulSets(), actualStatefulSets)
+	expectedChanges, err := d.calculateExpectedChanges(expectedResources.StatefulSets(), actualStatefulSets)
 	if err != nil {
 		return results.WithError(err)
 	}
-	d.reportExpectedChanges(expectedChanges)
-
-	// When not reconciled, set the phase to ApplyingChanges only if it was Ready to avoid to
-	// override another "not Ready" phase like MigratingData.
-	if expectedChanges.isEmpty() {
-		reconcileState.UpdateElasticsearchReady(resourcesState, observedState)
-	} else if reconcileState.IsElasticsearchReady(observedState) {
-		reconcileState.UpdateElasticsearchApplyingChanges(resourcesState.CurrentPods)
-	}
+	d.ReconcileState.ReportExpectedChanges(expectedChanges, resourcesState)
 
 	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
-	if esReachable && expectedChanges.isEmpty() {
+	if esReachable && expectedChanges.IsEmpty() {
 		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
 			return results.WithError(err)
 		}
@@ -206,7 +194,6 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		d.Client,
 		esClient,
 		resourcesState,
-		observedState,
 		reconcileState,
 		d.Expectations,
 		d.ES,
@@ -232,68 +219,26 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	return results
 }
 
-type expectedChanges struct {
-	podsToUpgrade, podsToUpscale, podsToDownscale []string
-}
-
-func (e *expectedChanges) String() string {
-	items := make([]string, 0, 3)
-	if len(e.podsToUpscale) > 0 {
-		items = append(items, fmt.Sprintf("%d node to be added", len(e.podsToUpscale)))
-	}
-	if len(e.podsToDownscale) > 0 {
-		items = append(items, fmt.Sprintf("%d node to be removed", len(e.podsToDownscale)))
-	}
-	if len(e.podsToUpgrade) > 0 {
-		items = append(items, fmt.Sprintf("%d node to update", len(e.podsToUpgrade)))
-	}
-	return strings.Join(items, ", ")
-}
-
-func (e *expectedChanges) isEmpty() bool {
-	if e == nil {
-		return true
-	}
-	return len(e.podsToDownscale) == 0 && len(e.podsToUpscale) == 0 && len(e.podsToUpgrade) == 0
-}
-
-func (d *defaultDriver) getExpectedChanges(
+func (d *defaultDriver) calculateExpectedChanges(
 	expectedStatefulSets, actualStatefulSets sset.StatefulSetList,
-) (expectedChanges, error) {
-
+) (reconcile.ExpectedChanges, error) {
 	// Record nodes to be added to actual StateFulSet
-	changes := expectedChanges{
-		podsToUpgrade:   nil,
-		podsToUpscale:   podsToCreate(actualStatefulSets, expectedStatefulSets),
-		podsToDownscale: nil,
+	changes := reconcile.ExpectedChanges{
+		PodsToUpgrade:   nil,
+		PodsToUpscale:   podsToCreate(actualStatefulSets, expectedStatefulSets),
+		PodsToDownscale: nil,
 	}
 
 	toBeUpgraded, err := podsToUpgrade(d.Client, actualStatefulSets)
 	if err != nil {
-		return expectedChanges{}, err
+		return reconcile.ExpectedChanges{}, err
 	}
-	changes.podsToUpgrade = k8s.PodNames(toBeUpgraded)
+	changes.PodsToUpgrade = k8s.PodNames(toBeUpgraded)
 
 	ssetDownscale, _, err := podsToDownscale(d.Client, d.ES, expectedStatefulSets, actualStatefulSets, noDownscaleFilter)
 	if err != nil {
-		return expectedChanges{}, err
+		return reconcile.ExpectedChanges{}, err
 	}
-	changes.podsToDownscale = leavingNodeNames(ssetDownscale)
+	changes.PodsToDownscale = leavingNodeNames(ssetDownscale)
 	return changes, nil
-}
-
-// reportExpectedChanges records expected changes on the cluster: upscale, downscale and upgrades.
-func (d *defaultDriver) reportExpectedChanges(
-	expectedChanges expectedChanges,
-) {
-	if expectedChanges.isEmpty() {
-		d.ReconcileState.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
-	} else {
-		d.ReconcileState.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, expectedChanges.String())
-	}
-
-	// Record scheduled node changes.
-	d.ReconcileState.RecordNodesToBeUpscaled(expectedChanges.podsToUpscale)
-	d.ReconcileState.RecordNodesToBeRemoved(expectedChanges.podsToDownscale)
-	d.ReconcileState.RecordNodesToBeUpgraded(expectedChanges.podsToUpgrade)
 }

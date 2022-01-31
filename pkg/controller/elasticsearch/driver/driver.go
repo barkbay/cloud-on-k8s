@@ -186,7 +186,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	)
 
 	// always update the elasticsearch state bits
-	d.ReconcileState.UpdateElasticsearchState(*resourcesState, observedState())
+	d.ReconcileState.UpdateElasticsearchState(*resourcesState).UpdateClusterHealth(observedState())
 
 	allowDownscales := d.ES.IsConfiguredToAllowDowngrades()
 	if err := d.verifySupportsExistingPods(resourcesState.CurrentPods); err != nil {
@@ -234,7 +234,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not verify license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState, observedState())
+			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 			results.WithResult(defaultRequeue)
 		}
 	}
@@ -246,7 +246,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not reconcile cluster license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState, observedState())
+			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 			results.WithResult(defaultRequeue)
 		}
 	}
@@ -258,7 +258,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState, observedState())
+			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 		}
 		if err != nil || requeue {
 			results.WithResult(defaultRequeue)
@@ -310,14 +310,14 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	}
 
 	// reconcile StatefulSets and nodes configuration
-	res = d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, observedState(), *resourcesState, keystoreResources)
+	res = d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, *resourcesState, keystoreResources)
 	results = results.WithResults(res)
 
 	if res.HasError() {
 		return results
 	}
 
-	d.ReconcileState.UpdateElasticsearchState(*resourcesState, observedState())
+	d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 	return results
 }
 

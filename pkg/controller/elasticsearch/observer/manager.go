@@ -40,10 +40,10 @@ func NewManager(tracer *apm.Tracer) *Manager {
 
 // ObservedStateResolver returns a function that returns the last known state of the given cluster,
 // as expected by the main reconciliation driver
-func (m *Manager) ObservedStateResolver(cluster esv1.Elasticsearch, esClient client.Client) func() State {
+func (m *Manager) ObservedStateResolver(cluster esv1.Elasticsearch, esClient client.Client) func() esv1.ElasticsearchHealth {
 	observer := m.Observe(cluster, esClient)
-	return func() State {
-		return observer.LastState()
+	return func() esv1.ElasticsearchHealth {
+		return observer.LastHealth()
 	}
 }
 
@@ -102,20 +102,6 @@ func (m *Manager) createOrReplaceObserver(cluster types.NamespacedName, settings
 	return observer
 }
 
-// List returns the names of clusters currently observed
-func (m *Manager) List() []types.NamespacedName {
-	m.observerLock.RLock()
-	defer m.observerLock.RUnlock()
-
-	names := make([]types.NamespacedName, len(m.observers))
-	i := 0
-	for name := range m.observers {
-		names[i] = name
-		i++ //nolint:wastedassign
-	}
-	return names
-}
-
 // AddObservationListener adds the given listener to the list of listeners notified
 // on every observation.
 func (m *Manager) AddObservationListener(listener OnObservation) {
@@ -125,7 +111,7 @@ func (m *Manager) AddObservationListener(listener OnObservation) {
 }
 
 // notifyListeners notifies all listeners that an observation occurred.
-func (m *Manager) notifyListeners(cluster types.NamespacedName, previousState State, newState State) {
+func (m *Manager) notifyListeners(cluster types.NamespacedName, previousState, newState esv1.ElasticsearchHealth) {
 	m.listenerLock.RLock()
 	switch len(m.listeners) {
 	case 0:

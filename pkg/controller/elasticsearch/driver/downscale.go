@@ -234,11 +234,11 @@ func calculatePerformableDownscale(
 			performableDownscale.targetReplicas--
 		case esclient.ShutdownStalled:
 			// shutdown stalled this can require user interaction: bubble up via event
-			ctx.reconcileState.UpdateElasticsearchShutdownStalled(ctx.resourcesState, ctx.observedState, response.Explanation)
+			ctx.reconcileState.UpdateElasticsearchShutdownStalled(ctx.resourcesState, response.Explanation)
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
 			return performableDownscale, nil
 		case esclient.ShutdownStarted:
-			ctx.reconcileState.UpdateElasticsearchMigrating(ctx.resourcesState, ctx.observedState)
+			ctx.reconcileState.UpdateElasticsearchMigrating(ctx.resourcesState)
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
 			return performableDownscale, nil
 		case esclient.ShutdownNotStarted:
