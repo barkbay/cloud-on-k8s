@@ -32,9 +32,9 @@ func (s *State) ReportExpectedChanges(
 	// When not reconciled, set the phase to ApplyingChanges only if it was Ready to avoid overriding
 	// another "not Ready" phase like MigratingData.
 	if expectedChanges.IsEmpty() {
-		s.UpdateElasticsearchReady(resources)
+		s.UpdateWithPhase(esv1.ElasticsearchReadyPhase)
 	} else if s.IsElasticsearchReady() {
-		s.UpdateElasticsearchApplyingChanges(resources.CurrentPods)
+		s.UpdateWithPhase(esv1.ElasticsearchApplyingChangesPhase)
 	}
 
 	return s

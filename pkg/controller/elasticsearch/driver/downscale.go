@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -234,11 +234,23 @@ func calculatePerformableDownscale(
 			performableDownscale.targetReplicas--
 		case esclient.ShutdownStalled:
 			// shutdown stalled this can require user interaction: bubble up via event
-			ctx.reconcileState.UpdateElasticsearchShutdownStalled(ctx.resourcesState, response.Explanation)
+			ctx.reconcileState.
+				UpdateWithPhase(esv1.ElasticsearchNodeShutdownStalledPhase).
+				AddEvent(
+					corev1.EventTypeWarning,
+					events.EventReasonStalled,
+					fmt.Sprintf("Requested topology change is stalled. User intervention maybe required if this condition persists. %s", response.Explanation),
+				)
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
 			return performableDownscale, nil
-		case esclient.ShutdownStarted:
-			ctx.reconcileState.UpdateElasticsearchMigrating(ctx.resourcesState)
+		case esclient.ShutdownInProgress:
+			ctx.reconcileState.
+				UpdateWithPhase(esv1.ElasticsearchMigratingDataPhase).
+				AddEvent(
+					corev1.EventTypeNormal,
+					events.EventReasonDelayed,
+					"Requested topology change delayed by data migration. Ensure index settings allow node removal.",
+				)
 			// no need to check other nodes since we remove them in order and this one isn't ready anyway
 			return performableDownscale, nil
 		case esclient.ShutdownNotStarted:
@@ -330,7 +342,7 @@ func maybeUpdateZen1ForDownscale(
 	// For other situations (eg. 3 -> 2), it's fine to update minimum_master_nodes after the node is removed
 	// (will be done at next reconciliation, before nodes removal).
 	reconcileState.AddEvent(
-		v1.EventTypeWarning, events.EventReasonUnhealthy,
+		corev1.EventTypeWarning, events.EventReasonUnhealthy,
 		"Downscaling from 2 to 1 master nodes: unsafe operation",
 	)
 	minimumMasterNodes := 1

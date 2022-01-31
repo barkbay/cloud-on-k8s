@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/keystore"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
@@ -112,7 +113,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		var podTemplateErr *sset.PodTemplateError
 		if errors.As(err, &podTemplateErr) {
 			// An error has been detected in one of the pod templates, let's update the phase to "invalid"
-			reconcileState.UpdateElasticsearchInvalid(err)
+			reconcileState.UpdateElasticsearchInvalidWithEvent(err.Error())
 		}
 		return results.WithError(err)
 	}
@@ -145,14 +146,14 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		// If attempted, we're in a transient state where it's safer to requeue.
 		// We don't want to re-upgrade in a regular way the pods we just force-upgraded.
 		// Next reconciliation will check expectations again.
-		reconcileState.UpdateElasticsearchApplyingChanges(resourcesState.CurrentPods)
+		reconcileState.UpdateWithPhase(esv1.ElasticsearchApplyingChangesPhase)
 		return results.WithError(err)
 	}
 
 	// Next operations require the Elasticsearch API to be available.
 	if !esReachable {
 		log.Info("ES cannot be reached yet, re-queuing", "namespace", d.ES.Namespace, "es_name", d.ES.Name)
-		reconcileState.UpdateElasticsearchApplyingChanges(resourcesState.CurrentPods)
+		reconcileState.UpdateWithPhase(esv1.ElasticsearchApplyingChangesPhase)
 		return results.WithResult(defaultRequeue)
 	}
 

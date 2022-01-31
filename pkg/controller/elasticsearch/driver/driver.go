@@ -185,8 +185,11 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 		),
 	)
 
-	// always update the elasticsearch state bits
-	d.ReconcileState.UpdateElasticsearchState(*resourcesState).UpdateClusterHealth(observedState())
+	// Always update the elasticsearch status.
+	d.ReconcileState.
+		UpdateClusterHealth(observedState()).    // Elasticsearch cluster health
+		UpdateAvailableNodes(*resourcesState).   // Available nodes
+		UpdateMinRunningVersion(*resourcesState) // Min running version
 
 	allowDownscales := d.ES.IsConfiguredToAllowDowngrades()
 	if err := d.verifySupportsExistingPods(resourcesState.CurrentPods); err != nil {
@@ -222,9 +225,10 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 		if errors.As(err, &e) {
 			if !e.SupportedDistribution {
 				msg := "Unsupported Elasticsearch distribution"
-				d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
 				// unsupported distribution, let's update the phase to "invalid" and stop the reconciliation
-				d.ReconcileState.UpdateElasticsearchStatusPhase(esv1.ElasticsearchResourceInvalid)
+				d.ReconcileState.
+					UpdateWithPhase(esv1.ElasticsearchResourceInvalid).
+					AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
 				return results.WithError(errors.Wrap(err, strings.ToLower(msg[0:1])+msg[1:]))
 			}
 			// update esReachable to bypass steps that requires ES up in order to not block reconciliation for long periods
@@ -234,7 +238,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not verify license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 			results.WithResult(defaultRequeue)
 		}
 	}
@@ -246,7 +249,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not reconcile cluster license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 			results.WithResult(defaultRequeue)
 		}
 	}
@@ -258,7 +260,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
-			d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 		}
 		if err != nil || requeue {
 			results.WithResult(defaultRequeue)
@@ -316,8 +317,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	if res.HasError() {
 		return results
 	}
-
-	d.ReconcileState.UpdateElasticsearchState(*resourcesState)
 	return results
 }
 

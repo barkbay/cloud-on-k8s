@@ -5,7 +5,6 @@
 package reconcile
 
 import (
-	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -101,35 +100,30 @@ func (s *State) UpdateClusterHealth(clusterHealth esv1.ElasticsearchHealth) *Sta
 	return s
 }
 
-func (s *State) updateWithPhase(
+func (s *State) UpdateWithPhase(
 	phase esv1.ElasticsearchOrchestrationPhase,
+) *State {
+	s.status.Phase = phase
+	return s
+}
+
+func (s *State) UpdateAvailableNodes(
 	resourcesState ResourcesState,
 ) *State {
 	s.status.AvailableNodes = int32(len(AvailableElasticsearchNodes(resourcesState.CurrentPods)))
-	s.status.Phase = phase
+	return s
+}
 
+func (s *State) UpdateMinRunningVersion(
+	resourcesState ResourcesState,
+) *State {
 	lowestVersion, err := s.fetchMinRunningVersion(resourcesState)
 	if err != nil {
 		// error already handled in fetchMinRunningVersion, move on with the status update
 	} else if lowestVersion != nil {
 		s.status.Version = lowestVersion.String()
 	}
-
 	return s
-}
-
-// UpdateElasticsearchState updates the Elasticsearch section of the state resource status based on the given pods.
-func (s *State) UpdateElasticsearchState(
-	resourcesState ResourcesState,
-) *State {
-	return s.updateWithPhase(s.status.Phase, resourcesState)
-}
-
-// UpdateElasticsearchReady marks Elasticsearch as being ready in the resource status.
-func (s *State) UpdateElasticsearchReady(
-	resourcesState ResourcesState,
-) *State {
-	return s.updateWithPhase(esv1.ElasticsearchReadyPhase, resourcesState)
 }
 
 // IsElasticsearchReady reports if Elasticsearch is ready.
@@ -137,36 +131,11 @@ func (s *State) IsElasticsearchReady() bool {
 	return s.status.Phase == esv1.ElasticsearchReadyPhase
 }
 
-// UpdateElasticsearchApplyingChanges marks Elasticsearch as being the applying changes phase in the resource status.
-func (s *State) UpdateElasticsearchApplyingChanges(pods []corev1.Pod) *State {
-	s.status.AvailableNodes = int32(len(AvailableElasticsearchNodes(pods)))
-	s.status.Phase = esv1.ElasticsearchApplyingChangesPhase
-	s.status.Health = esv1.ElasticsearchRedHealth
-	return s
-}
-
-// UpdateElasticsearchMigrating marks Elasticsearch as being in the data migration phase in the resource status.
-func (s *State) UpdateElasticsearchMigrating(
-	resourcesState ResourcesState,
-) *State {
-	s.AddEvent(
-		corev1.EventTypeNormal,
-		events.EventReasonDelayed,
-		"Requested topology change delayed by data migration. Ensure index settings allow node removal.",
-	)
-	return s.updateWithPhase(esv1.ElasticsearchMigratingDataPhase, resourcesState)
-}
-
-func (s *State) UpdateElasticsearchShutdownStalled(
-	resourcesState ResourcesState,
-	reasonDetail string,
-) *State {
-	s.AddEvent(
-		corev1.EventTypeWarning,
-		events.EventReasonStalled,
-		fmt.Sprintf("Requested topology change is stalled. User intervention maybe required if this condition persists. %s", reasonDetail),
-	)
-	return s.updateWithPhase(esv1.ElasticsearchNodeShutdownStalledPhase, resourcesState)
+// UpdateElasticsearchInvalidWithEvent is a convenient method to sets the phase to esv1.ElasticsearchResourceInvalid
+// and generate an event at the same time.
+func (s *State) UpdateElasticsearchInvalidWithEvent(msg string) {
+	s.status.Phase = esv1.ElasticsearchResourceInvalid
+	s.AddEvent(corev1.EventTypeWarning, events.EventReasonValidation, msg)
 }
 
 // Apply takes the current Elasticsearch status, compares it to the previous status, and updates the status accordingly.
@@ -183,15 +152,6 @@ func (s *State) Apply() ([]events.Event, *esv1.Elasticsearch) {
 	}
 	s.cluster.Status = current
 	return s.Events(), &s.cluster
-}
-
-func (s *State) UpdateElasticsearchInvalid(err error) {
-	s.status.Phase = esv1.ElasticsearchResourceInvalid
-	s.AddEvent(corev1.EventTypeWarning, events.EventReasonValidation, err.Error())
-}
-
-func (s *State) UpdateElasticsearchStatusPhase(orchPhase esv1.ElasticsearchOrchestrationPhase) {
-	s.status.Phase = orchPhase
 }
 
 // UpdateOrchestrationHints updates the orchestration hints collected so far with the hints in hint.

@@ -421,8 +421,8 @@ var (
 type ShutdownStatus string
 
 var (
-	// ShutdownStarted means a shutdown request has been accepted and is being processed in Elasticsearch.
-	ShutdownStarted ShutdownStatus = "STARTED"
+	// ShutdownInProgress means a shutdown request has been accepted and is being processed in Elasticsearch.
+	ShutdownInProgress ShutdownStatus = "IN_PROGRESS"
 	// ShutdownComplete means a shutdown request has been processed and the node can be either restarted or taken out
 	// of the cluster by an orchestrator.
 	ShutdownComplete ShutdownStatus = "COMPLETE"

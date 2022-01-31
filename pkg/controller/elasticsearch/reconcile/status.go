@@ -171,7 +171,6 @@ func (d *DownscaleReporter) OnShutdownStatus(
 	}
 }
 
-// OnReconcileShutdowns should be used for clusters which are not compatible with the Shutdown API.
 func (d *DownscaleReporter) OnReconcileShutdowns(
 	leavingNodes []string,
 ) {
@@ -184,7 +183,7 @@ func (d *DownscaleReporter) OnReconcileShutdowns(
 	// Update InProgress condition and DownscaleOperation
 	for _, node := range leavingNodes {
 		d.shardMigrationStatuses[node] = esv1.ShardMigrationStatus{
-			ShutdownStatus: string(esclient.ShutdownStarted),
+			ShutdownStatus: string(esclient.ShutdownInProgress),
 		}
 	}
 }

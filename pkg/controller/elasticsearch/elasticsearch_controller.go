@@ -247,7 +247,7 @@ func (r *ReconcileElasticsearch) internalReconcile(
 			"namespace", es.Namespace,
 			"es_name", es.Name,
 		)
-		reconcileState.UpdateElasticsearchInvalid(err)
+		reconcileState.UpdateElasticsearchInvalidWithEvent(err.Error())
 		return results
 	}
 
