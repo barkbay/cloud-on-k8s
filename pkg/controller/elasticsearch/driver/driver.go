@@ -311,13 +311,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	}
 
 	// reconcile StatefulSets and nodes configuration
-	res = d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, *resourcesState, keystoreResources)
-	results = results.WithResults(res)
-
-	if res.HasError() {
-		return results
-	}
-	return results
+	return results.WithResults(d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, *resourcesState, keystoreResources))
 }
 
 // newElasticsearchClient creates a new Elasticsearch HTTP client for this cluster using the provided user

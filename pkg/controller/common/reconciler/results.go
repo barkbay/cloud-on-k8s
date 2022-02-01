@@ -7,7 +7,6 @@ package reconciler
 import (
 	"context"
 
-	"go.elastic.co/apm"
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -89,19 +88,6 @@ func (r *Results) mergeResult(kind resultKind, res reconcile.Result) {
 			r.currResult = res
 		}
 	}
-}
-
-// Apply applies the output of a reconciliation step to the results. The step outcome is implicitly considered
-// recoverable as we just record the results and continue.
-func (r *Results) Apply(step string, recoverableStep func(context.Context) (reconcile.Result, error)) *Results {
-	span, ctx := apm.StartSpan(r.ctx, step, tracing.SpanTypeApp)
-	defer span.End()
-
-	result, err := recoverableStep(ctx)
-	if err != nil {
-		log.Info("Recoverable error during step, continuing", "step", step, "error", err)
-	}
-	return r.WithError(err).WithResult(result)
 }
 
 // Aggregate returns the highest priority reconcile result and any errors seen so far.
