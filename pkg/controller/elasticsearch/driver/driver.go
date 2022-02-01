@@ -47,7 +47,7 @@ import (
 )
 
 var (
-	defaultRequeue = controller.Result{Requeue: true, RequeueAfter: 10 * time.Second}
+	defaultRequeue = reconciler.ReconciliationState{Result: controller.Result{Requeue: true, RequeueAfter: 10 * time.Second}}
 )
 
 // Driver orchestrates the reconciliation of an Elasticsearch resource.
@@ -238,7 +238,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not verify license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			results.WithResult(defaultRequeue)
+			results.WithReconciliationState(defaultRequeue.WithReason(msg))
 		}
 	}
 
@@ -249,20 +249,20 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 			msg := "Could not reconcile cluster license, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			results.WithResult(defaultRequeue)
+			results.WithReconciliationState(defaultRequeue.WithReason(msg))
 		}
 	}
 
 	// reconcile remote clusters
 	if esReachable {
 		requeue, err := remotecluster.UpdateSettings(ctx, d.Client, esClient, d.Recorder(), d.LicenseChecker, d.ES)
+		msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 		if err != nil {
-			msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 			log.Info(msg, "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 			d.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
 		}
 		if err != nil || requeue {
-			results.WithResult(defaultRequeue)
+			results.WithReconciliationState(defaultRequeue.WithReason(msg))
 		}
 	}
 
@@ -289,7 +289,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 		return results.WithError(err)
 	}
 	if requeue {
-		results = results.WithResult(defaultRequeue)
+		results = results.WithReconciliationState(defaultRequeue.WithReason("Elasticsearch cluster UUID is not reconciled"))
 	}
 
 	// reconcile beats config secrets if Stack Monitoring is defined
@@ -301,7 +301,7 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	// requeue if associations are defined but not yet configured, otherwise we may be in a situation where we deploy
 	// Elasticsearch Pods once, then change their spec a few seconds later once the association is configured
 	if !association.AreConfiguredIfSet(d.ES.GetAssociations(), d.Recorder()) {
-		results.WithResult(defaultRequeue)
+		results.WithReconciliationState(defaultRequeue.WithReason("Some associations are not reconciled"))
 	}
 
 	// we want to reconcile suspended Pods before we start reconciling node specs as this is considered a debugging and

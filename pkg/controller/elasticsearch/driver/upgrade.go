@@ -39,7 +39,7 @@ func (d *defaultDriver) handleRollingUpgrades(
 		return results.WithError(err)
 	}
 	if !ok {
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade: expectations are not satisfied yet"))
 	}
 
 	// Get the pods to upgrade
@@ -94,11 +94,11 @@ func (d *defaultDriver) handleRollingUpgrades(
 	}
 	if len(deletedPods) > 0 {
 		// Some Pods have just been deleted, we don't need to try to enable shards allocation.
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade in progress"))
 	}
 	if len(podsToUpgrade) > len(deletedPods) {
 		// Some Pods have not been updated, ensure that we retry later
-		results.WithResult(defaultRequeue)
+		results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade in progress"))
 	}
 
 	// Maybe re-enable shards allocation and delete shutdowns if upgraded nodes are back into the cluster.
@@ -305,7 +305,7 @@ func (d *defaultDriver) maybeEnableShardsAllocation(
 		return results.WithError(err)
 	}
 	if !done {
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Enabling shards allocation: expectations are not satisfied yet"))
 	}
 
 	statefulSets, err := sset.RetrieveActualStatefulSets(d.Client, k8s.ExtractNamespacedName(&d.ES))
@@ -324,7 +324,7 @@ func (d *defaultDriver) maybeEnableShardsAllocation(
 			"namespace", d.ES.Namespace,
 			"es_name", d.ES.Name,
 		)
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade: some nodes are not back in the cluster yet"))
 	}
 
 	log.Info("Enabling shards allocation", "namespace", d.ES.Namespace, "es_name", d.ES.Name)

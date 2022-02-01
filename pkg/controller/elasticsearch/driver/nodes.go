@@ -46,7 +46,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	if ok, err := autoscaledResourcesSynced(d.ES); err != nil {
 		return results.WithError(fmt.Errorf("StatefulSet recreation: %w", err))
 	} else if !ok {
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Waiting for autoscaling controller to sync node sets"))
 	}
 
 	// check if actual StatefulSets and corresponding pods match our expectations before applying any change
@@ -55,7 +55,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 	if !ok {
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("Expectations are not satisfied"))
 	}
 
 	// recreate any StatefulSet that needs to account for PVC expansion
@@ -70,7 +70,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		// the sset doesn't exist (was just deleted), but the Pods do actually exist.
 		log.V(1).Info("StatefulSets recreation in progress, re-queueing.",
 			"namespace", d.ES.Namespace, "es_name", d.ES.Name, "recreations", recreations)
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("StatefulSets recreation in progress"))
 	}
 
 	actualStatefulSets, err := sset.RetrieveActualStatefulSets(d.Client, k8s.ExtractNamespacedName(&d.ES))
@@ -118,7 +118,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 	if upscaleResults.Requeue {
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason("StatefulSet is being recreated"))
 	}
 	actualStatefulSets = upscaleResults.ActualStatefulSets
 
@@ -152,9 +152,10 @@ func (d *defaultDriver) reconcileNodeSpecs(
 
 	// Next operations require the Elasticsearch API to be available.
 	if !esReachable {
-		log.Info("ES cannot be reached yet, re-queuing", "namespace", d.ES.Namespace, "es_name", d.ES.Name)
+		msg := "Elasticsearch cannot be reached yet, re-queuing"
+		log.Info(msg, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 		reconcileState.UpdateWithPhase(esv1.ElasticsearchApplyingChangesPhase)
-		return results.WithResult(defaultRequeue)
+		return results.WithReconciliationState(defaultRequeue.WithReason(msg))
 	}
 
 	// Maybe update Zen1 minimum master nodes through the API, corresponding to the current nodes we have.
@@ -163,7 +164,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 	if requeue {
-		results.WithResult(defaultRequeue)
+		results.WithReconciliationState(defaultRequeue.WithReason("Not enough available masters to update Zen1 settings"))
 	}
 	// Remove the zen2 bootstrap annotation if bootstrap is over.
 	requeue, err = zen2.RemoveZen2BootstrapAnnotation(ctx, d.Client, d.ES, esClient)
@@ -171,7 +172,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 	if requeue {
-		results.WithResult(defaultRequeue)
+		results.WithReconciliationState(defaultRequeue.WithReason("Zen2 bootstrap is not complete"))
 	}
 	// Maybe clear zen2 voting config exclusions.
 	requeue, err = zen2.ClearVotingConfigExclusions(ctx, d.ES, d.Client, esClient, actualStatefulSets)
@@ -179,7 +180,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(fmt.Errorf("when clearing voting exclusions: %w", err))
 	}
 	if requeue {
-		results.WithResult(defaultRequeue)
+		results.WithReconciliationState(defaultRequeue.WithReason("Cannot clear voting exclusions yet"))
 	}
 	// shutdown logic is dependent on Elasticsearch version
 	nodeShutdowns, err := newShutdownInterface(d.ES, esClient, esState, reconcileState.StatusReporter)

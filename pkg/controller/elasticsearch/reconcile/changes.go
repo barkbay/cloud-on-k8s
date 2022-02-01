@@ -24,8 +24,9 @@ func (s *State) ReportExpectedChanges(
 	s.RecordNodesToBeUpgraded(expectedChanges.PodsToUpgrade)
 
 	if expectedChanges.IsEmpty() {
-		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
+		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionTrue, "")
 	} else {
+		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionFalse, expectedChanges.String())
 		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, expectedChanges.String())
 	}
 

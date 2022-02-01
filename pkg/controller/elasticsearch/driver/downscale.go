@@ -66,7 +66,7 @@ func HandleDownscale(
 		}
 		if requeue {
 			// retry downscaling this statefulset later
-			results.WithResult(defaultRequeue)
+			results.WithReconciliationState(defaultRequeue.WithReason("Downscale in progress"))
 		}
 	}
 

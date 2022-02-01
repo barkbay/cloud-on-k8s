@@ -183,6 +183,7 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 	}
 	results := r.internalReconcile(ctx, es, state)
 
+	// TODO: this may prevent the status to be updated
 	if err := r.annotateResource(ctx, es, state); err != nil {
 		if apierrors.IsConflict(err) {
 			log.V(1).Info("Conflict while updating annotations", "namespace", es.Namespace, "es_name", es.Name)
@@ -192,6 +193,13 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 		return results.WithError(err).Aggregate()
 	}
 
+	if isReconciled, message := results.IsReconciled(); isReconciled {
+		state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
+	} else {
+		state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, message)
+	}
+
+	// Last step of the reconciliation loop is always to update the Elasticsearch resource status.
 	err = r.updateStatus(ctx, es, state)
 	if err != nil {
 		if apierrors.IsConflict(err) {
