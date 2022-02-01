@@ -14,6 +14,7 @@ import (
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
+	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
 
@@ -56,6 +57,7 @@ func NewObserver(cluster types.NamespacedName, esClient client.Client, settings 
 		stopChan:      make(chan struct{}),
 		stopOnce:      sync.Once{},
 		onObservation: onObservation,
+		lastHealth:    esv1.ElasticsearchUnknownHealth, // We don't know the health of the cluster until a first query succeeds
 		mutex:         sync.RWMutex{},
 	}
 
@@ -116,7 +118,7 @@ func (o *Observer) retrieveState() {
 		ctx = apm.ContextWithTransaction(ctx, tx)
 	}
 
-	newHealth := RetrieveHealth(ctx, o.cluster, o.esClient)
+	newHealth := retrieveHealth(ctx, o.cluster, o.esClient)
 	if o.onObservation != nil {
 		o.onObservation(o.cluster, o.LastHealth(), newHealth)
 	}
@@ -124,4 +126,19 @@ func (o *Observer) retrieveState() {
 	o.mutex.Lock()
 	o.lastHealth = newHealth
 	o.mutex.Unlock()
+}
+
+// retrieveHealth returns the current Elasticsearch cluster health
+func retrieveHealth(ctx context.Context, cluster types.NamespacedName, esClient esclient.Client) esv1.ElasticsearchHealth {
+	health, err := esClient.GetClusterHealth(ctx)
+	if err != nil {
+		log.V(1).Info(
+			"Unable to retrieve cluster health",
+			"error", err,
+			"namespace", cluster.Namespace,
+			"es_name", cluster.Name,
+		)
+		return esv1.ElasticsearchUnknownHealth
+	}
+	return health.Status
 }

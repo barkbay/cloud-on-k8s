@@ -48,19 +48,3 @@ func healthChangeListener(reconciliation chan event.GenericEvent) OnObservation 
 		reconciliation <- evt
 	}
 }
-
-// hasHealthChanged returns true if previous and new contain different health.
-func hasHealthChanged(previous State, current State) bool {
-	switch {
-	// both nil
-	case previous.ClusterHealth == nil && current.ClusterHealth == nil:
-		return false
-	// both equal
-	case previous.ClusterHealth != nil && current.ClusterHealth != nil &&
-		previous.ClusterHealth.Status == current.ClusterHealth.Status:
-		return false
-	// else: different
-	default:
-		return true
-	}
-}

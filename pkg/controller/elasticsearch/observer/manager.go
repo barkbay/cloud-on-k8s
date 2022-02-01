@@ -102,6 +102,20 @@ func (m *Manager) createOrReplaceObserver(cluster types.NamespacedName, settings
 	return observer
 }
 
+// List returns the names of clusters currently observed
+func (m *Manager) List() []types.NamespacedName {
+	m.observerLock.RLock()
+	defer m.observerLock.RUnlock()
+
+	names := make([]types.NamespacedName, len(m.observers))
+	i := 0
+	for name := range m.observers {
+		names[i] = name
+		i++ //nolint:wastedassign
+	}
+	return names
+}
+
 // AddObservationListener adds the given listener to the list of listeners notified
 // on every observation.
 func (m *Manager) AddObservationListener(listener OnObservation) {
