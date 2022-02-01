@@ -14,7 +14,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/hints"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
 	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
 
@@ -56,17 +55,6 @@ func MustNewState(c esv1.Elasticsearch) *State {
 		panic(err)
 	}
 	return state
-}
-
-// AvailableElasticsearchNodes filters a slice of pods for the ones that are ready.
-func AvailableElasticsearchNodes(pods []corev1.Pod) []corev1.Pod {
-	var nodesAvailable []corev1.Pod
-	for _, pod := range pods {
-		if k8s.IsPodReady(pod) {
-			nodesAvailable = append(nodesAvailable, pod)
-		}
-	}
-	return nodesAvailable
 }
 
 func (s *State) fetchMinRunningVersion(resourcesState ResourcesState) (*version.Version, error) {
