@@ -1087,24 +1087,6 @@ RoleSource references roles to create in the Elasticsearch cluster.
 |===
 
 
-[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-rollingupgradeoperation"]
-=== RollingUpgradeOperation 
-
-
-
-.Appears In:
-****
-- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-inprogressoperations[$$InProgressOperations$$]
-****
-
-[cols="25a,75a", options="header"]
-|===
-| Field | Description
-| *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
-| *`nodes`* __string array__ | Nodes are the nodes that must be restarted for upgrade.
-|===
-
-
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-shardmigrationstatus"]
 === ShardMigrationStatus 
 
@@ -1177,6 +1159,24 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 |===
 | Field | Description
 | *`changeBudget`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-changebudget[$$ChangeBudget$$]__ | ChangeBudget defines the constraints to consider when applying changes to the Elasticsearch cluster.
+|===
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upgradeoperation"]
+=== UpgradeOperation 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-inprogressoperations[$$InProgressOperations$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
+| *`nodes`* __string array__ | Nodes are the nodes that must be restarted for upgrade.
 |===
 
 

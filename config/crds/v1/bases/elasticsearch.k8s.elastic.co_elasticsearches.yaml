@@ -9236,7 +9236,7 @@ spec:
                     required:
                     - nodes
                     type: object
-                  rollingUpgrade:
+                  upgrade:
                     properties:
                       lastUpdatedTime:
                         format: date-time
@@ -9266,7 +9266,7 @@ spec:
                     type: object
                 required:
                 - downscale
-                - rollingUpgrade
+                - upgrade
                 - upscale
                 type: object
               monitoringAssociationStatus:

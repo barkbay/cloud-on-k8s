@@ -141,21 +141,13 @@ func (c Conditions) MergeWith(nextCondition Condition) Conditions {
 	return cp
 }
 
-type OperationType string
-
-const (
-	Downscale      OperationType = "Downscale"
-	Upscale        OperationType = "Upscale"
-	RollingUpgrade OperationType = "RollingUpgrade"
-)
-
 type UpscaleOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
 	// Nodes are the nodes scheduled to be added by the operator.
 	Nodes []string `json:"nodes"`
 }
 
-type RollingUpgradeOperation struct {
+type UpgradeOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
 	// Nodes are the nodes that must be restarted for upgrade.
 	Nodes []string `json:"nodes"`
@@ -192,9 +184,9 @@ type ShardMigrationStatus struct {
 }
 
 type InProgressOperations struct {
-	DownscaleOperation      DownscaleOperation      `json:"downscale"`
-	RollingUpgradeOperation RollingUpgradeOperation `json:"rollingUpgrade"`
-	UpscaleOperation        UpscaleOperation        `json:"upscale"`
+	DownscaleOperation      DownscaleOperation `json:"downscale"`
+	RollingUpgradeOperation UpgradeOperation   `json:"upgrade"`
+	UpscaleOperation        UpscaleOperation   `json:"upscale"`
 }
 
 func (es *ElasticsearchStatus) UpdateTimestamp(actual *ElasticsearchStatus) {

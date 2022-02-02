@@ -94,7 +94,7 @@ func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
 	u.nodes = nodes
 }
 
-func (u *UpgradeReporter) Merge(other esv1.RollingUpgradeOperation) esv1.RollingUpgradeOperation {
+func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperation {
 	upgradeOperation := other.DeepCopy()
 	if u == nil {
 		return *upgradeOperation
