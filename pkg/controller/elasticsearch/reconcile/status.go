@@ -146,7 +146,7 @@ func (d *DownscaleReporter) Merge(other esv1.DownscaleOperation) esv1.DownscaleO
 		downscaleOperation.LastUpdatedTime = metav1.Now()
 	}
 
-	if !d.shardMigrationStatuses.Equals(other.ShardMigrationStatuses) {
+	if (d.shardMigrationStatuses != nil && !d.shardMigrationStatuses.Equals(other.ShardMigrationStatuses)) || downscaleOperation.LastUpdatedTime.IsZero() {
 		downscaleOperation.ShardMigrationStatuses = d.shardMigrationStatuses
 		downscaleOperation.LastUpdatedTime = metav1.Now()
 	}
