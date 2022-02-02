@@ -183,14 +183,16 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 	}
 	results := r.internalReconcile(ctx, es, state)
 
-	// TODO: this may prevent the status to be updated
+	// Update orchestration related annotations
 	if err := r.annotateResource(ctx, es, state); err != nil {
 		if apierrors.IsConflict(err) {
 			log.V(1).Info("Conflict while updating annotations", "namespace", es.Namespace, "es_name", es.Name)
-			return reconcile.Result{Requeue: true}, nil
+			results.WithReconciliationState(reconciler.Requeue.WithReason("Conflict while updating annotations"))
+		} else {
+			log.Error(err, "Error while updating annotations", "namespace", es.Namespace, "es_name", es.Name)
+			results.WithError(err)
+			k8s.EmitErrorEvent(r.recorder, err, &es, events.EventReconciliationError, "Reconciliation error: %v", err)
 		}
-		k8s.EmitErrorEvent(r.recorder, err, &es, events.EventReconciliationError, "Reconciliation error: %v", err)
-		return results.WithError(err).Aggregate()
 	}
 
 	if isReconciled, message := results.IsReconciled(); isReconciled {
