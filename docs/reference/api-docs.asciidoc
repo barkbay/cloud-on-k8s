@@ -1119,7 +1119,6 @@ RoleSource references roles to create in the Elasticsearch cluster.
 |===
 | Field | Description
 | *`shutdownStatus`* __string__ | 
-| *`shardsRemaining`* __integer__ | ShardsRemaining is only available for clusters managed with the shutdown API
 | *`explanation`* __string__ | SharExplanationdsRemaining is only available for clusters managed with the shutdown API
 |===
 

@@ -159,8 +159,7 @@ func (d *DownscaleReporter) OnShutdownStatus(
 		d.shardMigrationStatuses = make(map[string]esv1.ShardMigrationStatus)
 	}
 	shardMigrationStatus := esv1.ShardMigrationStatus{
-		ShardsRemaining: nodeShutdownStatus.ShardsRemaining,
-		ShutdownStatus:  string(nodeShutdownStatus.Status),
+		ShutdownStatus: string(nodeShutdownStatus.Status),
 	}
 	if len(nodeShutdownStatus.Explanation) > 0 {
 		shardMigrationStatus.Explanation = pointer.StringPtr(nodeShutdownStatus.Explanation)

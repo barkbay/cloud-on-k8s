@@ -186,10 +186,6 @@ type ShardMigrationStatus struct {
 	ShutdownStatus string `json:"shutdownStatus"`
 
 	// +optional
-	// ShardsRemaining is only available for clusters managed with the shutdown API
-	ShardsRemaining *int `json:"shardsRemaining"`
-
-	// +optional
 	// SharExplanationdsRemaining is only available for clusters managed with the shutdown API
 	Explanation *string `json:"explanation"`
 }

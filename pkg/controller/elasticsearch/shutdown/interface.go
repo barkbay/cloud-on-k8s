@@ -13,9 +13,8 @@ import (
 // NodeShutdownStatus describes the current shutdown status of an Elasticsearch node/Pod.
 // Partially duplicates the Elasticsearch API to allow a version agnostic implementation in the controller.
 type NodeShutdownStatus struct {
-	Status          esclient.ShutdownStatus
-	Explanation     string
-	ShardsRemaining *int
+	Status      esclient.ShutdownStatus
+	Explanation string
 }
 
 // Interface defines methods that both legacy shard migration based shutdown and new API based shutdowns implement to

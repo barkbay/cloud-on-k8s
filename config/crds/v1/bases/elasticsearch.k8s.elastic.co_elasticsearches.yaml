@@ -9220,10 +9220,6 @@ spec:
                               description: SharExplanationdsRemaining is only available
                                 for clusters managed with the shutdown API
                               type: string
-                            shardsRemaining:
-                              description: ShardsRemaining is only available for clusters
-                                managed with the shutdown API
-                              type: integer
                             shutdownStatus:
                               type: string
                           required:
