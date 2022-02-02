@@ -25,9 +25,8 @@ func (d *defaultDriver) expectationsSatisfied() (bool, string, error) {
 		return false, "", err
 	}
 	if !expectationsOK {
-		msg := "Cache expectations are not satisfied yet, re-queueing"
-		log.V(1).Info(msg, "namespace", d.ES.Namespace, "es_name", d.ES.Name, "reason", reason)
-		return false, msg, nil
+		log.V(1).Info("Cache expectations are not satisfied yet, re-queueing", "namespace", d.ES.Namespace, "es_name", d.ES.Name, "reason", reason)
+		return false, reason, nil
 	}
 	actualStatefulSets, err := sset.RetrieveActualStatefulSets(d.Client, k8s.ExtractNamespacedName(&d.ES))
 	if err != nil {
