@@ -9247,6 +9247,14 @@ spec:
                         items:
                           type: string
                         type: array
+                      predicates:
+                        additionalProperties:
+                          items:
+                            type: string
+                          type: array
+                        description: Nodes are the nodes that must be restarted for
+                          upgrade.
+                        type: object
                     required:
                     - nodes
                     type: object

@@ -1177,6 +1177,7 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 | Field | Description
 | *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
 | *`nodes`* __string array__ | Nodes are the nodes that must be restarted for upgrade.
+| *`predicates`* __object (keys:string, values:string array)__ | Nodes are the nodes that must be restarted for upgrade.
 |===
 
 

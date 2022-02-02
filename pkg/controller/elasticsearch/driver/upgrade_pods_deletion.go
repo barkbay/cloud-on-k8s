@@ -23,6 +23,8 @@ import (
 // Do not run this function unless driver expectations are met.
 func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 	if len(ctx.podsToUpgrade) == 0 {
+		// We still want to ensure that predicates in the status are cleared.
+		ctx.reconcileState.RecordPredicatesResult(map[string][]string{})
 		return nil, nil
 	}
 
@@ -50,7 +52,7 @@ func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
 		"maxUnavailableReached", maxUnavailableReached,
 		"allowedDeletions", allowedDeletions,
 	)
-	podsToDelete, err := applyPredicates(predicateContext, candidates, maxUnavailableReached, allowedDeletions)
+	podsToDelete, err := applyPredicates(predicateContext, candidates, maxUnavailableReached, allowedDeletions, ctx.reconcileState)
 	if err != nil {
 		return podsToDelete, err
 	}

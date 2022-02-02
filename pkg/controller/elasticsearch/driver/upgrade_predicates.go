@@ -7,6 +7,8 @@ package driver
 import (
 	"context"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
+
 	corev1 "k8s.io/api/core/v1"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
@@ -76,7 +78,13 @@ func NewPredicateContext(
 	}
 }
 
-func applyPredicates(ctx PredicateContext, candidates []corev1.Pod, maxUnavailableReached bool, allowedDeletions int) (deletedPods []corev1.Pod, err error) {
+func applyPredicates(
+	ctx PredicateContext,
+	candidates []corev1.Pod,
+	maxUnavailableReached bool,
+	allowedDeletions int,
+	reconcileState *reconcile.State,
+) (deletedPods []corev1.Pod, err error) {
 	var failedPredicates failedPredicates
 
 Loop:
@@ -106,13 +114,16 @@ Loop:
 
 	// If some predicates have failed print a summary of the failures to help
 	// the user to understand why.
+	groupByPredicates := groupByPredicates(failedPredicates)
 	if len(failedPredicates) > 0 {
 		log.Info(
 			"Cannot restart some nodes for upgrade at this time",
 			"namespace", ctx.es.Namespace,
 			"es_name", ctx.es.Name,
-			"failed_predicates", groupByPredicates(failedPredicates))
+			"failed_predicates", groupByPredicates)
 	}
+	// Also report in the status
+	reconcileState.RecordPredicatesResult(groupByPredicates)
 	return deletedPods, nil
 }
 

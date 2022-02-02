@@ -22,7 +22,7 @@ func (s *State) ReportExpectedChanges(expectedChanges ExpectedChanges) *State {
 
 	if expectedChanges.IsEmpty() {
 		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionTrue, "")
-		// ReconciliationComplete is initially set to True until another condition is reported.
+		// ReconciliationComplete is initially set to True until another condition with the same type is reported.
 		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
 	} else {
 		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionFalse, expectedChanges.String())
@@ -62,7 +62,7 @@ func (e *ExpectedChanges) String() string {
 }
 
 func plural(items []string) string {
-	if len(items) > 0 {
+	if len(items) > 1 {
 		return "s"
 	}
 	return ""

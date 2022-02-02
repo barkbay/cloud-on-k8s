@@ -84,6 +84,9 @@ func (u *UpscaleReporter) Merge(other esv1.UpscaleOperation) esv1.UpscaleOperati
 type UpgradeReporter struct {
 	// Expected nodes to be upgraded
 	nodes []string
+
+	// Predicate results
+	predicatesResult map[string][]string
 }
 
 func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
@@ -94,6 +97,10 @@ func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
 	u.nodes = nodes
 }
 
+func (u *UpgradeReporter) RecordPredicatesResult(predicatesResult map[string][]string) {
+	u.predicatesResult = predicatesResult
+}
+
 func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperation {
 	upgradeOperation := other.DeepCopy()
 	if u == nil {
@@ -101,6 +108,10 @@ func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperati
 	}
 	if (u.nodes != nil && !reflect.DeepEqual(u.nodes, other.Nodes)) || upgradeOperation.LastUpdatedTime.IsZero() {
 		upgradeOperation.Nodes = u.nodes
+		upgradeOperation.LastUpdatedTime = metav1.Now()
+	}
+	if (u.predicatesResult != nil && !reflect.DeepEqual(u.predicatesResult, other.Predicates)) || upgradeOperation.LastUpdatedTime.IsZero() {
+		upgradeOperation.Predicates = u.predicatesResult
 		upgradeOperation.LastUpdatedTime = metav1.Now()
 	}
 	return *upgradeOperation

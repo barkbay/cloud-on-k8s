@@ -151,6 +151,10 @@ type UpgradeOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
 	// Nodes are the nodes that must be restarted for upgrade.
 	Nodes []string `json:"nodes"`
+
+	// Nodes are the nodes that must be restarted for upgrade.
+	// +optional
+	Predicates map[string][]string `json:"predicates"`
 }
 
 type DownscaleOperation struct {
