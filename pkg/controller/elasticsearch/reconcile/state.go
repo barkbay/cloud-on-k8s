@@ -5,6 +5,7 @@
 package reconcile
 
 import (
+	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -111,6 +112,33 @@ func (s *State) UpdateMinRunningVersion(
 	} else if lowestVersion != nil {
 		s.status.Version = lowestVersion.String()
 	}
+	// Update the related condition.
+	if s.status.Version == "" {
+		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, "No running version reported")
+		return s
+	}
+
+	desiredVersion, err := version.Parse(s.cluster.Spec.Version)
+	if err != nil {
+		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing desired version: %s", err.Error()))
+		return s
+	}
+
+	runningVersion, err := version.Parse(s.status.Version)
+	if err != nil {
+		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing running version: %s", err.Error()))
+		return s
+	}
+
+	if desiredVersion.GT(runningVersion) {
+		s.ReportCondition(
+			esv1.VersionUpgradeInProgress,
+			corev1.ConditionTrue,
+			fmt.Sprintf("Upgrading from %s to %s", runningVersion.String(), desiredVersion.String()),
+		)
+	}
+	s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionFalse, "")
+
 	return s
 }
 

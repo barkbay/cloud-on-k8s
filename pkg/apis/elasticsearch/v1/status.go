@@ -102,6 +102,7 @@ const (
 	ElasticsearchIsReachable     ConditionType = "ElasticsearchIsReachable"
 	NodesSpecificationReconciled ConditionType = "NodesSpecificationReconciled"
 	ReconciliationComplete       ConditionType = "ReconciliationComplete"
+	VersionUpgradeInProgress     ConditionType = "VersionUpgradeInProgress"
 )
 
 // Condition represents Elasticsearch resource's condition.
