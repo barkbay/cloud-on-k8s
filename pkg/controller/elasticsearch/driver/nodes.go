@@ -50,12 +50,12 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	}
 
 	// check if actual StatefulSets and corresponding pods match our expectations before applying any change
-	ok, err := d.expectationsSatisfied()
+	ok, reason, err := d.expectationsSatisfied()
 	if err != nil {
 		return results.WithError(err)
 	}
 	if !ok {
-		return results.WithReconciliationState(defaultRequeue.WithReason("Expectations are not satisfied"))
+		return results.WithReconciliationState(defaultRequeue.WithReason(reason))
 	}
 
 	// recreate any StatefulSet that needs to account for PVC expansion

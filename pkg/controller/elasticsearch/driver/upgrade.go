@@ -6,6 +6,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,12 +35,13 @@ func (d *defaultDriver) handleRollingUpgrades(
 	// We need to check that all the expectations are satisfied before continuing.
 	// This is to be sure that none of the previous steps has changed the state and
 	// that we are not running with a stale cache.
-	ok, err := d.expectationsSatisfied()
+	ok, reason, err := d.expectationsSatisfied()
 	if err != nil {
 		return results.WithError(err)
 	}
 	if !ok {
-		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade: expectations are not satisfied yet"))
+		reason := fmt.Sprintf("Nodes upgrade: %s", reason)
+		return results.WithReconciliationState(defaultRequeue.WithReason(reason))
 	}
 
 	// Get the pods to upgrade
@@ -300,12 +302,13 @@ func (d *defaultDriver) maybeEnableShardsAllocation(
 	}
 
 	// Make sure all pods scheduled for upgrade have been upgraded.
-	done, err := d.expectationsSatisfied()
+	done, reason, err := d.expectationsSatisfied()
 	if err != nil {
 		return results.WithError(err)
 	}
 	if !done {
-		return results.WithReconciliationState(defaultRequeue.WithReason("Enabling shards allocation: expectations are not satisfied yet"))
+		reason := fmt.Sprintf("Enabling shards allocation: %s", reason)
+		return results.WithReconciliationState(defaultRequeue.WithReason(reason))
 	}
 
 	statefulSets, err := sset.RetrieveActualStatefulSets(d.Client, k8s.ExtractNamespacedName(&d.ES))
