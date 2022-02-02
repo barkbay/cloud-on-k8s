@@ -155,8 +155,3 @@ func adjustStatefulSetReplicas(
 
 	return expected, nil
 }
-
-// isReplicaIncrease returns true if expected replicas are higher than actual replicas.
-func isReplicaIncrease(actual appsv1.StatefulSet, expected appsv1.StatefulSet) bool {
-	return sset.GetReplicas(expected) > sset.GetReplicas(actual)
-}
