@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 
+	"k8s.io/utils/pointer"
+
 	"github.com/go-logr/logr"
 
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -122,8 +124,9 @@ func (ns *NodeShutdown) ShutdownStatus(ctx context.Context, podName string) (Nod
 	}
 	logStatus(ns.log, podName, shutdown)
 	return NodeShutdownStatus{
-		Status:      shutdown.Status,
-		Explanation: shutdown.ShardMigration.Explanation,
+		Status:          shutdown.Status,
+		Explanation:     shutdown.ShardMigration.Explanation,
+		ShardsRemaining: pointer.Int(shutdown.ShardMigration.ShardMigrationsRemaining),
 	}, nil
 }
 

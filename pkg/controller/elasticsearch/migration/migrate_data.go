@@ -8,6 +8,8 @@ import (
 	"context"
 	"strings"
 
+	"k8s.io/utils/pointer"
+
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	esclient "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/shutdown"
@@ -43,12 +45,15 @@ func (sm *ShardMigration) ReconcileShutdowns(ctx context.Context, leavingNodes [
 // ShutdownStatus returns the current shutdown status for a given Pod mimicking the node shutdown API to create a common
 // interface. "Complete" is returned if shard migration for the given Pod is finished.
 func (sm *ShardMigration) ShutdownStatus(ctx context.Context, podName string) (shutdown.NodeShutdownStatus, error) {
-	migrating, err := nodeMayHaveShard(ctx, sm.es, sm.s, podName)
+	migrating, shardsRemaining, err := nodeMayHaveShard(ctx, sm.es, sm.s, podName)
 	if err != nil {
 		return shutdown.NodeShutdownStatus{}, err
 	}
 	if migrating {
-		return shutdown.NodeShutdownStatus{Status: esclient.ShutdownInProgress}, nil
+		return shutdown.NodeShutdownStatus{
+			Status:          esclient.ShutdownInProgress,
+			ShardsRemaining: shardsRemaining,
+		}, nil
 	}
 	return shutdown.NodeShutdownStatus{Status: esclient.ShutdownComplete}, nil
 }
@@ -57,25 +62,29 @@ func (sm *ShardMigration) ShutdownStatus(ctx context.Context, podName string) (s
 // - the given ES Pod is holding at least one shard (primary or replica)
 // - some shards in the cluster don't have a node assigned, in which case we can't be sure about the 1st condition
 //   this may happen if the node was just restarted: the shards it is holding appear unassigned
-func nodeMayHaveShard(ctx context.Context, es esv1.Elasticsearch, shardLister esclient.ShardLister, podName string) (bool, error) {
+func nodeMayHaveShard(ctx context.Context, es esv1.Elasticsearch, shardLister esclient.ShardLister, podName string) (bool, *int, error) {
 	shards, err := shardLister.GetShards(ctx)
+	shardsRemaining := 0
+	var orphanShards []string
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	for _, shard := range shards {
 		// shard still on the node
 		if shard.NodeName == podName {
-			return true, nil
+			shardsRemaining++
 		}
 		// shard node undefined (likely unassigned)
 		if shard.NodeName == "" {
-			log.Info("Found orphan shard, preventing data migration",
-				"namespace", es.Namespace, "es_name", es.Name,
-				"index", shard.Index, "shard", shard.Shard, "shard_state", shard.State)
-			return true, nil
+			orphanShards = append(orphanShards, shard.Shard)
 		}
 	}
-	return false, nil
+	if len(orphanShards) > 0 {
+		log.Info("Found orphan shard, preventing data migration",
+			"namespace", es.Namespace, "es_name", es.Name,
+			"shards", orphanShards)
+	}
+	return shardsRemaining > 0 || len(orphanShards) > 0, pointer.Int(shardsRemaining), nil
 }
 
 // migrateData sets allocation filters for the given nodes.
