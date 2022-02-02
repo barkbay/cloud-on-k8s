@@ -126,7 +126,7 @@ func calculateDownscales(
 			// the StatefulSet should be downscaled
 			requestedDeletes := actualReplicas - expectedReplicas
 			allowedDeletes := downscaleFilter(state, actualSset, requestedDeletes)
-			if downscaleFilter(state, actualSset, requestedDeletes) == 0 {
+			if allowedDeletes == 0 {
 				continue
 			}
 			downscales = append(downscales, ssetDownscale{

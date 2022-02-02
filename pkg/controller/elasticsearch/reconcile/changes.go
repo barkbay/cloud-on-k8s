@@ -13,10 +13,7 @@ type ExpectedChanges struct {
 }
 
 // ReportExpectedChanges records expected changes on the cluster: upscale, downscale and upgrades.
-func (s *State) ReportExpectedChanges(
-	expectedChanges ExpectedChanges,
-	resources ResourcesState,
-) *State {
+func (s *State) ReportExpectedChanges(expectedChanges ExpectedChanges) *State {
 
 	// Record scheduled node changes.
 	s.RecordNodesToBeUpscaled(expectedChanges.PodsToUpscale)
@@ -25,9 +22,11 @@ func (s *State) ReportExpectedChanges(
 
 	if expectedChanges.IsEmpty() {
 		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionTrue, "")
+		// ReconciliationComplete is initially set to True until another condition is reported.
+		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
 	} else {
 		s.ReportCondition(esv1.NodesSpecificationReconciled, corev1.ConditionFalse, expectedChanges.String())
-		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, expectedChanges.String())
+		s.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, "Nodes specification are not reconciled yet")
 	}
 
 	// When not reconciled, set the phase to ApplyingChanges only if it was Ready to avoid overriding

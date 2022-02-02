@@ -195,9 +195,7 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 		}
 	}
 
-	if isReconciled, message := results.IsReconciled(); isReconciled {
-		state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
-	} else {
+	if isReconciled, message := results.IsReconciled(); !isReconciled {
 		state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, message)
 	}
 

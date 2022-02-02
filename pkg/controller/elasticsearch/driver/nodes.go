@@ -87,7 +87,8 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	if err != nil {
 		return results.WithError(err)
 	}
-	d.ReconcileState.ReportExpectedChanges(expectedChanges, resourcesState)
+	// Update the status to surface what changes must be applied to move to the desired state.
+	d.ReconcileState.ReportExpectedChanges(expectedChanges)
 
 	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
 	if esReachable && expectedChanges.IsEmpty() {
