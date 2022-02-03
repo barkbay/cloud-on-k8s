@@ -83,20 +83,6 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results.WithError(err)
 	}
 
-	expectedChanges, err := d.calculateExpectedChanges(expectedResources.StatefulSets(), actualStatefulSets)
-	if err != nil {
-		return results.WithError(err)
-	}
-	// Update the status to surface what changes must be applied to move to the desired state.
-	d.ReconcileState.ReportExpectedChanges(expectedChanges)
-
-	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
-	if esReachable && expectedChanges.IsEmpty() {
-		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
-			return results.WithError(err)
-		}
-	}
-
 	esState := NewMemoizingESState(ctx, esClient)
 
 	// Phase 1: apply expected StatefulSets resources and scale up.
@@ -117,6 +103,19 @@ func (d *defaultDriver) reconcileNodeSpecs(
 			reconcileState.UpdateElasticsearchInvalidWithEvent(err.Error())
 		}
 		return results.WithError(err)
+	}
+	expectedChanges, err := d.calculateExpectedChanges(expectedResources.StatefulSets(), actualStatefulSets)
+	if err != nil {
+		return results.WithError(err)
+	}
+	// Update the status to surface what changes must be applied to move to the desired state.
+	d.ReconcileState.ReportExpectedChanges(expectedChanges)
+
+	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
+	if esReachable && expectedChanges.IsEmpty() {
+		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
+			return results.WithError(err)
+		}
 	}
 	if upscaleResults.Requeue {
 		return results.WithReconciliationState(defaultRequeue.WithReason("StatefulSet is being recreated"))
