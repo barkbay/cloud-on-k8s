@@ -9208,26 +9208,23 @@ spec:
                         format: date-time
                         type: string
                       nodes:
-                        description: Nodes are the nodes scheduled to be removed by
-                          the operator.
+                        description: Nodes are the nodes that must be restarted for
+                          upgrade.
                         items:
-                          type: string
-                        type: array
-                      shardMigrationStatuses:
-                        additionalProperties:
                           properties:
                             explanation:
-                              description: SharExplanationdsRemaining is only available
-                                for clusters managed with the shutdown API
+                              description: Explanation is only available for clusters
+                                managed with the shutdown API
+                              type: string
+                            name:
                               type: string
                             shutdownStatus:
                               type: string
                           required:
+                          - name
                           - shutdownStatus
                           type: object
-                        description: ShardMigrationStatuses provides more details
-                          about the shard migration process, key is the node name
-                        type: object
+                        type: array
                       stalled:
                         description: Stalled represents a state where not progress
                           can be made. It is only available for clusters managed with
@@ -9245,16 +9242,17 @@ spec:
                         description: Nodes are the nodes that must be restarted for
                           upgrade.
                         items:
-                          type: string
+                          properties:
+                            name:
+                              type: string
+                            predicate:
+                              description: Predicate is the name of the predicate
+                                currently preventing this from being deleted for upgrade.
+                              type: string
+                          required:
+                          - name
+                          type: object
                         type: array
-                      predicates:
-                        additionalProperties:
-                          items:
-                            type: string
-                          type: array
-                        description: Nodes are the nodes that must be restarted for
-                          upgrade.
-                        type: object
                     required:
                     - nodes
                     type: object
@@ -9267,7 +9265,12 @@ spec:
                         description: Nodes are the nodes scheduled to be added by
                           the operator.
                         items:
-                          type: string
+                          properties:
+                            name:
+                              type: string
+                          required:
+                          - name
+                          type: object
                         type: array
                     required:
                     - nodes

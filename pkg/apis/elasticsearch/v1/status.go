@@ -2,16 +2,10 @@ package v1
 
 import (
 	"fmt"
-	"reflect"
-
-	"github.com/google/go-cmp/cmp/cmpopts"
-
-	"github.com/google/go-cmp/cmp"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/conversion"
 )
 
 // ElasticsearchHealth is the health of the cluster as returned by the health API.
@@ -141,28 +135,46 @@ func (c Conditions) MergeWith(nextCondition Condition) Conditions {
 	return cp
 }
 
+type NewNode struct {
+	Name string `json:"name"`
+}
+
 type UpscaleOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
 	// Nodes are the nodes scheduled to be added by the operator.
-	Nodes []string `json:"nodes"`
+	Nodes []NewNode `json:"nodes"`
+}
+
+type UpgradedNode struct {
+	Name string `json:"name"`
+
+	// Predicate is the name of the predicate currently preventing this from being deleted for upgrade.
+	// +optional
+	Predicate *string `json:"predicate"`
 }
 
 type UpgradeOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
-	// Nodes are the nodes that must be restarted for upgrade.
-	Nodes []string `json:"nodes"`
 
 	// Nodes are the nodes that must be restarted for upgrade.
+	Nodes []UpgradedNode `json:"nodes"`
+}
+
+type DownscaledNode struct {
+	Name string `json:"name"`
+
+	ShutdownStatus string `json:"shutdownStatus"`
+
 	// +optional
-	Predicates map[string][]string `json:"predicates"`
+	// Explanation is only available for clusters managed with the shutdown API
+	Explanation *string `json:"explanation"`
 }
 
 type DownscaleOperation struct {
 	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
-	// Nodes are the nodes scheduled to be removed by the operator.
-	Nodes []string `json:"nodes"`
-	// ShardMigrationStatuses provides more details about the shard migration process, key is the node name
-	ShardMigrationStatuses ShardMigrationStatuses `json:"shardMigrationStatuses,omitempty"`
+
+	// Nodes are the nodes that must be restarted for upgrade.
+	Nodes []DownscaledNode `json:"nodes"`
 
 	// Stalled represents a state where not progress can be made.
 	// It is only available for clusters managed with the shutdown API.
@@ -170,39 +182,8 @@ type DownscaleOperation struct {
 	Stalled *bool `json:"stalled"`
 }
 
-func (s ShardMigrationStatuses) Equals(other ShardMigrationStatuses) bool {
-	if len(s) == 0 && len(other) == 0 {
-		return true
-	}
-	return reflect.DeepEqual(s, other)
-}
-
-type ShardMigrationStatuses map[string]ShardMigrationStatus
-
-type ShardMigrationStatus struct {
-	ShutdownStatus string `json:"shutdownStatus"`
-
-	// +optional
-	// SharExplanationdsRemaining is only available for clusters managed with the shutdown API
-	Explanation *string `json:"explanation"`
-}
-
 type InProgressOperations struct {
 	DownscaleOperation      DownscaleOperation `json:"downscale"`
 	RollingUpgradeOperation UpgradeOperation   `json:"upgrade"`
 	UpscaleOperation        UpscaleOperation   `json:"upscale"`
 }
-
-func (es *ElasticsearchStatus) UpdateTimestamp(actual *ElasticsearchStatus) {
-	if !Semantic.DeepEqual(es.InProgressOperations.DownscaleOperation, actual.InProgressOperations.DownscaleOperation) {
-		es.InProgressOperations.DownscaleOperation.LastUpdatedTime = metav1.Now()
-	}
-}
-
-var Semantic = conversion.EqualitiesOrDie(
-	func(a, b DownscaleOperation) bool {
-		return reflect.DeepEqual(a.ShardMigrationStatuses, b.Stalled) &&
-			a.Stalled == b.Stalled &&
-			cmp.Equal(a.Nodes, b.Nodes, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
-	},
-)

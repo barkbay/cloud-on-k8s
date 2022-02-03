@@ -901,9 +901,27 @@ ChangeBudget defines the constraints to consider when applying changes to the El
 |===
 | Field | Description
 | *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
-| *`nodes`* __string array__ | Nodes are the nodes scheduled to be removed by the operator.
-| *`shardMigrationStatuses`* __object (keys:string, values:xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-shardmigrationstatus[$$ShardMigrationStatus$$])__ | ShardMigrationStatuses provides more details about the shard migration process, key is the node name
+| *`nodes`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscalednode[$$DownscaledNode$$]__ | Nodes are the nodes that must be restarted for upgrade.
 | *`stalled`* __boolean__ | Stalled represents a state where not progress can be made. It is only available for clusters managed with the shutdown API.
+|===
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscalednode"]
+=== DownscaledNode 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscaleoperation[$$DownscaleOperation$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`name`* __string__ | 
+| *`shutdownStatus`* __string__ | 
+| *`explanation`* __string__ | Explanation is only available for clusters managed with the shutdown API
 |===
 
 
@@ -1026,6 +1044,23 @@ FileRealmSource references users to create in the Elasticsearch cluster.
 |===
 
 
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-newnode"]
+=== NewNode 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upscaleoperation[$$UpscaleOperation$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`name`* __string__ | 
+|===
+
+
 
 
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-nodeset"]
@@ -1085,26 +1120,6 @@ RoleSource references roles to create in the Elasticsearch cluster.
 | *`SecretRef`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-common-v1-secretref[$$SecretRef$$]__ | SecretName references a Kubernetes secret in the same namespace as the Elasticsearch resource. Multiple roles can be specified in a Kubernetes secret, under a single "roles.yml" entry. The secret value must match the expected file-based specification as described in https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-management-file. 
  Example: --- kind: Secret apiVersion: v1 metadata: 	name: my-roles stringData:  roles.yml: |-    click_admins:      run_as: [ 'clicks_watcher_1' ]   	cluster: [ 'monitor' ]   	indices:   	- names: [ 'events-*' ]   	  privileges: [ 'read' ]   	  field_security:   		grant: ['category', '@timestamp', 'message' ]   	  query: '{"match": {"category": "click"}}'    another_role:      cluster: [ 'all' ] ---
 |===
-
-
-[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-shardmigrationstatus"]
-=== ShardMigrationStatus 
-
-
-
-.Appears In:
-****
-- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-downscaleoperation[$$DownscaleOperation$$]
-****
-
-[cols="25a,75a", options="header"]
-|===
-| Field | Description
-| *`shutdownStatus`* __string__ | 
-| *`explanation`* __string__ | SharExplanationdsRemaining is only available for clusters managed with the shutdown API
-|===
-
-
 
 
 [id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-transportconfig"]
@@ -1176,8 +1191,25 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 |===
 | Field | Description
 | *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
-| *`nodes`* __string array__ | Nodes are the nodes that must be restarted for upgrade.
-| *`predicates`* __object (keys:string, values:string array)__ | Nodes are the nodes that must be restarted for upgrade.
+| *`nodes`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upgradednode[$$UpgradedNode$$]__ | Nodes are the nodes that must be restarted for upgrade.
+|===
+
+
+[id="{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upgradednode"]
+=== UpgradedNode 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-upgradeoperation[$$UpgradeOperation$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`name`* __string__ | 
+| *`predicate`* __string__ | Predicate is the name of the predicate currently preventing this from being deleted for upgrade.
 |===
 
 
@@ -1195,7 +1227,7 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 |===
 | Field | Description
 | *`lastUpdatedTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#time-v1-meta[$$Time$$]__ | 
-| *`nodes`* __string array__ | Nodes are the nodes scheduled to be added by the operator.
+| *`nodes`* __xref:{anchor_prefix}-github-com-elastic-cloud-on-k8s-pkg-apis-elasticsearch-v1-newnode[$$NewNode$$]__ | Nodes are the nodes scheduled to be added by the operator.
 |===
 
 
