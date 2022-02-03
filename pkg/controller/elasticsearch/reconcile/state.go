@@ -114,30 +114,30 @@ func (s *State) UpdateMinRunningVersion(
 	}
 	// Update the related condition.
 	if s.status.Version == "" {
-		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, "No running version reported")
+		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, "No running version reported")
 		return s
 	}
 
 	desiredVersion, err := version.Parse(s.cluster.Spec.Version)
 	if err != nil {
-		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing desired version: %s", err.Error()))
+		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing desired version: %s", err.Error()))
 		return s
 	}
 
 	runningVersion, err := version.Parse(s.status.Version)
 	if err != nil {
-		s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing running version: %s", err.Error()))
+		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing running version: %s", err.Error()))
 		return s
 	}
 
 	if desiredVersion.GT(runningVersion) {
 		s.ReportCondition(
-			esv1.VersionUpgradeInProgress,
-			corev1.ConditionTrue,
+			esv1.RunningDesiredVersion,
+			corev1.ConditionFalse,
 			fmt.Sprintf("Upgrading from %s to %s", runningVersion.String(), desiredVersion.String()),
 		)
 	}
-	s.ReportCondition(esv1.VersionUpgradeInProgress, corev1.ConditionFalse, "")
+	s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionTrue, fmt.Sprintf("All nodes are running version %s", runningVersion))
 
 	return s
 }
