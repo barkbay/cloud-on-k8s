@@ -60,6 +60,9 @@ type UpscaleReporter struct {
 }
 
 func (u *UpscaleReporter) RecordNodesToBeUpscaled(nodes []string) {
+	if u == nil {
+		return
+	}
 	if nodes == nil {
 		nodes = []string{}
 	}
@@ -82,7 +85,7 @@ func (u *UpscaleReporter) Merge(other esv1.UpscaleOperation) esv1.UpscaleOperati
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].Name < nodes[j].Name
 	})
-	if (u.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes)) || upscaleOperation.LastUpdatedTime.IsZero() {
+	if u.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes) {
 		upscaleOperation.Nodes = nodes
 		upscaleOperation.LastUpdatedTime = metav1.Now()
 	}
@@ -100,6 +103,9 @@ type UpgradeReporter struct {
 }
 
 func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
+	if u == nil {
+		return
+	}
 	if u.nodes == nil {
 		u.nodes = make(map[string]esv1.UpgradedNode, len(nodes))
 	}
@@ -112,6 +118,9 @@ func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
 }
 
 func (u *UpgradeReporter) RecordDeletedNode(node string) {
+	if u == nil {
+		return
+	}
 	if u.nodes == nil {
 		u.nodes = make(map[string]esv1.UpgradedNode)
 	}
@@ -123,6 +132,9 @@ func (u *UpgradeReporter) RecordDeletedNode(node string) {
 
 // RecordPredicatesResult records predicates results for a set of nodes
 func (u *UpgradeReporter) RecordPredicatesResult(predicatesResult map[string]string) {
+	if u == nil {
+		return
+	}
 	if u.nodes == nil {
 		u.nodes = make(map[string]esv1.UpgradedNode, len(predicatesResult))
 	}
@@ -151,7 +163,7 @@ func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperati
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].Name < nodes[j].Name
 	})
-	if (u.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes)) || upgradeOperation.LastUpdatedTime.IsZero() {
+	if u.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes) {
 		upgradeOperation.Nodes = nodes
 		upgradeOperation.LastUpdatedTime = metav1.Now()
 	}
@@ -167,6 +179,9 @@ type DownscaleReporter struct {
 }
 
 func (d *DownscaleReporter) RecordNodesToBeRemoved(nodes []string) {
+	if d == nil {
+		return
+	}
 	if d.nodes == nil {
 		d.nodes = make(map[string]esv1.DownscaledNode, len(nodes))
 	}
@@ -197,7 +212,7 @@ func (d *DownscaleReporter) Merge(other esv1.DownscaleOperation) esv1.DownscaleO
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].Name < nodes[j].Name
 	})
-	if (d.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes)) || downscaleOperation.LastUpdatedTime.IsZero() {
+	if d.nodes != nil && !reflect.DeepEqual(nodes, other.Nodes) {
 		downscaleOperation.Nodes = nodes
 		downscaleOperation.LastUpdatedTime = metav1.Now()
 	}

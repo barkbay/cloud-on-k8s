@@ -85,6 +85,10 @@ func (s *State) fetchMinRunningVersion(resourcesState ResourcesState) (*version.
 }
 
 func (s *State) UpdateClusterHealth(clusterHealth esv1.ElasticsearchHealth) *State {
+	if clusterHealth == "" {
+		s.status.Health = esv1.ElasticsearchUnknownHealth
+		return s
+	}
 	s.status.Health = clusterHealth
 	return s
 }

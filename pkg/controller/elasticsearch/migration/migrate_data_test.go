@@ -7,10 +7,7 @@ package migration
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
-
-	"k8s.io/utils/pointer"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/client"
@@ -25,11 +22,10 @@ func TestNodeMayHaveShard(t *testing.T) {
 		podName     string
 	}
 	tests := []struct {
-		name                string
-		args                args
-		want                bool
-		wantShardsRemaining *int
-		wantErr             bool
+		name    string
+		args    args
+		want    bool
+		wantErr bool
 	}{
 		{
 			name: "Error while getting shards",
@@ -39,9 +35,8 @@ func TestNodeMayHaveShard(t *testing.T) {
 					[]client.Shard{},
 					fmt.Errorf("error")),
 			},
-			want:                false,
-			wantErr:             true,
-			wantShardsRemaining: nil,
+			want:    false,
+			wantErr: true,
 		},
 		{
 			name: "Node has one shard",
@@ -53,8 +48,7 @@ func TestNodeMayHaveShard(t *testing.T) {
 					{Index: "index-1", Shard: "0", NodeName: "C"},
 				}),
 			},
-			want:                true,
-			wantShardsRemaining: pointer.Int(1),
+			want: true,
 		},
 		{
 			name: "No shard on the node",
@@ -65,8 +59,7 @@ func TestNodeMayHaveShard(t *testing.T) {
 					{Index: "index-1", Shard: "0", NodeName: "C"},
 				}),
 			},
-			want:                false,
-			wantShardsRemaining: pointer.Int(0),
+			want: false,
 		},
 		{
 			name: "Some shards have no node assigned",
@@ -77,19 +70,18 @@ func TestNodeMayHaveShard(t *testing.T) {
 					{Index: "index-1", Shard: "0", NodeName: "C"},
 				}),
 			},
-			wantShardsRemaining: pointer.Int(0),
-			want:                true,
+			want: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotShardsRemaining, err := nodeMayHaveShard(context.Background(), esv1.Elasticsearch{}, tt.args.shardLister, tt.args.podName)
+			got, err := nodeMayHaveShard(context.Background(), esv1.Elasticsearch{}, tt.args.shardLister, tt.args.podName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("nodeMayHaveShard() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want || !reflect.DeepEqual(gotShardsRemaining, tt.wantShardsRemaining) {
-				t.Errorf("nodeMayHaveShard() = (%v,%v) , want (%v,%v)", got, gotShardsRemaining, tt.want, tt.wantShardsRemaining)
+			if got != tt.want {
+				t.Errorf("nodeMayHaveShard() = %v , want %v", got, tt.want)
 			}
 
 		})
