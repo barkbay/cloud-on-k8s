@@ -36,9 +36,8 @@ func (e *ExpectedPodDeletions) ExpectDeletion(pod corev1.Pod) {
 	e.podDeletions[k8s.ExtractNamespacedName(&pod)] = pod.UID
 }
 
-// PendingPodDeletions ensures all registered Pods deletions are satisfied: meaning
-// the corresponding Pods do not exist in the cache anymore.
-// It also returns the Pods which have not been deleted yet.
+// PendingPodDeletions returns a list of Pods for which deletions are not satisfied: meaning
+// the corresponding Pods still exist in the cache while they should not.
 // Expectations are cleared once fulfilled.
 func (e *ExpectedPodDeletions) PendingPodDeletions() ([]string, error) {
 	var pendingPodDeletions []string

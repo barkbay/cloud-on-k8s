@@ -479,15 +479,3 @@ type ShutdownRequest struct {
 type ShutdownResponse struct {
 	Nodes []NodeShutdown `json:"nodes"`
 }
-
-func (s *ShutdownResponse) ContainsNodeWithStatus(status ShutdownStatus) bool {
-	if s == nil || len(s.Nodes) == 0 {
-		return false
-	}
-	for _, node := range s.Nodes {
-		if node.Status == ShutdownStalled {
-			return true
-		}
-	}
-	return false
-}

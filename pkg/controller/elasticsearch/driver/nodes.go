@@ -197,29 +197,26 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	}
 
 	// Phase 3: handle rolling upgrades.
-	rollingUpgradesRes := d.handleRollingUpgrades(ctx, esClient, esState, expectedResources.MasterNodesNames(), reconcileState.StatusReporter)
+	rollingUpgradesRes := d.handleRollingUpgrades(ctx, esClient, esState, expectedResources.MasterNodesNames())
 	results.WithResults(rollingUpgradesRes)
 	if rollingUpgradesRes.HasError() {
 		return results
 	}
 
 	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
-	if esReachable && d.reconciled(actualStatefulSets, d.Client) {
+	if esReachable && d.isNodeSpecsReconciled(actualStatefulSets, d.Client) {
 		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
 			return results.WithError(err)
 		}
 	}
 
-	// TODO:
-	//  - change budget
-	//  - grow and shrink
 	return results
 }
 
-// reconciled reports whether the actual StatefulSets are reconciled to match the expected StatefulSets
-// by checking that the expected template hash label is reconciled for all StatefulSets, there are no
+// isNodeSpecsReconciled reports whether the actual StatefulSets are reconciled to match the expected StatefulSets
+// by checking that the expected template hash label is isNodeSpecsReconciled for all StatefulSets, there are no
 // pod upgrades in progress and all pods are running.
-func (d *defaultDriver) reconciled(actualStatefulSets sset.StatefulSetList, client k8s.Client) bool {
+func (d *defaultDriver) isNodeSpecsReconciled(actualStatefulSets sset.StatefulSetList, client k8s.Client) bool {
 	if satisfied, _, err := d.Expectations.Satisfied(); err != nil || !satisfied {
 		return false
 	}

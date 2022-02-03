@@ -95,19 +95,19 @@ func NewExpectations(client k8s.Client) *Expectations {
 
 // Satisfied returns true if both deletions and generations are expected.
 func (e *Expectations) Satisfied() (bool, string, error) {
-	deletionsSatisfied, err := e.PendingPodDeletions()
+	pendingPodDeletions, err := e.PendingPodDeletions()
 	if err != nil {
 		return false, "", err
 	}
-	if len(deletionsSatisfied) > 0 {
-		return false, fmt.Sprintf("Expecting deletion for Pods: %s", strings.Join(deletionsSatisfied, ",")), nil
+	if len(pendingPodDeletions) > 0 {
+		return false, fmt.Sprintf("Expecting deletion for Pods: %s", strings.Join(pendingPodDeletions, ",")), nil
 	}
-	generationsSatisfied, err := e.PendingGenerations()
+	pendingGenerations, err := e.PendingGenerations()
 	if err != nil {
 		return false, "", err
 	}
-	if len(generationsSatisfied) > 0 {
-		return false, fmt.Sprintf("StatefulSets not reconciled yet: %s", strings.Join(generationsSatisfied, ",")), nil
+	if len(pendingGenerations) > 0 {
+		return false, fmt.Sprintf("StatefulSets not reconciled yet: %s", strings.Join(pendingGenerations, ",")), nil
 	}
 	return true, "", nil
 }

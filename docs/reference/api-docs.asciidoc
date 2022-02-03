@@ -1209,7 +1209,7 @@ UpdateStrategy specifies how updates to the cluster should be performed.
 |===
 | Field | Description
 | *`name`* __string__ | 
-| *`predicate`* __string__ | Predicate is the name of the predicate currently preventing this from being deleted for upgrade.
+| *`predicate`* __string__ | Predicate is the name of the predicate currently preventing this node from being deleted for upgrade.
 |===
 
 

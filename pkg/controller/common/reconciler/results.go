@@ -43,10 +43,10 @@ type Results struct {
 
 var Requeue = ReconciliationState{Result: reconcile.Result{Requeue: true}}
 
-func RequeueAfter(RequeueAfter time.Duration) ReconciliationState {
+func RequeueAfter(requeueAfter time.Duration) ReconciliationState {
 	return ReconciliationState{
 		Result: reconcile.Result{
-			RequeueAfter: RequeueAfter,
+			RequeueAfter: requeueAfter,
 		},
 	}
 }

@@ -97,9 +97,6 @@ func (u *UpscaleReporter) Merge(other esv1.UpscaleOperation) esv1.UpscaleOperati
 type UpgradeReporter struct {
 	// Expected nodes to be upgraded, key is node name
 	nodes map[string]esv1.UpgradedNode
-
-	// Predicate results
-	predicatesResult map[string][]string
 }
 
 func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {

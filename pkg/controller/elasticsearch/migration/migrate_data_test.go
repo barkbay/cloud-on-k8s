@@ -83,7 +83,6 @@ func TestNodeMayHaveShard(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("nodeMayHaveShard() = %v , want %v", got, tt.want)
 			}
-
 		})
 	}
 }

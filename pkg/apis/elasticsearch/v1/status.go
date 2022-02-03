@@ -3,9 +3,10 @@ package v1
 import (
 	"fmt"
 
-	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 )
 
 // ElasticsearchHealth is the health of the cluster as returned by the health API.
@@ -149,7 +150,7 @@ type UpgradedNode struct {
 
 	DeleteStatus string `json:"status"`
 
-	// Predicate is the name of the predicate currently preventing this from being deleted for upgrade.
+	// Predicate is the name of the predicate currently preventing this node from being deleted for upgrade.
 	// +optional
 	Predicate *string `json:"predicate"`
 }

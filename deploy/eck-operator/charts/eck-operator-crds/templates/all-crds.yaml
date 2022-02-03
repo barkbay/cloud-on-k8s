@@ -4578,7 +4578,8 @@ spec:
                               type: string
                             predicate:
                               description: Predicate is the name of the predicate
-                                currently preventing this from being deleted for upgrade.
+                                currently preventing this node from being deleted
+                                for upgrade.
                               type: string
                             status:
                               type: string
