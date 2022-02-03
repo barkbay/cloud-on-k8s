@@ -36,6 +36,12 @@ func HandleDownscale(
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
+	ssetDownscale, _, err := podsToDownscale(downscaleCtx.k8sClient, downscaleCtx.es, expectedStatefulSets, actualStatefulSets, noDownscaleFilter)
+	if err == nil {
+		// We update the nodes to be removed as a best effort
+		downscaleCtx.reconcileState.RecordNodesToBeRemoved(leavingNodeNames(ssetDownscale))
+	}
+
 	// make sure we only downscale nodes we're allowed to
 	downscaleState, err := newDownscaleState(downscaleCtx.k8sClient, downscaleCtx.es)
 	if err != nil {

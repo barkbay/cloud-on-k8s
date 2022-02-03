@@ -24,12 +24,13 @@ import (
 // Delete runs through a list of potential candidates and select the ones that can be deleted.
 // Do not run this function unless driver expectations are met.
 func (ctx *rollingUpgradeCtx) Delete() ([]corev1.Pod, error) {
+	// Update the status with the list of Pods to be maybe upgraded here.
+	ctx.reconcileState.RecordNodesToBeUpgraded(k8s.PodNames(ctx.podsToUpgrade))
 	if len(ctx.podsToUpgrade) == 0 {
 		// We still want to ensure that predicates in the status are cleared.
 		ctx.reconcileState.RecordPredicatesResult(map[string]string{})
 		return nil, nil
 	}
-
 	// Get allowed deletions and check if maxUnavailable has been reached.
 	allowedDeletions, maxUnavailableReached := ctx.getAllowedDeletions()
 

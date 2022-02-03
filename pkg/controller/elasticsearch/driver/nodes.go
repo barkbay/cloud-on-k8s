@@ -84,7 +84,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 	}
 
 	esState := NewMemoizingESState(ctx, esClient)
-
+	reconcileState.RecordNewNodes(podsToCreate(actualStatefulSets, expectedResources.StatefulSets()))
 	// Phase 1: apply expected StatefulSets resources and scale up.
 	upscaleCtx := upscaleCtx{
 		parentCtx:            ctx,
@@ -104,19 +104,7 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		}
 		return results.WithError(err)
 	}
-	expectedChanges, err := d.calculateExpectedChanges(expectedResources.StatefulSets(), actualStatefulSets)
-	if err != nil {
-		return results.WithError(err)
-	}
-	// Update the status to surface what changes must be applied to move to the desired state.
-	d.ReconcileState.ReportExpectedChanges(expectedChanges)
 
-	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
-	if esReachable && expectedChanges.IsEmpty() {
-		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
-			return results.WithError(err)
-		}
-	}
 	if upscaleResults.Requeue {
 		return results.WithReconciliationState(defaultRequeue.WithReason("StatefulSet is being recreated"))
 	}
@@ -215,32 +203,36 @@ func (d *defaultDriver) reconcileNodeSpecs(
 		return results
 	}
 
+	// as of 7.15.2 with node shutdown we do not need transient settings anymore and in fact want to remove any left-overs.
+	if esReachable && d.reconciled(actualStatefulSets, d.Client) {
+		if err := d.maybeRemoveTransientSettings(ctx, esClient); err != nil {
+			return results.WithError(err)
+		}
+	}
+
 	// TODO:
 	//  - change budget
 	//  - grow and shrink
 	return results
 }
 
-func (d *defaultDriver) calculateExpectedChanges(
-	expectedStatefulSets, actualStatefulSets sset.StatefulSetList,
-) (reconcile.ExpectedChanges, error) {
-	// Record nodes to be added to actual StateFulSet
-	changes := reconcile.ExpectedChanges{
-		PodsToUpgrade:   nil,
-		PodsToUpscale:   podsToCreate(actualStatefulSets, expectedStatefulSets),
-		PodsToDownscale: nil,
+// reconciled reports whether the actual StatefulSets are reconciled to match the expected StatefulSets
+// by checking that the expected template hash label is reconciled for all StatefulSets, there are no
+// pod upgrades in progress and all pods are running.
+func (d *defaultDriver) reconciled(actualStatefulSets sset.StatefulSetList, client k8s.Client) bool {
+	if satisfied, _, err := d.Expectations.Satisfied(); err != nil || !satisfied {
+		return false
 	}
 
-	toBeUpgraded, err := podsToUpgrade(d.Client, actualStatefulSets)
+	// all pods should have been upgraded
+	pods, err := podsToUpgrade(client, actualStatefulSets)
 	if err != nil {
-		return reconcile.ExpectedChanges{}, err
+		return false
 	}
-	changes.PodsToUpgrade = k8s.PodNames(toBeUpgraded)
+	if len(pods) > 0 {
+		log.V(1).Info("Statefulset not reconciled", "reason", "pod not upgraded")
+		return false
+	}
 
-	ssetDownscale, _, err := podsToDownscale(d.Client, d.ES, expectedStatefulSets, actualStatefulSets, noDownscaleFilter)
-	if err != nil {
-		return reconcile.ExpectedChanges{}, err
-	}
-	changes.PodsToDownscale = leavingNodeNames(ssetDownscale)
-	return changes, nil
+	return true
 }

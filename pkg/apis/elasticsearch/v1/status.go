@@ -93,10 +93,9 @@ func (es *Elasticsearch) SetAssociationStatusMap(typ commonv1.AssociationType, s
 type ConditionType string
 
 const (
-	ElasticsearchIsReachable     ConditionType = "ElasticsearchIsReachable"
-	NodesSpecificationReconciled ConditionType = "NodesSpecificationReconciled"
-	ReconciliationComplete       ConditionType = "ReconciliationComplete"
-	RunningDesiredVersion        ConditionType = "RunningDesiredVersion"
+	ElasticsearchIsReachable ConditionType = "ElasticsearchIsReachable"
+	ReconciliationComplete   ConditionType = "ReconciliationComplete"
+	RunningDesiredVersion    ConditionType = "RunningDesiredVersion"
 )
 
 // Condition represents Elasticsearch resource's condition.

@@ -181,6 +181,10 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
+
+	// ReconciliationComplete is initially set to True until another condition with the same type is reported.
+	state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionTrue, "")
+
 	results := r.internalReconcile(ctx, es, state)
 
 	// Update orchestration related annotations
@@ -196,7 +200,13 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 	}
 
 	if isReconciled, message := results.IsReconciled(); !isReconciled {
+		// Do not overwrite other "non-ready" phases like MigratingData
+		if state.IsElasticsearchReady() {
+			state.UpdateWithPhase(esv1.ElasticsearchApplyingChangesPhase)
+		}
 		state.ReportCondition(esv1.ReconciliationComplete, corev1.ConditionFalse, message)
+	} else {
+		state.UpdateWithPhase(esv1.ElasticsearchReadyPhase)
 	}
 
 	// Last step of the reconciliation loop is always to update the Elasticsearch resource status.

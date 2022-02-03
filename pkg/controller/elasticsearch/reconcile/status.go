@@ -59,7 +59,7 @@ type UpscaleReporter struct {
 	nodes []string
 }
 
-func (u *UpscaleReporter) RecordNodesToBeUpscaled(nodes []string) {
+func (u *UpscaleReporter) RecordNewNodes(nodes []string) {
 	if u == nil {
 		return
 	}
