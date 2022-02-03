@@ -73,7 +73,13 @@ func (u *UpscaleReporter) Merge(other esv1.UpscaleOperation) esv1.UpscaleOperati
 		return *upscaleOperation
 	}
 	if (u.nodes != nil && !reflect.DeepEqual(u.nodes, other.Nodes)) || upscaleOperation.LastUpdatedTime.IsZero() {
-		upscaleOperation.Nodes = u.nodes
+		nodes := make([]esv1.NewNode, 0, len(u.nodes))
+		for _, node := range u.nodes {
+			nodes = append(nodes, esv1.NewNode{
+				Name: node,
+			})
+		}
+		upscaleOperation.Nodes = nodes
 		upscaleOperation.LastUpdatedTime = metav1.Now()
 	}
 	return *upscaleOperation
@@ -82,23 +88,45 @@ func (u *UpscaleReporter) Merge(other esv1.UpscaleOperation) esv1.UpscaleOperati
 // -- Upgrade status
 
 type UpgradeReporter struct {
-	// Expected nodes to be upgraded
-	nodes []string
+	// Expected nodes to be upgraded, key is node name
+	nodes map[string]esv1.UpgradedNode
 
 	// Predicate results
 	predicatesResult map[string][]string
 }
 
 func (u *UpgradeReporter) RecordNodesToBeUpgraded(nodes []string) {
-	if nodes == nil {
-		nodes = []string{}
+	if u.nodes == nil {
+		u.nodes = make(map[string]esv1.UpgradedNode, len(nodes))
 	}
-	sort.Strings(nodes)
-	u.nodes = nodes
+	for _, node := range nodes {
+		u.nodes[node] = esv1.UpgradedNode{
+			DeleteStatus: "PENDING",
+		}
+	}
 }
 
-func (u *UpgradeReporter) RecordPredicatesResult(predicatesResult map[string][]string) {
-	u.predicatesResult = predicatesResult
+func (u *UpgradeReporter) RecordDeletedNode(node string) {
+	if u.nodes == nil {
+		u.nodes = make(map[string]esv1.UpgradedNode)
+	}
+	upgradedNode := u.nodes[node]
+	upgradedNode.Name = node
+	upgradedNode.DeleteStatus = "DELETED"
+	u.nodes[node] = upgradedNode
+}
+
+// RecordPredicatesResult records predicates results for a set of nodes
+func (u *UpgradeReporter) RecordPredicatesResult(predicatesResult map[string]string) {
+	if u.nodes == nil {
+		u.nodes = make(map[string]esv1.UpgradedNode, len(predicatesResult))
+	}
+	for node, predicate := range predicatesResult {
+		upgradedNode := u.nodes[node]
+		upgradedNode.Name = node
+		upgradedNode.Predicate = pointer.String(predicate)
+		u.nodes[node] = upgradedNode
+	}
 }
 
 func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperation {
@@ -107,11 +135,14 @@ func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperati
 		return *upgradeOperation
 	}
 	if (u.nodes != nil && !reflect.DeepEqual(u.nodes, other.Nodes)) || upgradeOperation.LastUpdatedTime.IsZero() {
-		upgradeOperation.Nodes = u.nodes
-		upgradeOperation.LastUpdatedTime = metav1.Now()
-	}
-	if (u.predicatesResult != nil && !reflect.DeepEqual(u.predicatesResult, other.Predicates)) || upgradeOperation.LastUpdatedTime.IsZero() {
-		upgradeOperation.Predicates = u.predicatesResult
+		nodes := make([]esv1.UpgradedNode, 0, len(u.nodes))
+		for _, node := range u.nodes {
+			nodes = append(nodes, esv1.UpgradedNode{
+				Name:      node.Name,
+				Predicate: node.Predicate,
+			})
+		}
+		upgradeOperation.Nodes = nodes
 		upgradeOperation.LastUpdatedTime = metav1.Now()
 	}
 	return *upgradeOperation
@@ -120,19 +151,23 @@ func (u *UpgradeReporter) Merge(other esv1.UpgradeOperation) esv1.UpgradeOperati
 // -- Downscale status
 
 type DownscaleReporter struct {
-	// Expected nodes to be downscaled
-	nodes []string
-
-	shardMigrationStatuses esv1.ShardMigrationStatuses
-	stalled                *bool
+	// Expected nodes to be downscaled, key is node name
+	nodes   map[string]esv1.DownscaledNode
+	stalled *bool
 }
 
 func (d *DownscaleReporter) RecordNodesToBeRemoved(nodes []string) {
-	if nodes == nil {
-		nodes = []string{}
+	if d.nodes == nil {
+		d.nodes = make(map[string]esv1.DownscaledNode, len(nodes))
 	}
-	sort.Strings(nodes)
-	d.nodes = nodes
+	for _, node := range nodes {
+		d.nodes[node] = esv1.DownscaledNode{
+			Name: node,
+			// We set an initial value to let the caller known that this node should be eventually deleted.
+			// This should be overridden by the downscale algorithm.
+			ShutdownStatus: "NOT_STARTED",
+		}
+	}
 }
 
 func (d *DownscaleReporter) Merge(other esv1.DownscaleOperation) esv1.DownscaleOperation {
@@ -142,12 +177,15 @@ func (d *DownscaleReporter) Merge(other esv1.DownscaleOperation) esv1.DownscaleO
 	}
 
 	if (d.nodes != nil && !reflect.DeepEqual(d.nodes, other.Nodes)) || downscaleOperation.LastUpdatedTime.IsZero() {
-		downscaleOperation.Nodes = d.nodes
-		downscaleOperation.LastUpdatedTime = metav1.Now()
-	}
-
-	if (d.shardMigrationStatuses != nil && !d.shardMigrationStatuses.Equals(other.ShardMigrationStatuses)) || downscaleOperation.LastUpdatedTime.IsZero() {
-		downscaleOperation.ShardMigrationStatuses = d.shardMigrationStatuses
+		nodes := make([]esv1.DownscaledNode, 0, len(d.nodes))
+		for _, node := range d.nodes {
+			nodes = append(nodes, esv1.DownscaledNode{
+				Name:           node.Name,
+				ShutdownStatus: node.ShutdownStatus,
+				Explanation:    node.Explanation,
+			})
+		}
+		downscaleOperation.Nodes = nodes
 		downscaleOperation.LastUpdatedTime = metav1.Now()
 	}
 
@@ -166,16 +204,16 @@ func (d *DownscaleReporter) OnShutdownStatus(
 	if d == nil {
 		return
 	}
-	if d.shardMigrationStatuses == nil {
-		d.shardMigrationStatuses = make(map[string]esv1.ShardMigrationStatus)
+	if d.nodes == nil {
+		d.nodes = make(map[string]esv1.DownscaledNode)
 	}
-	shardMigrationStatus := esv1.ShardMigrationStatus{
-		ShutdownStatus: string(nodeShutdownStatus.Status),
-	}
+	node := d.nodes[podName]
+	node.ShutdownStatus = string(nodeShutdownStatus.Status)
+
 	if len(nodeShutdownStatus.Explanation) > 0 {
-		shardMigrationStatus.Explanation = pointer.StringPtr(nodeShutdownStatus.Explanation)
+		node.Explanation = pointer.StringPtr(nodeShutdownStatus.Explanation)
 	}
-	d.shardMigrationStatuses[podName] = shardMigrationStatus
+	d.nodes[podName] = node
 	if nodeShutdownStatus.Status == esclient.ShutdownStalled {
 		d.stalled = pointer.Bool(true)
 	}
@@ -187,13 +225,13 @@ func (d *DownscaleReporter) OnReconcileShutdowns(
 	if d == nil {
 		return
 	}
-	if d.shardMigrationStatuses == nil {
-		d.shardMigrationStatuses = make(map[string]esv1.ShardMigrationStatus)
+	if d.nodes == nil {
+		d.nodes = make(map[string]esv1.DownscaledNode)
 	}
 	// Update InProgress condition and DownscaleOperation
-	for _, node := range leavingNodes {
-		d.shardMigrationStatuses[node] = esv1.ShardMigrationStatus{
-			ShutdownStatus: string(esclient.ShutdownInProgress),
-		}
+	for _, nodeName := range leavingNodes {
+		node := d.nodes[nodeName]
+		node.ShutdownStatus = string(esclient.ShutdownInProgress)
+		d.nodes[nodeName] = node
 	}
 }

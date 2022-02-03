@@ -148,6 +148,8 @@ type UpscaleOperation struct {
 type UpgradedNode struct {
 	Name string `json:"name"`
 
+	DeleteStatus string `json:"status"`
+
 	// Predicate is the name of the predicate currently preventing this from being deleted for upgrade.
 	// +optional
 	Predicate *string `json:"predicate"`

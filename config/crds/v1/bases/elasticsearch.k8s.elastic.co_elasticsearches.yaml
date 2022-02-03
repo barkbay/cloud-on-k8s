@@ -9249,8 +9249,11 @@ spec:
                               description: Predicate is the name of the predicate
                                 currently preventing this from being deleted for upgrade.
                               type: string
+                            status:
+                              type: string
                           required:
                           - name
+                          - status
                           type: object
                         type: array
                     required:

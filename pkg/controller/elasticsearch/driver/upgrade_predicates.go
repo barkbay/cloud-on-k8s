@@ -6,6 +6,7 @@ package driver
 
 import (
 	"context"
+	"sort"
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/reconcile"
 
@@ -41,15 +42,19 @@ type failedPredicate struct {
 	predicate string
 }
 
-type failedPredicates []failedPredicate
+type failedPredicates map[string]string
 
 // groupByPredicates groups by predicates the pods that can't be upgraded.
 func groupByPredicates(fp failedPredicates) map[string][]string {
 	podsByPredicates := make(map[string][]string)
-	for _, failedPredicate := range fp {
-		pods := podsByPredicates[failedPredicate.predicate]
-		pods = append(pods, failedPredicate.pod)
-		podsByPredicates[failedPredicate.predicate] = pods
+	for pod, predicate := range fp {
+		pods := podsByPredicates[predicate]
+		pods = append(pods, pod)
+		podsByPredicates[predicate] = pods
+	}
+	// Sort pods for stable comparison
+	for _, pods := range podsByPredicates {
+		sort.Strings(pods)
 	}
 	return podsByPredicates
 }
@@ -85,7 +90,7 @@ func applyPredicates(
 	allowedDeletions int,
 	reconcileState *reconcile.State,
 ) (deletedPods []corev1.Pod, err error) {
-	var failedPredicates failedPredicates
+	failedPredicates := make(failedPredicates)
 
 Loop:
 	for _, candidate := range candidates {
@@ -94,7 +99,7 @@ Loop:
 			return deletedPods, err
 		case predicateErr != nil:
 			// A predicate has failed on this Pod
-			failedPredicates = append(failedPredicates, *predicateErr)
+			failedPredicates[(*predicateErr).pod] = (*predicateErr).predicate
 		default:
 			candidate := candidate
 			if label.IsMasterNode(candidate) || willBecomeMasterNode(candidate.Name, ctx.masterNodesNames) {
@@ -123,7 +128,7 @@ Loop:
 			"failed_predicates", groupByPredicates)
 	}
 	// Also report in the status
-	reconcileState.RecordPredicatesResult(groupByPredicates)
+	reconcileState.RecordPredicatesResult(failedPredicates)
 	return deletedPods, nil
 }
 
