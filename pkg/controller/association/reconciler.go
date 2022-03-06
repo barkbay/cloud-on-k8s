@@ -10,6 +10,10 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
+
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -89,6 +93,9 @@ type ElasticsearchUserCreation struct {
 	// ElasticsearchRef is a function which returns the maybe transitive Elasticsearch reference (eg. APMServer -> Kibana -> Elasticsearch).
 	// In the case of a transitive reference this is used to create the Elasticsearch user.
 	ElasticsearchRef func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error)
+	// ServiceAccount is the service account to be used, it should return an empty string if not supported.
+	// Version is the minimum version supported for using service tokens.
+	ServiceAccount func() (serviceaccount.Name, version.Version)
 	// UserSecretSuffix is used as a suffix in the name of the secret holding user data in the associated namespace.
 	UserSecretSuffix string
 	// ESUserRole is the role to use for the Elasticsearch user created by the association.
@@ -291,6 +298,25 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 		return commonv1.AssociationPending, err
 	}
 
+	// Create the user or the service account
+	esVersion, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return commonv1.AssociationFailed, err
+	}
+	if sa := getServiceAccount(r.ElasticsearchUserCreation, esVersion); len(sa) > 0 {
+		r.log(k8s.ExtractNamespacedName(association)).V(1).Info("Ensure service account exists", "sa", sa)
+		tokenRef, err := serviceaccount.NewApplicationStore(r.Client, es, association.GetNamespace()).
+			EnsureTokenExists(association.GetName(), association.GetUID(), sa)
+		if err != nil {
+			return commonv1.AssociationFailed, err
+		}
+		expectedAssocConf.AuthSecretName = tokenRef.SecretRef.Name
+		expectedAssocConf.AuthSecretKey = tokenRef.TokenName
+		expectedAssocConf.IsServiceAccount = true
+		// update the association configuration if necessary
+		return r.updateAssocConf(ctx, expectedAssocConf, association)
+	}
+
 	userRole, err := r.ElasticsearchUserCreation.ESUserRole(association.Associated())
 	if err != nil {
 		return commonv1.AssociationFailed, err
@@ -314,6 +340,17 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 
 	// update the association configuration if necessary
 	return r.updateAssocConf(ctx, expectedAssocConf, association)
+}
+
+func getServiceAccount(esUserCreation *ElasticsearchUserCreation, esVersion version.Version) serviceaccount.Name {
+	if esUserCreation == nil || esUserCreation.ServiceAccount == nil {
+		return ""
+	}
+	sa, minVer := esUserCreation.ServiceAccount()
+	if esVersion.GTE(minVer) {
+		return sa
+	}
+	return ""
 }
 
 // getElasticsearch attempts to retrieve the referenced Elasticsearch resource. If not found, it removes

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"go.elastic.co/apm"
@@ -84,27 +86,43 @@ func IsConfiguredIfSet(association commonv1.Association, r record.EventRecorder)
 	return true
 }
 
+type Credentials struct {
+	Username, Password, ServiceAccountToken string
+}
+
+func (c Credentials) HasServiceAccountToken() bool {
+	return len(c.ServiceAccountToken) > 0
+}
+
 // ElasticsearchAuthSettings returns the user and the password to be used by an associated object to authenticate
 // against an Elasticsearch cluster.
 // This is also used for transitive authentication that relies on Elasticsearch native realm (eg. APMServer -> Kibana)
-func ElasticsearchAuthSettings(c k8s.Client, association commonv1.Association) (username, password string, err error) {
+func ElasticsearchAuthSettings(c k8s.Client, association commonv1.Association) (Credentials, error) {
 	assocConf := association.AssociationConf()
 	if !assocConf.AuthIsConfigured() {
-		return "", "", nil
+		return Credentials{}, nil
 	}
 
 	secretObjKey := types.NamespacedName{Namespace: association.GetNamespace(), Name: assocConf.AuthSecretName}
 	var secret corev1.Secret
 	if err := c.Get(context.Background(), secretObjKey, &secret); err != nil {
-		return "", "", err
+		return Credentials{}, err
 	}
 
 	data, ok := secret.Data[assocConf.AuthSecretKey]
 	if !ok {
-		return "", "", errors.Errorf("auth secret key %s doesn't exist", assocConf.AuthSecretKey)
+		return Credentials{}, errors.Errorf("auth secret key %s doesn't exist", assocConf.AuthSecretKey)
 	}
 
-	return assocConf.AuthSecretKey, string(data), nil
+	if assocConf.IsServiceAccount {
+		token := serviceaccount.Token{}
+		if err := json.Unmarshal(data, &token); err != nil {
+			return Credentials{}, fmt.Errorf("cannot parse service account from Secret %s and key %s", secretObjKey, assocConf.AuthSecretKey)
+		}
+		return Credentials{ServiceAccountToken: token.Token.Clear()}, nil
+	}
+
+	return Credentials{Username: assocConf.AuthSecretKey, Password: string(data)}, nil
 }
 
 // AllowVersion returns true if the given resourceVersion is lower or equal to the associations' versions.

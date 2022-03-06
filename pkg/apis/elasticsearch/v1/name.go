@@ -28,6 +28,7 @@ const (
 	defaultPodDisruptionBudget                   = "default"
 	scriptsConfigMapSuffix                       = "scripts"
 	legacyTransportCertsSecretSuffix             = "transport-certificates"
+	serviceAccountsSecretSuffix                  = "service-accounts"
 	statefulSetTransportCertificatesSecretSuffix = "transport-certs"
 
 	// calling this secret "xpack-file-realm" is conceptually wrong since it also holds the file-based roles which
@@ -55,6 +56,7 @@ var (
 		licenseSecretSuffix,
 		defaultPodDisruptionBudget,
 		scriptsConfigMapSuffix,
+		serviceAccountsSecretSuffix,
 		statefulSetTransportCertificatesSecretSuffix,
 		remoteCaNameSuffix,
 	}
@@ -147,6 +149,10 @@ func RolesAndFileRealmSecret(esName string) string {
 
 func InternalUsersSecret(esName string) string {
 	return ESNamer.Suffix(esName, internalUsersSecretSuffix)
+}
+
+func ServiceAccountsSecretSecret(esName string) string {
+	return ESNamer.Suffix(esName, serviceAccountsSecretSuffix)
 }
 
 // UnicastHostsConfigMap returns the name of the ConfigMap that holds the list of seed nodes for a given cluster.

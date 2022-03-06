@@ -7,6 +7,9 @@ package controller
 import (
 	"context"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -36,6 +39,10 @@ const (
 	KibanaSystemUserBuiltinRole = "kibana_system"
 )
 
+var (
+	KibanaServiceAccountMinVersion = version.MustParse("8.0.0")
+)
+
 func AddKibanaES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
 		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
@@ -58,6 +65,9 @@ func AddKibanaES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params
 		AssociationResourceNamespaceLabelName: eslabel.ClusterNamespaceLabelName,
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
+			ServiceAccount: func() (serviceaccount.Name, version.Version) {
+				return serviceaccount.Kibana, KibanaServiceAccountMinVersion
+			},
 			ElasticsearchRef: func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error) {
 				return true, association.AssociationRef(), nil
 			},

@@ -36,6 +36,8 @@ type Params struct {
 	// Reconciled will contain the final state of the resource after reconciliation containing the
 	// unification of remote and expected state.
 	Reconciled client.Object
+	// ForceOperation returns a force operation.
+	ForceOperation *Operation
 	// NeedsUpdate returns true when the object to be reconciled has changes that are not persisted remotely.
 	NeedsUpdate func() bool
 	// NeedsRecreate returns true when the object to be reconciled needs to be deleted and re-created because it cannot be updated.
@@ -48,6 +50,29 @@ type Params struct {
 	PreUpdate func() error
 	// PostUpdate is called immediately after the resource is successfully updated.
 	PostUpdate func()
+}
+
+type Operation string
+
+const (
+	Update Operation = "Update"
+	Create Operation = "Create"
+)
+
+// MustCreate checks if the Create operation must be called.
+func (p *Params) MustCreate() bool {
+	if p != nil && p.ForceOperation != nil {
+		return *p.ForceOperation == Create
+	}
+	return false
+}
+
+// MustUpdate checks if the Update operation must be called.
+func (p *Params) MustUpdate() bool {
+	if p != nil && p.ForceOperation != nil {
+		return *p.ForceOperation == Update
+	}
+	return false
 }
 
 func (p Params) CheckNilValues() error {
@@ -109,41 +134,7 @@ func ReconcileResource(params Params) error {
 		return nil
 	}
 
-	// Check if already exists
-	err = params.Client.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, params.Reconciled)
-	if err != nil && apierrors.IsNotFound(err) {
-		return create()
-	} else if err != nil {
-		log.Error(err, fmt.Sprintf("Generic GET for %s %s/%s failed with error", kind, namespace, name))
-		return fmt.Errorf("failed to get %s %s/%s: %w", kind, namespace, name, err)
-	}
-
-	if params.NeedsRecreate != nil && params.NeedsRecreate() {
-		log.Info("Resource cannot be updated, hence will be deleted and then recreated", "kind", kind, "namespace", namespace, "name", name)
-		log.Info("Deleting resource", "kind", kind, "namespace", namespace, "name", name)
-		reconciledMeta, err := meta.Accessor(params.Reconciled)
-		if err != nil {
-			return err
-		}
-		// Using a precondition here to make sure we delete the version of the resource we intend to delete and
-		// to avoid accidentally deleting a resource already recreated for example
-		uidToDelete := reconciledMeta.GetUID()
-		resourceVersionToDelete := reconciledMeta.GetResourceVersion()
-		opt := client.Preconditions{
-			UID:             &uidToDelete,
-			ResourceVersion: &resourceVersionToDelete,
-		}
-
-		err = params.Client.Delete(context.Background(), params.Expected, opt)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("failed to delete %s %s/%s: %w", kind, namespace, name, err)
-		}
-		return create()
-	}
-
-	//nolint:nestif
-	// Update if needed
-	if params.NeedsUpdate() {
+	update := func() error {
 		log.Info("Updating resource", "kind", kind, "namespace", namespace, "name", name)
 		if params.PreUpdate != nil {
 			if err := params.PreUpdate(); err != nil {
@@ -179,6 +170,56 @@ func ReconcileResource(params Params) error {
 		if params.PostUpdate != nil {
 			params.PostUpdate()
 		}
+		return nil
+	}
+
+	// Check if there is any forced operation first
+	if params.MustCreate() {
+		return create()
+	}
+	if params.NeedsUpdate() && params.MustUpdate() {
+		// Fetch the current value, we are not expecting error, object must exist
+		if err = params.Client.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, params.Reconciled); err != nil {
+			return err
+		}
+		return update()
+	}
+
+	// Check if already exists
+	err = params.Client.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, params.Reconciled)
+	if err != nil && apierrors.IsNotFound(err) {
+		return create()
+	} else if err != nil {
+		log.Error(err, fmt.Sprintf("Generic GET for %s %s/%s failed with error", kind, namespace, name))
+		return fmt.Errorf("failed to get %s %s/%s: %w", kind, namespace, name, err)
+	}
+
+	if params.NeedsRecreate != nil && params.NeedsRecreate() {
+		log.Info("Resource cannot be updated, hence will be deleted and then recreated", "kind", kind, "namespace", namespace, "name", name)
+		log.Info("Deleting resource", "kind", kind, "namespace", namespace, "name", name)
+		reconciledMeta, err := meta.Accessor(params.Reconciled)
+		if err != nil {
+			return err
+		}
+		// Using a precondition here to make sure we delete the version of the resource we intend to delete and
+		// to avoid accidentally deleting a resource already recreated for example
+		uidToDelete := reconciledMeta.GetUID()
+		resourceVersionToDelete := reconciledMeta.GetResourceVersion()
+		opt := client.Preconditions{
+			UID:             &uidToDelete,
+			ResourceVersion: &resourceVersionToDelete,
+		}
+
+		err = params.Client.Delete(context.Background(), params.Expected, opt)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete %s %s/%s: %w", kind, namespace, name, err)
+		}
+		return create()
+	}
+
+	// Update if needed
+	if params.NeedsUpdate() {
+		return update()
 	}
 	return nil
 }

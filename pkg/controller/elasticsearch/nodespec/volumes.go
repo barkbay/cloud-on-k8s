@@ -53,6 +53,13 @@ func buildVolumes(
 		esvolume.ScriptsVolumeMountPath,
 		0755)
 
+	serviceAccountsSecret := volume.NewSelectiveSecretVolumeWithMountPath(
+		esv1.ServiceAccountsSecretSecret(esName),
+		esvolume.ServiceAccountsVolumeName,
+		esvolume.ServiceAccountsVolumeMountPath,
+		[]string{esvolume.ServiceAccountsFile},
+	)
+
 	// append future volumes from PVCs (not resolved to a claim yet)
 	persistentVolumes := make([]corev1.Volume, 0, len(nodeSpec.VolumeClaimTemplates))
 	for _, claimTemplate := range nodeSpec.VolumeClaimTemplates {
@@ -81,6 +88,7 @@ func buildVolumes(
 			scriptsVolume.Volume(),
 			configVolume.Volume(),
 			downwardAPIVolume.Volume(),
+			serviceAccountsSecret.Volume(),
 		)...)
 	if keystoreResources != nil {
 		volumes = append(volumes, keystoreResources.Volume)
@@ -98,6 +106,7 @@ func buildVolumes(
 		scriptsVolume.VolumeMount(),
 		configVolume.VolumeMount(),
 		downwardAPIVolume.VolumeMount(),
+		serviceAccountsSecret.VolumeMount(),
 	)
 
 	volumeMounts = esvolume.AppendDefaultDataVolumeMount(volumeMounts, volumes)

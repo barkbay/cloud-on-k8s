@@ -5,6 +5,8 @@
 package controller
 
 import (
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -31,6 +33,10 @@ const (
 	AgentAssociationLabelType = "agentassociation.k8s.elastic.co/type"
 )
 
+var (
+	FleetServerServiceAccountMinVersion = version.MustParse("8.0.0")
+)
+
 func AddAgentES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
 		AssociationType:           commonv1.ElasticsearchAssociationType,
@@ -53,6 +59,9 @@ func AddAgentES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params 
 		AssociationResourceNamespaceLabelName: eslabel.ClusterNamespaceLabelName,
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
+			ServiceAccount: func() (serviceaccount.Name, version.Version) {
+				return serviceaccount.FleetServer, FleetServerServiceAccountMinVersion
+			},
 			ElasticsearchRef: func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error) {
 				return true, association.AssociationRef(), nil
 			},
