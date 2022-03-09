@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 )
 
 type Name string
@@ -21,10 +19,6 @@ const (
 	FleetServer Name = "fleet-server"
 )
 
-var (
-	MinSupportedVersion = version.MustParse("8.0.0")
-)
-
 type TokenReference struct {
 	SecretRef types.NamespacedName
 	TokenName string
@@ -34,10 +28,8 @@ type ElasticsearchStore interface {
 	EnsureElasticsearchStoreExists(tokens ...Token) error
 }
 
-type ApplicationStore interface {
+type SecretsManager interface {
 	EnsureTokenExists(applicationName string, applicationUID types.UID, serviceAccount Name) (*TokenReference, error)
-
-	DeleteToken() error
 }
 
 // Token stores all the required data for a given service account token.
@@ -46,20 +38,6 @@ type Token struct {
 	TokenName          string       `json:"tokenName"`
 	Token              SecureString `json:"token"`
 	Hash               SecureString `json:"hash"`
-}
-
-func (u Token) UnsecureMarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		ServiceAccountName string       `json:"serviceAccountName"`
-		TokenName          string       `json:"tokenName"`
-		Token              SecureString `json:"token"`
-		Hash               SecureString `json:"hash"`
-	}{
-		ServiceAccountName: u.ServiceAccountName,
-		TokenName:          u.TokenName,
-		Token:              u.Token,
-		Hash:               u.Hash,
-	})
 }
 
 func (u Token) MarshalJSON() ([]byte, error) {

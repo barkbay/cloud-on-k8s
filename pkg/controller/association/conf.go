@@ -12,8 +12,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"go.elastic.co/apm"
@@ -115,11 +113,7 @@ func ElasticsearchAuthSettings(c k8s.Client, association commonv1.Association) (
 	}
 
 	if assocConf.IsServiceAccount {
-		token := serviceaccount.Token{}
-		if err := json.Unmarshal(data, &token); err != nil {
-			return Credentials{}, fmt.Errorf("cannot parse service account from Secret %s and key %s", secretObjKey, assocConf.AuthSecretKey)
-		}
-		return Credentials{ServiceAccountToken: token.Token.Clear()}, nil
+		return Credentials{ServiceAccountToken: string(data)}, nil
 	}
 
 	return Credentials{Username: assocConf.AuthSecretKey, Password: string(data)}, nil

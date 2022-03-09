@@ -36,8 +36,6 @@ type Params struct {
 	// Reconciled will contain the final state of the resource after reconciliation containing the
 	// unification of remote and expected state.
 	Reconciled client.Object
-	// ForceOperation returns a force operation.
-	ForceOperation *Operation
 	// NeedsUpdate returns true when the object to be reconciled has changes that are not persisted remotely.
 	NeedsUpdate func() bool
 	// NeedsRecreate returns true when the object to be reconciled needs to be deleted and re-created because it cannot be updated.
@@ -50,29 +48,6 @@ type Params struct {
 	PreUpdate func() error
 	// PostUpdate is called immediately after the resource is successfully updated.
 	PostUpdate func()
-}
-
-type Operation string
-
-const (
-	Update Operation = "Update"
-	Create Operation = "Create"
-)
-
-// MustCreate checks if the Create operation must be called.
-func (p *Params) MustCreate() bool {
-	if p != nil && p.ForceOperation != nil {
-		return *p.ForceOperation == Create
-	}
-	return false
-}
-
-// MustUpdate checks if the Update operation must be called.
-func (p *Params) MustUpdate() bool {
-	if p != nil && p.ForceOperation != nil {
-		return *p.ForceOperation == Update
-	}
-	return false
 }
 
 func (p Params) CheckNilValues() error {
@@ -171,18 +146,6 @@ func ReconcileResource(params Params) error {
 			params.PostUpdate()
 		}
 		return nil
-	}
-
-	// Check if there is any forced operation first
-	if params.MustCreate() {
-		return create()
-	}
-	if params.NeedsUpdate() && params.MustUpdate() {
-		// Fetch the current value, we are not expecting error, object must exist
-		if err = params.Client.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, params.Reconciled); err != nil {
-			return err
-		}
-		return update()
 	}
 
 	// Check if already exists

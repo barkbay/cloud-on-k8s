@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
-
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -119,11 +117,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 
 	// garbage collect secrets attached to this cluster that we don't need anymore
 	if err := cleanup.DeleteOrphanedSecrets(ctx, d.Client, d.ES); err != nil {
-		return results.WithError(err)
-	}
-
-	// Ensure service tokens exists
-	if err := serviceaccount.NewElasticsearchStore(d.Client, d.ES).EnsureElasticsearchStoreExists(); err != nil {
 		return results.WithError(err)
 	}
 

@@ -79,7 +79,7 @@ var (
 				Target: stringsutil.Concat(EsConfigSharedVolume.ContainerMountPath, "/", esvolume.UnicastHostsFile),
 			},
 			{
-				Source: stringsutil.Concat(esvolume.ServiceAccountsVolumeMountPath, "/", esvolume.ServiceAccountsFile),
+				Source: stringsutil.Concat(esvolume.XPackFileRealmVolumeMountPath, "/", esvolume.ServiceAccountsFile),
 				Target: stringsutil.Concat(EsConfigSharedVolume.ContainerMountPath, "/", esvolume.ServiceAccountsFile),
 			},
 		},

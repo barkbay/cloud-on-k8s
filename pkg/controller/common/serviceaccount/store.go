@@ -7,52 +7,31 @@ package serviceaccount
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 
+	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
+	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
 
 var (
-	_ ElasticsearchStore = &elasticsearchStore{}
-	_ ApplicationStore   = &applicationStore{}
+	log = ulog.Log.WithName("serviceaccount")
 )
 
-type elasticsearchStore struct {
-	client k8s.Client
-	es     esv1.Elasticsearch
-}
-
-type applicationStore struct {
-	*elasticsearchStore
-	applicationNamespace string
-}
-
-func EnsureElasticsearchStore() error {
-	return nil
-}
-
-func (s *applicationStore) applicationStoreName() types.NamespacedName {
-	return types.NamespacedName{
-		Namespace: s.applicationNamespace,
-		Name:      fmt.Sprintf("%s-%s-service-accounts", s.es.Namespace, s.es.Name),
-	}
-}
-
-func applicationStoreLabels(es esv1.Elasticsearch) map[string]string {
+func applicationSecretLabels(es esv1.Elasticsearch) map[string]string {
 	return common.AddCredentialsLabel(map[string]string{
-		reconciler.SoftOwnerNamespaceLabel: es.Namespace,
-		reconciler.SoftOwnerNameLabel:      es.Name,
-		common.TypeLabelName:               "sa-tokens",
+		label.ClusterNamespaceLabelName: es.Namespace,
+		label.ClusterNameLabelName:      es.Name,
 	})
 }
 
@@ -60,168 +39,164 @@ func esStoreLabels(es esv1.Elasticsearch) map[string]string {
 	return map[string]string{
 		label.ClusterNamespaceLabelName: es.Namespace,
 		label.ClusterNameLabelName:      es.Name,
-		common.TypeLabelName:            "sa-tokens",
+		common.TypeLabelName:            "service-account-token",
 	}
 }
 
-// ensureApplicationStoreExists ensure the tokens application store exists and contains the provided token.
-func (s *applicationStore) ensureApplicationStoreExists(
+// reconcileApplicationSecret reconciles the Secret which contains the application token.
+func reconcileApplicationSecret(
+	ctx context.Context,
+	client k8s.Client,
+	es esv1.Elasticsearch,
+	applicationSecretName types.NamespacedName,
+	commonLabels map[string]string,
 	tokenName string,
 	serviceAccount Name,
 ) (*Token, error) {
+	span, _ := apm.StartSpan(ctx, "reconcile_sa_token_application", tracing.SpanTypeApp)
+	defer span.End()
+
 	// We first try to read the store in the application namespace.
 	applicationStore := corev1.Secret{}
-	applicationStoreName := s.applicationStoreName()
-	err := s.client.Get(context.TODO(), applicationStoreName, &applicationStore)
-	if err != nil && !errors.IsNotFound(err) {
+	err := client.Get(context.Background(), applicationSecretName, &applicationStore)
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return nil, err
 	}
 
-	if errors.IsNotFound(err) {
+	var token *Token
+	if k8serrors.IsNotFound(err) || len(applicationStore.Data) == 0 {
 		// Create a new token
-		token, err := newApplicationToken(serviceAccount, tokenName)
+		token, err = newApplicationToken(serviceAccount, tokenName)
 		if err != nil {
 			return nil, err
 		}
-		serializedToken, err := token.UnsecureMarshalJSON()
-		if err != nil {
-			return nil, err
+	} else {
+		// Attempt to read current value
+		token = getCurrentApplicationToken(&es, applicationSecretName.Name, applicationStore.Data)
+		if token == nil {
+			// We need to create a new token
+			if token, err = newApplicationToken(serviceAccount, tokenName); err != nil {
+				return nil, err
+			}
 		}
-		// Create a new store from scratch
-		applicationStore = corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      applicationStoreName.Name,
-				Namespace: applicationStoreName.Namespace,
-				Labels:    applicationStoreLabels(s.es),
-			},
-			Data: map[string][]byte{
-				tokenName: serializedToken,
-			},
-		}
-
-		if _, err := reconciler.ReconcileSecretWithOperation(s.client, applicationStore, nil, reconciler.Create); err != nil {
-			return nil, err
-		}
-
-		return token, nil
 	}
 
-	// Update the expected value
-	token := getCurrentApplicationToken(applicationStore.Data, tokenName)
-	if token == nil {
-		// We need to create a new token
-		if token, err = newApplicationToken(serviceAccount, tokenName); err != nil {
-			return nil, err
-		}
-		json, err := token.UnsecureMarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-		applicationStore.Data[tokenName] = json
-		applicationStore.Labels = applicationStoreLabels(s.es)
-		if _, err := reconciler.ReconcileSecretWithOperation(s.client, applicationStore, nil, reconciler.Update); err != nil {
-			return nil, err
-		}
+	labels := applicationSecretLabels(es)
+	for labelName, labelValue := range commonLabels {
+		labels[labelName] = labelValue
 	}
+	applicationStore = corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      applicationSecretName.Name,
+			Namespace: applicationSecretName.Namespace,
+			Labels:    applicationSecretLabels(es),
+		},
+		Data: map[string][]byte{
+			"name":           []byte(token.TokenName),
+			"token":          []byte(token.Token),
+			"hash":           []byte(token.Hash),
+			"serviceAccount": []byte(token.ServiceAccountName),
+		},
+	}
+
+	if _, err := reconciler.ReconcileSecret(client, applicationStore, nil); err != nil {
+		return nil, err
+	}
+
 	return token, err
 }
 
-// EnsureElasticsearchStoreExists ensures the elasticsearch store exists and hold the provided tokens.
-func (s *elasticsearchStore) EnsureElasticsearchStoreExists(
-	tokens ...Token,
+// ensureElasticsearchStoreExists ensures the elasticsearch store exists and hold the provided tokens.
+func reconcileElasticsearchSecret(
+	ctx context.Context,
+	client k8s.Client,
+	es esv1.Elasticsearch,
+	elasticsearchSecretName types.NamespacedName,
+	token Token,
 ) error {
-	// Elasticsearch secure tokens store
-	esStore := corev1.Secret{}
-	esStoreName := types.NamespacedName{
-		Namespace: s.es.Namespace,
-		Name:      esv1.ServiceAccountsSecretSecret(s.es.Name),
+	span, _ := apm.StartSpan(ctx, "reconcile_sa_token_elasticsearch", tracing.SpanTypeApp)
+	defer span.End()
+	fullyQualifiedName := token.ServiceAccountName + "/" + token.TokenName
+	esSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      elasticsearchSecretName.Name,
+			Namespace: elasticsearchSecretName.Namespace,
+			Labels:    esStoreLabels(es),
+		},
+		Data: map[string][]byte{
+			"name": []byte(fullyQualifiedName),
+			"hash": []byte(token.Hash),
+		},
 	}
-
-	err := s.client.Get(context.TODO(), esStoreName, &esStore)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-
-	createEsStore := false
-	if errors.IsNotFound(err) {
-		createEsStore = true
-	}
-
-	var serviceTokens *ServiceTokens
-
-	// Try to load the existing token
-	if esStore.Data != nil {
-		serviceTokens, err = NewServiceTokens(esStore.Data["service_tokens"])
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, token := range tokens {
-		// Ensure the token is up-to-date in the Elasticsearch store
-		serviceTokens = serviceTokens.Add(token.ServiceAccountName+"/"+token.TokenName, token.Hash)
-	}
-
-	if createEsStore {
-		esStore = corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      esStoreName.Name,
-				Namespace: esStoreName.Namespace,
-				Labels:    esStoreLabels(s.es),
-			},
-			Data: map[string][]byte{
-				"service_tokens": serviceTokens.ToBytes(),
-			},
-		}
-		_, err := reconciler.ReconcileSecretWithOperation(s.client, esStore, &s.es, reconciler.Create)
-		return err
-	}
-
-	// Update existing service_tokens key
-	esStore.Data["service_tokens"] = serviceTokens.ToBytes()
-	esStore.Labels = esStoreLabels(s.es)
-	_, err = reconciler.ReconcileSecretWithOperation(s.client, esStore, &s.es, reconciler.Update)
+	_, err := reconciler.ReconcileSecret(client, esSecret, &es)
 	return err
-
 }
 
-func (s *applicationStore) EnsureTokenExists(
+func ReconcileSecrets(
+	ctx context.Context,
+	client k8s.Client,
+	es esv1.Elasticsearch,
+	commonLabels map[string]string,
+	applicationSecretName types.NamespacedName,
+	elasticsearchSecretName types.NamespacedName,
+	serviceAccount Name,
 	applicationName string,
 	applicationUID types.UID,
-	serviceAccount Name,
 ) (*TokenReference, error) {
 
-	tokenName := tokenName(s.applicationNamespace, applicationName, applicationUID)
+	tokenName := tokenName(applicationSecretName.Namespace, applicationName, applicationUID)
 	var token *Token
 
-	token, err := s.ensureApplicationStoreExists(tokenName, serviceAccount)
+	token, err := reconcileApplicationSecret(ctx, client, es, applicationSecretName, commonLabels, tokenName, serviceAccount)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.EnsureElasticsearchStoreExists(*token); err != nil {
+	if err := reconcileElasticsearchSecret(ctx, client, es, elasticsearchSecretName, *token); err != nil {
 		return nil, err
 	}
 
 	return &TokenReference{
-		SecretRef: s.applicationStoreName(),
+		SecretRef: applicationSecretName,
 		TokenName: tokenName,
 	}, nil
 }
 
-func getCurrentApplicationToken(secretData map[string][]byte, tokenName string) *Token {
-	if secretData == nil {
+func getCurrentApplicationToken(es *esv1.Elasticsearch, secretName string, secretData map[string][]byte) *Token {
+	if len(secretData) == 0 {
+		log.V(1).Info("secret is empty", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
 		return nil
 	}
-	tokenValue, exists := secretData[tokenName]
-	if !exists {
+	result := &Token{}
+	if tokenName, exists := secretData["name"]; !exists {
+		log.V(1).Info("name field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
 		return nil
+	} else {
+		result.TokenName = string(tokenName)
 	}
-	token := &Token{}
-	if err := json.Unmarshal(tokenValue, &token); err != nil {
+
+	if token, exists := secretData["token"]; !exists {
+		log.V(1).Info("token field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
 		return nil
+	} else {
+		result.Token = SecureString(token)
 	}
-	return token
+
+	if hash, exists := secretData["hash"]; !exists {
+		log.V(1).Info("hash field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
+		return nil
+	} else {
+		result.Hash = SecureString(hash)
+	}
+
+	if serviceAccount, exists := secretData["serviceAccount"]; !exists {
+		log.V(1).Info("serviceAccount field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
+		return nil
+	} else {
+		result.ServiceAccountName = string(serviceAccount)
+	}
+
+	return result
 }
 
 var prefix = []byte{0x0, 0x1, 0x0, 0x1}
@@ -246,28 +221,9 @@ func newApplicationToken(serviceAccountName Name, tokenName string) (*Token, err
 	}, nil
 }
 
-func (s *applicationStore) DeleteToken() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func NewApplicationStore(client k8s.Client, es esv1.Elasticsearch, applicationNamespace string) ApplicationStore {
-	return &applicationStore{
-		elasticsearchStore: &elasticsearchStore{
-			client: client,
-			es:     es,
-		},
-		applicationNamespace: applicationNamespace,
-	}
-}
-
-func NewElasticsearchStore(client k8s.Client, es esv1.Elasticsearch) ElasticsearchStore {
-	return &elasticsearchStore{
-		client: client,
-		es:     es,
-	}
-}
-
-func tokenName(applicationNamespace, applicationName string, applicationUID types.UID) string {
+func tokenName(
+	applicationNamespace, applicationName string,
+	applicationUID types.UID,
+) string {
 	return fmt.Sprintf("%s_%s_%s", applicationNamespace, applicationName, applicationUID)
 }

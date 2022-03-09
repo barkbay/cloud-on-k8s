@@ -305,13 +305,22 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 	if sa := getServiceAccount(r.ElasticsearchUserCreation, esVersion); len(sa) > 0 {
 		r.log(k8s.ExtractNamespacedName(association)).V(1).Info("Ensure service account exists", "sa", sa)
-		tokenRef, err := serviceaccount.NewApplicationStore(r.Client, es, association.GetNamespace()).
-			EnsureTokenExists(association.GetName(), association.GetUID(), sa)
+		tokenRef, err := serviceaccount.ReconcileSecrets(
+			ctx,
+			r.Client,
+			es,
+			assocLabels,
+			secretKey(association, r.ElasticsearchUserCreation.UserSecretSuffix),
+			UserKey(association, es.Namespace, r.ElasticsearchUserCreation.UserSecretSuffix),
+			sa,
+			association.GetName(),
+			association.GetUID(),
+		)
 		if err != nil {
 			return commonv1.AssociationFailed, err
 		}
 		expectedAssocConf.AuthSecretName = tokenRef.SecretRef.Name
-		expectedAssocConf.AuthSecretKey = tokenRef.TokenName
+		expectedAssocConf.AuthSecretKey = "token"
 		expectedAssocConf.IsServiceAccount = true
 		// update the association configuration if necessary
 		return r.updateAssocConf(ctx, expectedAssocConf, association)

@@ -5,9 +5,6 @@
 package serviceaccount
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
 	"sort"
 	"strings"
 )
@@ -38,27 +35,6 @@ func (s *ServiceTokens) Add(fullyQualifiedServiceAccountName string, hashedSecre
 	}
 	newServiceTokens = append(newServiceTokens, newServiceToken)
 	return &newServiceTokens
-}
-
-func NewServiceTokens(data []byte) (*ServiceTokens, error) {
-	var serviceTokens ServiceTokens
-	r := bytes.NewReader(data)
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		line := sc.Text()
-		parts := strings.Split(line, ":")
-		if len(parts) != 2 {
-			return nil, errors.New("invalid service token")
-		}
-		serviceTokens = append(serviceTokens, ServiceToken{
-			FullyQualifiedServiceAccountName: parts[0],
-			HashedSecret:                     SecureString(parts[1]),
-		})
-	}
-	if err := sc.Err(); err != nil {
-		return nil, err
-	}
-	return &serviceTokens, nil
 }
 
 func (s *ServiceTokens) ToBytes() []byte {

@@ -6,7 +6,14 @@ package user
 
 import (
 	"context"
+	"errors"
 	"reflect"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
 
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -59,13 +66,80 @@ func ReconcileUsersAndRoles(
 		return esclient.BasicAuth{}, err
 	}
 
+	// reconcile the service accounts
+	saTokens, err := aggregateServiceAccountTokens(c, es)
+	if err != nil {
+		return esclient.BasicAuth{}, err
+	}
+
 	// reconcile the aggregate secret
-	if err := reconcileRolesFileRealmSecret(c, es, roles, fileRealm); err != nil {
+	if err := reconcileRolesFileRealmSecret(c, es, roles, fileRealm, saTokens); err != nil {
 		return esclient.BasicAuth{}, err
 	}
 
 	// return the controller user for next reconciliation steps to interact with Elasticsearch
 	return controllerUser, nil
+}
+
+func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (*serviceaccount.ServiceTokens, error) {
+	// list all associated user secrets
+	var serviceAccountSecrets corev1.SecretList
+	if err := c.List(context.Background(),
+		&serviceAccountSecrets,
+		client.InNamespace(es.Namespace),
+		client.MatchingLabels(
+			map[string]string{
+				label.ClusterNameLabelName: es.Name,
+				common.TypeLabelName:       "service-account-token",
+			},
+		),
+	); err != nil {
+		return nil, err
+	}
+
+	var tokens *serviceaccount.ServiceTokens
+	for _, secret := range serviceAccountSecrets.Items {
+		if len(secret.Data) == 0 {
+			log.Error(
+				errors.New("service account secret is empty"),
+				"ignoring service account",
+				"namespace",
+				es.Namespace, "es_name", es.Name,
+				"secret_name", secret.Name,
+				"count", len(secret.Data),
+			)
+			continue
+		}
+
+		fullyQualifiedName, exist := secret.Data["name"]
+		if !exist {
+			log.Error(
+				errors.New("token name is missing"),
+				"ignoring service account",
+				"namespace",
+				es.Namespace, "es_name", es.Name,
+				"secret_name", secret.Name,
+				"count", len(secret.Data),
+			)
+			continue
+		}
+
+		hash, exist := secret.Data["hash"]
+		if !exist {
+			log.Error(
+				errors.New("hash is missing"),
+				"ignoring service account",
+				"namespace",
+				es.Namespace, "es_name", es.Name,
+				"secret_name", secret.Name,
+				"count", len(secret.Data),
+			)
+			continue
+		}
+
+		tokens = tokens.Add(string(fullyQualifiedName), serviceaccount.SecureString(hash))
+	}
+	return tokens, nil
 }
 
 func getExistingFileRealm(c k8s.Client, es esv1.Elasticsearch) (filerealm.Realm, error) {
@@ -150,13 +224,20 @@ func RolesFileRealmSecretKey(es esv1.Elasticsearch) types.NamespacedName {
 }
 
 // reconcileRolesFileRealmSecret creates or updates the single secret holding the file realm and the file-based roles.
-func reconcileRolesFileRealmSecret(c k8s.Client, es esv1.Elasticsearch, roles RolesFileContent, fileRealm filerealm.Realm) error {
+func reconcileRolesFileRealmSecret(
+	c k8s.Client,
+	es esv1.Elasticsearch,
+	roles RolesFileContent,
+	fileRealm filerealm.Realm,
+	saTokens *serviceaccount.ServiceTokens,
+) error {
 	secretData := fileRealm.FileBytes()
 	rolesBytes, err := roles.FileBytes()
 	if err != nil {
 		return err
 	}
 	secretData[RolesFile] = rolesBytes
+	secretData["service_tokens"] = saTokens.ToBytes()
 
 	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
