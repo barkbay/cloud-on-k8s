@@ -6,14 +6,7 @@ package user
 
 import (
 	"context"
-	"errors"
 	"reflect"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
 
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -21,8 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	esv1 "github.com/elastic/cloud-on-k8s/pkg/apis/elasticsearch/v1"
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/watches"
@@ -81,7 +76,7 @@ func ReconcileUsersAndRoles(
 	return controllerUser, nil
 }
 
-func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (*serviceaccount.ServiceTokens, error) {
+func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (ServiceAccountTokens, error) {
 	// list all associated user secrets
 	var serviceAccountSecrets corev1.SecretList
 	if err := c.List(context.Background(),
@@ -97,47 +92,13 @@ func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (*servic
 		return nil, err
 	}
 
-	var tokens *serviceaccount.ServiceTokens
+	var tokens ServiceAccountTokens
 	for _, secret := range serviceAccountSecrets.Items {
-		if len(secret.Data) == 0 {
-			log.Error(
-				errors.New("service account secret is empty"),
-				"ignoring service account",
-				"namespace",
-				es.Namespace, "es_name", es.Name,
-				"secret_name", secret.Name,
-				"count", len(secret.Data),
-			)
-			continue
+		token, err := getServiceAccountToken(secret)
+		if err != nil {
+			return nil, err
 		}
-
-		fullyQualifiedName, exist := secret.Data["name"]
-		if !exist {
-			log.Error(
-				errors.New("token name is missing"),
-				"ignoring service account",
-				"namespace",
-				es.Namespace, "es_name", es.Name,
-				"secret_name", secret.Name,
-				"count", len(secret.Data),
-			)
-			continue
-		}
-
-		hash, exist := secret.Data["hash"]
-		if !exist {
-			log.Error(
-				errors.New("hash is missing"),
-				"ignoring service account",
-				"namespace",
-				es.Namespace, "es_name", es.Name,
-				"secret_name", secret.Name,
-				"count", len(secret.Data),
-			)
-			continue
-		}
-
-		tokens = tokens.Add(string(fullyQualifiedName), serviceaccount.SecureString(hash))
+		tokens = tokens.Add(token)
 	}
 	return tokens, nil
 }
@@ -229,7 +190,7 @@ func reconcileRolesFileRealmSecret(
 	es esv1.Elasticsearch,
 	roles RolesFileContent,
 	fileRealm filerealm.Realm,
-	saTokens *serviceaccount.ServiceTokens,
+	saTokens ServiceAccountTokens,
 ) error {
 	secretData := fileRealm.FileBytes()
 	rolesBytes, err := roles.FileBytes()
@@ -237,7 +198,7 @@ func reconcileRolesFileRealmSecret(
 		return err
 	}
 	secretData[RolesFile] = rolesBytes
-	secretData["service_tokens"] = saTokens.ToBytes()
+	secretData[ServiceTokensFileName] = saTokens.ToBytes()
 
 	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

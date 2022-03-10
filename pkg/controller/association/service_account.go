@@ -2,14 +2,21 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package serviceaccount
+package association
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha512"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"go.elastic.co/apm"
+	"golang.org/x/crypto/pbkdf2"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,12 +27,20 @@ import (
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/label"
+	esuser "github.com/elastic/cloud-on-k8s/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/pkg/utils/k8s"
-	ulog "github.com/elastic/cloud-on-k8s/pkg/utils/log"
 )
 
-var (
-	log = ulog.Log.WithName("serviceaccount")
+type ServiceAccountName string
+
+const (
+	Namespace string = "elastic"
+
+	Kibana      ServiceAccountName = "kibana"
+	FleetServer ServiceAccountName = "fleet-server"
+
+	ServiceAccountNameField       = "serviceAccount"
+	ServiceAccountTokenValueField = "token"
 )
 
 func applicationSecretLabels(es esv1.Elasticsearch) map[string]string {
@@ -51,7 +66,7 @@ func reconcileApplicationSecret(
 	applicationSecretName types.NamespacedName,
 	commonLabels map[string]string,
 	tokenName string,
-	serviceAccount Name,
+	serviceAccount ServiceAccountName,
 ) (*Token, error) {
 	span, _ := apm.StartSpan(ctx, "reconcile_sa_token_application", tracing.SpanTypeApp)
 	defer span.End()
@@ -89,13 +104,13 @@ func reconcileApplicationSecret(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      applicationSecretName.Name,
 			Namespace: applicationSecretName.Namespace,
-			Labels:    applicationSecretLabels(es),
+			Labels:    labels,
 		},
 		Data: map[string][]byte{
-			"name":           []byte(token.TokenName),
-			"token":          []byte(token.Token),
-			"hash":           []byte(token.Hash),
-			"serviceAccount": []byte(token.ServiceAccountName),
+			esuser.ServiceAccountTokenNameField: []byte(token.TokenName),
+			ServiceAccountTokenValueField:       []byte(token.Token),
+			esuser.ServiceAccountHashField:      []byte(token.Hash),
+			ServiceAccountNameField:             []byte(token.ServiceAccountName),
 		},
 	}
 
@@ -112,97 +127,98 @@ func reconcileElasticsearchSecret(
 	client k8s.Client,
 	es esv1.Elasticsearch,
 	elasticsearchSecretName types.NamespacedName,
+	commonLabels map[string]string,
 	token Token,
 ) error {
 	span, _ := apm.StartSpan(ctx, "reconcile_sa_token_elasticsearch", tracing.SpanTypeApp)
 	defer span.End()
 	fullyQualifiedName := token.ServiceAccountName + "/" + token.TokenName
+	labels := esStoreLabels(es)
+	for labelName, labelValue := range commonLabels {
+		labels[labelName] = labelValue
+	}
 	esSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      elasticsearchSecretName.Name,
 			Namespace: elasticsearchSecretName.Namespace,
-			Labels:    esStoreLabels(es),
+			Labels:    labels,
 		},
 		Data: map[string][]byte{
-			"name": []byte(fullyQualifiedName),
-			"hash": []byte(token.Hash),
+			esuser.ServiceAccountTokenNameField: []byte(fullyQualifiedName),
+			esuser.ServiceAccountHashField:      []byte(token.Hash),
 		},
 	}
 	_, err := reconciler.ReconcileSecret(client, esSecret, &es)
 	return err
 }
 
-func ReconcileSecrets(
+func ReconcileServiceAccounts(
 	ctx context.Context,
 	client k8s.Client,
 	es esv1.Elasticsearch,
 	commonLabels map[string]string,
 	applicationSecretName types.NamespacedName,
 	elasticsearchSecretName types.NamespacedName,
-	serviceAccount Name,
+	serviceAccount ServiceAccountName,
 	applicationName string,
 	applicationUID types.UID,
-) (*TokenReference, error) {
-
+) error {
 	tokenName := tokenName(applicationSecretName.Namespace, applicationName, applicationUID)
-	var token *Token
-
 	token, err := reconcileApplicationSecret(ctx, client, es, applicationSecretName, commonLabels, tokenName, serviceAccount)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	if err := reconcileElasticsearchSecret(ctx, client, es, elasticsearchSecretName, *token); err != nil {
-		return nil, err
-	}
-
-	return &TokenReference{
-		SecretRef: applicationSecretName,
-		TokenName: tokenName,
-	}, nil
+	return reconcileElasticsearchSecret(ctx, client, es, elasticsearchSecretName, commonLabels, *token)
 }
 
+// getCurrentApplicationToken returns the current token from the application Secret, or nil if the content of the Secret is not valid.
 func getCurrentApplicationToken(es *esv1.Elasticsearch, secretName string, secretData map[string][]byte) *Token {
 	if len(secretData) == 0 {
 		log.V(1).Info("secret is empty", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
 		return nil
 	}
 	result := &Token{}
-	if tokenName, exists := secretData["name"]; !exists {
-		log.V(1).Info("name field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
-		return nil
+	if value := getFieldOrNil(es, secretName, secretData, esuser.ServiceAccountTokenNameField); value != nil && len(*value) > 0 {
+		result.TokenName = *value
 	} else {
-		result.TokenName = string(tokenName)
+		return nil
 	}
 
-	if token, exists := secretData["token"]; !exists {
-		log.V(1).Info("token field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
-		return nil
+	if value := getFieldOrNil(es, secretName, secretData, ServiceAccountTokenValueField); value != nil && len(*value) > 0 {
+		result.Token = *value
 	} else {
-		result.Token = SecureString(token)
+		return nil
 	}
 
-	if hash, exists := secretData["hash"]; !exists {
-		log.V(1).Info("hash field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
-		return nil
+	if value := getFieldOrNil(es, secretName, secretData, esuser.ServiceAccountHashField); value != nil && len(*value) > 0 {
+		result.Hash = *value
 	} else {
-		result.Hash = SecureString(hash)
+		return nil
 	}
 
-	if serviceAccount, exists := secretData["serviceAccount"]; !exists {
-		log.V(1).Info("serviceAccount field is missing", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
-		return nil
+	if value := getFieldOrNil(es, secretName, secretData, ServiceAccountNameField); value != nil && len(*value) > 0 {
+		result.ServiceAccountName = *value
 	} else {
-		result.ServiceAccountName = string(serviceAccount)
+		return nil
 	}
 
 	return result
 }
 
-var prefix = []byte{0x0, 0x1, 0x0, 0x1}
+func getFieldOrNil(es *esv1.Elasticsearch, secretName string, secretData map[string][]byte, fieldName string) *string {
+	data, exists := secretData[fieldName]
+	if !exists {
+		log.V(1).Info(fmt.Sprintf("%s field is missing in service account token Secret", fieldName), "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
+		return nil
+	}
+	fieldValue := string(data)
+	return &fieldValue
+}
+
+var prefix = [...]byte{0x0, 0x1, 0x0, 0x1}
 
 // newApplicationToken generates a new token for the provided service account.
-func newApplicationToken(serviceAccountName Name, tokenName string) (*Token, error) {
+func newApplicationToken(serviceAccountName ServiceAccountName, tokenName string) (*Token, error) {
 	secret := common.RandomBytes(64)
 	hash, err := hash(secret)
 	if err != nil {
@@ -211,13 +227,13 @@ func newApplicationToken(serviceAccountName Name, tokenName string) (*Token, err
 
 	fullyQualifiedName := fmt.Sprintf("%s/%s", Namespace, serviceAccountName)
 	suffix := []byte(fmt.Sprintf("%s/%s:%s", fullyQualifiedName, tokenName, secret))
-	token := base64.StdEncoding.EncodeToString(append(prefix, suffix...))
+	token := base64.StdEncoding.EncodeToString(append(prefix[:], suffix...))
 
 	return &Token{
 		ServiceAccountName: fullyQualifiedName,
 		TokenName:          tokenName,
-		Token:              SecureString(token),
-		Hash:               SecureString(*hash),
+		Token:              token,
+		Hash:               hash,
 	}, nil
 }
 
@@ -226,4 +242,56 @@ func tokenName(
 	applicationUID types.UID,
 ) string {
 	return fmt.Sprintf("%s_%s_%s", applicationNamespace, applicationName, applicationUID)
+}
+
+// Token stores all the required data for a given service account token.
+type Token struct {
+	ServiceAccountName string
+	TokenName          string
+	Token              string
+	Hash               string
+}
+
+func (u Token) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		ServiceAccountName string `json:"serviceAccountName"`
+		TokenName          string `json:"tokenName"`
+		Token              string `json:"token"`
+		Hash               string `json:"hash"`
+	}{
+		ServiceAccountName: u.ServiceAccountName,
+		TokenName:          u.TokenName,
+		Token:              "REDACTED",
+		Hash:               "REDACTED",
+	})
+}
+
+// -- crypto
+
+const (
+	pbkdf2StretchPrefix     = "{PBKDF2_STRETCH}"
+	pbkdf2DefaultCost       = 10000
+	pbkdf2KeyLength         = 32
+	pbkdf2DefaultSaltLength = 32
+)
+
+func hash(secret []byte) (string, error) {
+	var result strings.Builder
+	result.WriteString(pbkdf2StretchPrefix)
+	result.WriteString(strconv.Itoa(pbkdf2DefaultCost))
+	result.WriteString("$")
+
+	salt := make([]byte, pbkdf2DefaultSaltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	result.WriteString(base64.StdEncoding.EncodeToString(salt))
+	result.WriteString("$")
+
+	hashedSecret := sha512.Sum512(secret)
+	hashedSecretAsString := hex.EncodeToString(hashedSecret[:])
+
+	dk := pbkdf2.Key([]byte(hashedSecretAsString), salt, pbkdf2DefaultCost, pbkdf2KeyLength, sha512.New)
+	result.WriteString(base64.StdEncoding.EncodeToString(dk))
+	return result.String(), nil
 }

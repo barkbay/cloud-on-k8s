@@ -133,6 +133,7 @@ const (
 type Associated interface {
 	metav1.Object
 	runtime.Object
+	GetVersion() string
 	ServiceAccountName() string
 	GetAssociations() []Association
 	AssociationStatusMap(typ AssociationType) AssociationStatusMap

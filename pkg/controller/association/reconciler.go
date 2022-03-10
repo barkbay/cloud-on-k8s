@@ -12,8 +12,6 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
 
-	"github.com/elastic/cloud-on-k8s/pkg/controller/common/serviceaccount"
-
 	"github.com/go-logr/logr"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
@@ -95,7 +93,7 @@ type ElasticsearchUserCreation struct {
 	ElasticsearchRef func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error)
 	// ServiceAccount is the service account to be used, it should return an empty string if not supported.
 	// Version is the minimum version supported for using service tokens.
-	ServiceAccount func() (serviceaccount.Name, version.Version)
+	ServiceAccount func() (ServiceAccountName, version.Version)
 	// UserSecretSuffix is used as a suffix in the name of the secret holding user data in the associated namespace.
 	UserSecretSuffix string
 	// ESUserRole is the role to use for the Elasticsearch user created by the association.
@@ -299,13 +297,14 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 
 	// Create the user or the service account
-	esVersion, err := version.Parse(es.Spec.Version)
+	associatedVersion, err := version.Parse(association.GetVersion())
 	if err != nil {
-		return commonv1.AssociationFailed, err
+		return commonv1.AssociationPending, err
 	}
-	if sa := getServiceAccount(r.ElasticsearchUserCreation, esVersion); len(sa) > 0 {
+	if sa := getServiceAccount(r.ElasticsearchUserCreation, associatedVersion); len(sa) > 0 {
+		applicationSecretName := secretKey(association, r.ElasticsearchUserCreation.UserSecretSuffix)
 		r.log(k8s.ExtractNamespacedName(association)).V(1).Info("Ensure service account exists", "sa", sa)
-		tokenRef, err := serviceaccount.ReconcileSecrets(
+		err := ReconcileServiceAccounts(
 			ctx,
 			r.Client,
 			es,
@@ -319,7 +318,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 		if err != nil {
 			return commonv1.AssociationFailed, err
 		}
-		expectedAssocConf.AuthSecretName = tokenRef.SecretRef.Name
+		expectedAssocConf.AuthSecretName = applicationSecretName.Name
 		expectedAssocConf.AuthSecretKey = "token"
 		expectedAssocConf.IsServiceAccount = true
 		// update the association configuration if necessary
@@ -351,7 +350,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	return r.updateAssocConf(ctx, expectedAssocConf, association)
 }
 
-func getServiceAccount(esUserCreation *ElasticsearchUserCreation, esVersion version.Version) serviceaccount.Name {
+func getServiceAccount(esUserCreation *ElasticsearchUserCreation, esVersion version.Version) ServiceAccountName {
 	if esUserCreation == nil || esUserCreation.ServiceAccount == nil {
 		return ""
 	}

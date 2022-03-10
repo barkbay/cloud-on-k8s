@@ -6,6 +6,8 @@ package agent
 import (
 	"testing"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/association"
+
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,9 +89,11 @@ func TestExtractConnectionSettings(t *testing.T) {
 			}),
 			assocType: commonv1.KibanaAssociationType,
 			wantConnectionSettings: connectionSettings{
-				host:     "url",
-				username: "user",
-				password: "password",
+				host: "url",
+				credentials: association.Credentials{
+					Username: "user",
+					Password: "password",
+				},
 			},
 			wantErr: false,
 		},
@@ -107,10 +111,12 @@ func TestExtractConnectionSettings(t *testing.T) {
 			}),
 			assocType: commonv1.KibanaAssociationType,
 			wantConnectionSettings: connectionSettings{
-				host:     "url",
-				ca:       "/mnt/elastic-internal/kibana-association/ns/kibana/certs/ca.crt",
-				username: "user",
-				password: "password",
+				host: "url",
+				ca:   "/mnt/elastic-internal/kibana-association/ns/kibana/certs/ca.crt",
+				credentials: association.Credentials{
+					Username: "user",
+					Password: "password",
+				},
 			},
 			wantErr: false,
 		},
