@@ -29,10 +29,38 @@ const (
 // DefaultESClientTimeout is the default timeout value for Elasticsearch requests.
 var DefaultESClientTimeout = 3 * time.Minute
 
+// AuthProvider updates the HTTP request to provide authentication information
+
+type AuthProvider interface {
+	SetupAuthentication(r *http.Request)
+	IsSet() bool
+}
+
+// ServiceAccountAuth contains credentials for an Elasticsearch service account.
+type ServiceAccountAuth struct {
+	Token string
+}
+
+func (ba ServiceAccountAuth) SetupAuthentication(r *http.Request) {
+	r.Header.Set("Authorization", "Bearer "+ba.Token)
+}
+
+func (ba ServiceAccountAuth) IsSet() bool {
+	return len(ba.Token) > 0
+}
+
 // BasicAuth contains credentials for an Elasticsearch user.
 type BasicAuth struct {
 	Name     string
 	Password string
+}
+
+func (ba BasicAuth) SetupAuthentication(r *http.Request) {
+	r.SetBasicAuth(ba.Name, ba.Password)
+}
+
+func (ba BasicAuth) IsSet() bool {
+	return len(ba.Name) > 0 || len(ba.Password) > 0
 }
 
 type IndexRole struct {
@@ -139,17 +167,17 @@ func NewElasticsearchClient(
 	dialer net.Dialer,
 	es types.NamespacedName,
 	esURL string,
-	esUser BasicAuth,
+	authProvider AuthProvider,
 	v version.Version,
 	caCerts []*x509.Certificate,
 	timeout time.Duration,
 ) Client {
 	base := &baseClient{
-		Endpoint: esURL,
-		User:     esUser,
-		caCerts:  caCerts,
-		HTTP:     common.HTTPClient(dialer, caCerts, timeout),
-		es:       es,
+		Endpoint:     esURL,
+		AuthProvider: authProvider,
+		caCerts:      caCerts,
+		HTTP:         common.HTTPClient(dialer, caCerts, timeout),
+		es:           es,
 	}
 	return versioned(base, v)
 }

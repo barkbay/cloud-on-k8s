@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,12 +25,12 @@ import (
 var log = ulog.Log.WithName("elasticsearch-client")
 
 type baseClient struct {
-	User     BasicAuth
-	HTTP     *http.Client
-	Endpoint string
-	es       types.NamespacedName
-	caCerts  []*x509.Certificate
-	version  version.Version
+	AuthProvider AuthProvider
+	HTTP         *http.Client
+	Endpoint     string
+	es           types.NamespacedName
+	caCerts      []*x509.Certificate
+	version      version.Version
 }
 
 // Close idle connections in the underlying http client.
@@ -60,15 +61,15 @@ func (c *baseClient) equal(c2 *baseClient) bool {
 	}
 	// compare endpoint and user creds
 	return c.Endpoint == c2.Endpoint &&
-		c.User == c2.User
+		reflect.DeepEqual(c.AuthProvider, c2.AuthProvider)
 }
 
 func (c *baseClient) doRequest(context context.Context, request *http.Request) (*http.Response, error) {
 	withContext := request.WithContext(context)
 	withContext.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	if c.User != (BasicAuth{}) {
-		withContext.SetBasicAuth(c.User.Name, c.User.Password)
+	if c.AuthProvider.IsSet() {
+		c.AuthProvider.SetupAuthentication(request)
 	}
 
 	log.V(1).Info(

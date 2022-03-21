@@ -6,8 +6,12 @@ package user
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
+	"github.com/elastic/cloud-on-k8s/pkg/controller/common/version"
+
+	commonv1 "github.com/elastic/cloud-on-k8s/pkg/apis/common/v1"
 	"go.elastic.co/apm"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,7 +51,7 @@ func ReconcileUsersAndRoles(
 	es esv1.Elasticsearch,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
-) (esclient.BasicAuth, error) {
+) (esclient.AuthProvider, error) {
 	span, _ := apm.StartSpan(ctx, "reconcile_users", tracing.SpanTypeApp)
 	defer span.End()
 
@@ -62,7 +66,7 @@ func ReconcileUsersAndRoles(
 	}
 
 	// reconcile the service accounts
-	saTokens, err := aggregateServiceAccountTokens(c, es)
+	saTokens, controllerServiceAccount, err := aggregateServiceAccountTokens(c, es)
 	if err != nil {
 		return esclient.BasicAuth{}, err
 	}
@@ -73,10 +77,69 @@ func ReconcileUsersAndRoles(
 	}
 
 	// return the controller user for next reconciliation steps to interact with Elasticsearch
+	esVersion, err := version.Parse(es.Spec.Version)
+	if err != nil {
+		return esclient.BasicAuth{}, err
+	}
+	if esVersion.GTE(version.MustParse("8.1.0")) {
+		return controllerServiceAccount, nil
+	}
 	return controllerUser, nil
 }
 
-func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (ServiceAccountTokens, error) {
+const OperatorServerServiceAccount commonv1.ServiceAccountName = "orchestration"
+
+// aggregateServiceAccountTokens aggregates the service tokens and ensure the controller SA token exists
+func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (ServiceAccountTokens, esclient.ServiceAccountAuth, error) {
+	// create the operator service account
+	saTokenSecret := types.NamespacedName{
+		Namespace: es.Namespace,
+		Name:      fmt.Sprintf("%s-sa-token", es.Name),
+	}
+
+	saSecret := corev1.Secret{}
+	err := c.Get(context.Background(), saTokenSecret, &saSecret)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, esclient.ServiceAccountAuth{}, err
+	}
+
+	var operatorToken *Token
+	tokenName := "elastic-internal-" + string(es.UID)
+	if apierrors.IsNotFound(err) || len(saSecret.Data) == 0 {
+		// Secret does not exist or is empty, create a new token
+		operatorToken, err = NewApplicationToken(OperatorServerServiceAccount, tokenName)
+		if err != nil {
+			return nil, esclient.ServiceAccountAuth{}, err
+		}
+	} else {
+		// Attempt to read current token, create a new one in case of an error.
+		operatorToken, err = GetOrCreateToken(&es, es.Name, saSecret.Data, OperatorServerServiceAccount, tokenName)
+		if err != nil {
+			return nil, esclient.ServiceAccountAuth{}, err
+		}
+	}
+
+	labels := map[string]string{label.ClusterNamespaceLabelName: es.Namespace,
+		label.ClusterNameLabelName: es.Name,
+	}
+	saSecret = corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      saTokenSecret.Name,
+			Namespace: saTokenSecret.Namespace,
+			Labels:    common.AddCredentialsLabel(labels),
+		},
+		Data: map[string][]byte{
+			ServiceAccountTokenNameField:  []byte(operatorToken.TokenName),
+			ServiceAccountTokenValueField: []byte(operatorToken.Token),
+			ServiceAccountHashField:       []byte(operatorToken.Hash),
+			ServiceAccountNameField:       []byte(operatorToken.ServiceAccountName),
+		},
+	}
+
+	if _, err := reconciler.ReconcileSecret(c, saSecret, &es); err != nil {
+		return nil, esclient.ServiceAccountAuth{}, err
+	}
+
 	// list all associated user secrets
 	var serviceAccountSecrets corev1.SecretList
 	if err := c.List(context.Background(),
@@ -89,18 +152,22 @@ func aggregateServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (Service
 			},
 		),
 	); err != nil {
-		return nil, err
+		return nil, esclient.ServiceAccountAuth{}, err
 	}
 
 	var tokens ServiceAccountTokens
+	tokens = tokens.Add(ServiceAccountToken{
+		FullyQualifiedServiceAccountName: operatorToken.ServiceAccountName + "/" + operatorToken.TokenName,
+		HashedSecret:                     operatorToken.Hash,
+	})
 	for _, secret := range serviceAccountSecrets.Items {
 		token, err := getServiceAccountToken(secret)
 		if err != nil {
-			return nil, err
+			return nil, esclient.ServiceAccountAuth{}, err
 		}
 		tokens = tokens.Add(token)
 	}
-	return tokens, nil
+	return tokens, esclient.ServiceAccountAuth{Token: operatorToken.Token}, nil
 }
 
 func getExistingFileRealm(c k8s.Client, es esv1.Elasticsearch) (filerealm.Realm, error) {

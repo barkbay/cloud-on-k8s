@@ -27,8 +27,8 @@ func NewMockClientWithUser(v version.Version, u BasicAuth, fn RoundTripFunc) Cli
 		HTTP: &http.Client{
 			Transport: fn,
 		},
-		Endpoint: "http://example.com",
-		User:     u,
+		Endpoint:     "http://example.com",
+		AuthProvider: u,
 	}
 	return versioned(baseClient, v)
 }
