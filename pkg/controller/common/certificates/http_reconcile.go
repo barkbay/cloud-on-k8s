@@ -223,9 +223,11 @@ func ensureInternalSelfSignedCertificateSecretContents(
 
 		secretWasChanged = true
 		// store certificate and signed certificate in a secret mounted into the pod
+		// TODO: BUG: shouldIssueNewHTTPCertificate may return false while ca might have changed !
 		secret.Data[CAFileName] = EncodePEMCert(ca.Cert.Raw)
 		secret.Data[CertFileName] = EncodePEMCert(certData, ca.Cert.Raw)
 	}
+	// TODO: update CA
 
 	return secretWasChanged, nil
 }
