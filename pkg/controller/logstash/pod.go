@@ -7,6 +7,7 @@ package logstash
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/elastic/cloud-on-k8s/v2/pkg/controller/logstash/labels"
 	"hash"
 	"strings"
 
@@ -81,8 +82,13 @@ func buildPodTemplate(params Params, configHash hash.Hash32) (corev1.PodTemplate
 		return corev1.PodTemplateSpec{}, err
 	}
 
-	labels := maps.Merge(params.Logstash.GetPodIdentityLabels(), map[string]string{
-		VersionLabelName: spec.Version})
+	labels := maps.Merge(
+		params.Logstash.GetPodIdentityLabels(),
+		map[string]string{
+			VersionLabelName:                spec.Version,
+			labels.StatefulSetNameLabelName: logstashv1alpha1.Name(params.Logstash.Name),
+		},
+	)
 
 	annotations := map[string]string{
 		ConfigHashAnnotationName: fmt.Sprint(configHash.Sum32()),
