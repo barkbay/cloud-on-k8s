@@ -147,6 +147,21 @@ func createResourcesTestSteps(param TestParam) ([]*TestStep, error) {
 
 		status := status{health: wantHealth, nodes: wantNodes, version: param.StackVersion}
 
+		if r.Kind == "Logstash" {
+			v, err := semver.Parse(param.OperatorVersion)
+			if err != nil {
+				return nil, err
+			}
+			if v.Major == 2 && v.Minor == 12 {
+				// Logstash upgrade from ECK 2.11 to 2.12 is broken: https://github.com/elastic/cloud-on-k8s/pull/7788
+				continue
+			}
+			if v.LT(semver.MustParse("2.12.0")) {
+				// There is no health in the Logstash status subresource until 2.12.0
+				status.health = ""
+			}
+		}
+
 		result = append(result,
 			retryRetriable(
 				param.Suffixed(fmt.Sprintf("Check%s", r.Kind)),
