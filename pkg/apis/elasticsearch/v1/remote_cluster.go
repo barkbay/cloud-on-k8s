@@ -42,6 +42,22 @@ func (es *Elasticsearch) HasRemoteClusterAPIKey() bool {
 	return false
 }
 
+// RemoteClustersCount returns the number of remote clusters using only certificates and API keys.
+func (es *Elasticsearch) RemoteClustersCount() (int32, int32) {
+	if es == nil {
+		return 0, 0
+	}
+	var withoutAPIKeys, withAPIKeys int32
+	for _, remoteCLuster := range es.Spec.RemoteClusters {
+		if remoteCLuster.APIKey == nil {
+			withoutAPIKeys++
+			continue
+		}
+		withAPIKeys++
+	}
+	return withoutAPIKeys, withAPIKeys
+}
+
 // RemoteClusterAPIKey defines a remote cluster API Key.
 type RemoteClusterAPIKey struct {
 	// Access is the name of the API Key. It is automatically generated if not set or empty.
