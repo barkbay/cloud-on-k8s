@@ -23,10 +23,10 @@ func reconcileAPIKeys(
 	ctx context.Context,
 	c k8s.Client,
 	activeAPIKeys esclient.CrossClusterAPIKeyList, // all the API Keys in the reconciled/local cluster
-	reconciledES *esv1.Elasticsearch,              // the Elasticsearch cluster being reconciled, where the API keys must be created/invalidated.
-	clientES *esv1.Elasticsearch,                  // the remote Elasticsearch cluster which is going to act as the client, where the API keys are going to be store in the keystore Secret.
-	remoteClusters []esv1.RemoteCluster,           // the expected API keys for that client cluster
-	esClient esclient.Client,                      // ES client for the remote cluster which is going to act as the client
+	reconciledES *esv1.Elasticsearch, // the Elasticsearch cluster being reconciled, where the API keys must be created/invalidated.
+	clientES *esv1.Elasticsearch, // the remote Elasticsearch cluster which is going to act as the client, where the API keys are going to be store in the keystore Secret.
+	remoteClusters []esv1.RemoteCluster, // the expected API keys for that client cluster
+	esClient esclient.Client, // ES client for the remote cluster which is going to act as the client
 ) error {
 	// We may have to inject new API keystore in the client keystore.
 	clientClusterAPIKeyStore, err := LoadAPIKeyStore(ctx, c, clientES)
@@ -89,7 +89,10 @@ func reconcileAPIKeys(
 				if err := esClient.InvalidateCrossClusterAPIKey(ctx, activeAPIKey.Name); err != nil {
 					return err
 				}
-				return fmt.Errorf("unknwown remote cluster key id for %s: %s", activeAPIKey.Name, activeAPIKey.ID)
+				return fmt.Errorf(
+					"cluster key id for alias %s %s (%s), does not match the one stored in the keystore of %s/%s",
+					remoteCluster.Name, activeAPIKey.Name, activeAPIKey.ID, clientES.Namespace, clientES.Name,
+				)
 			}
 			currentHash := activeAPIKey.Metadata["elasticsearch.k8s.elastic.co/config-hash"]
 			if currentHash != expectedHash {

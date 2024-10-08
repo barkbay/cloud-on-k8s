@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	RemoteClusterAPIKeysMinVersion = version.MinFor(8, 15, 0)
+	RemoteClusterAPIKeysMinVersion = version.MinFor(8, 10, 0)
 )
 
 // SupportRemoteClusterAPIKeys returns true if this cluster supports connecting to a remote cluster using API keys.
@@ -44,9 +44,6 @@ func (es *Elasticsearch) HasRemoteClusterAPIKey() bool {
 
 // RemoteClusterAPIKey defines a remote cluster API Key.
 type RemoteClusterAPIKey struct {
-	// Expiration date. If set the key is automatically renewed by ECK.
-	// Expiration *metav1.Duration `json:"name,omitempty"`
-
 	// Access is the name of the API Key. It is automatically generated if not set or empty.
 	// +kubebuilder:validation:Required
 	Access RemoteClusterAccess `json:"access,omitempty"`

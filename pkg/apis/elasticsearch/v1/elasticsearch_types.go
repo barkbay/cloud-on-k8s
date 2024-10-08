@@ -145,6 +145,7 @@ type ElasticsearchSpec struct {
 }
 
 type RemoteClusterServer struct {
+	// +kubebuilder:validation:Optional
 	Enabled bool `json:"enabled,omitempty"`
 }
 

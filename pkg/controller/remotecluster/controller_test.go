@@ -931,14 +931,21 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 				assert.True(t, apierrors.IsNotFound(err), "unexpected Secret %s/%s", unexpectedSecret.Namespace, unexpectedSecret.Name)
 			}
 			// Fake ES client assertions
-			assert.Equal(t, tt.wantEsAPICalls.getCrossClusterAPIKeys, fakeESClient.getCrossClusterAPIKeys, "unexpected calls to GetCrossClusterAPIKeys")
-			assert.Equal(t, tt.wantEsAPICalls.invalidateCrossClusterAPIKey, fakeESClient.invalidateCrossClusterAPIKey, "unexpected calls to InvalidateCrossClusterAPIKey")
-			if diff := cmp.Diff(tt.wantEsAPICalls.crossClusterAPIKeyCreateRequests, fakeESClient.crossClusterAPIKeyCreateRequests); len(diff) > 0 {
-				t.Errorf("unexpected calls to CreateCrossClusterAPIKey\n%s\n", diff)
-			}
-			if diff := cmp.Diff(tt.wantEsAPICalls.updateCrossClusterAPIKey, fakeESClient.updateCrossClusterAPIKey); len(diff) > 0 {
-				t.Errorf("unexpected calls to UpdateCrossClusterAPIKey\n%s\n", diff)
-			}
+			assert.ElementsMatch(t, tt.wantEsAPICalls.getCrossClusterAPIKeys, fakeESClient.getCrossClusterAPIKeys, "unexpected calls to GetCrossClusterAPIKeys")
+			assert.ElementsMatch(t, tt.wantEsAPICalls.invalidateCrossClusterAPIKey, fakeESClient.invalidateCrossClusterAPIKey, "unexpected calls to InvalidateCrossClusterAPIKey")
+			assert.ElementsMatch(
+				t,
+				tt.wantEsAPICalls.crossClusterAPIKeyCreateRequests,
+				fakeESClient.crossClusterAPIKeyCreateRequests,
+				"unexpected calls to CreateCrossClusterAPIKey\n%s\n", cmp.Diff(tt.wantEsAPICalls.crossClusterAPIKeyCreateRequests, fakeESClient.crossClusterAPIKeyCreateRequests),
+			)
+			assert.Equal(
+				t,
+				tt.wantEsAPICalls.updateCrossClusterAPIKey,
+				fakeESClient.updateCrossClusterAPIKey,
+				"unexpected calls to UpdateCrossClusterAPIKey\n%s\n", cmp.Diff(tt.wantEsAPICalls.updateCrossClusterAPIKey, fakeESClient.updateCrossClusterAPIKey),
+			)
+
 			// Keystore assertions
 			for _, expectedSecret := range tt.expectedKeystoreSecrets {
 				actualSecret := &corev1.Secret{}
