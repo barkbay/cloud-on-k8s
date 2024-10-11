@@ -6,6 +6,7 @@ package remotecluster
 
 import (
 	"context"
+	"github.com/elastic/cloud-on-k8s/v2/pkg/controller/remotecluster/keystore"
 	"reflect"
 	"slices"
 	"testing"
@@ -902,6 +903,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 				esClientProvider: func(_ context.Context, _ k8s.Client, _ net.Dialer, _ esv1.Elasticsearch) (esclient.Client, error) {
 					return fakeESClient, nil
 				},
+				keystoreProvider: keystore.NewKeystoreProvider(k8sClient),
 			}
 			fakeCtx := context.Background()
 			got, err := r.Reconcile(fakeCtx, tt.args.request)

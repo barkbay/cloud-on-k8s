@@ -7,6 +7,7 @@ package remotecluster
 import (
 	"context"
 	"fmt"
+	"github.com/elastic/cloud-on-k8s/v2/pkg/controller/remotecluster/keystore"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -28,20 +29,21 @@ func reconcileAPIKeys(
 	clientES *esv1.Elasticsearch, // the remote Elasticsearch cluster which is going to act as the client, where the API keys are going to be store in the keystore Secret
 	remoteClusters []esv1.RemoteCluster, // the expected API keys for that client cluster
 	esClient esclient.Client, // ES client for the remote cluster which is going to act as the client
+	keystoreProvider *keystore.KeystoreProvider,
 ) error {
-	// clientClusterAPIKeyStore is used to reconcile encoded API keys in the client cluster, to inject new API keys
-	// or to delete the ones which are no longer needed.
-	clientClusterAPIKeyStore, err := LoadAPIKeyStore(ctx, c, clientES)
-	if err != nil {
-		return err
-	}
-
 	log := ulog.FromContext(ctx).WithValues(
 		"local_namespace", reconciledES.Namespace,
 		"local_name", reconciledES.Name,
 		"remote_namespace", clientES.Namespace,
 		"remote_name", clientES.Name,
 	)
+
+	// clientClusterAPIKeyStore is used to reconcile encoded API keys in the client cluster, to inject new API keys
+	// or to delete the ones which are no longer needed.
+	clientClusterAPIKeyStore, err := keystoreProvider.ForCluster(ctx, log, clientES)
+	if err != nil {
+		return err
+	}
 
 	// Maintain a list of the expected API keys for that specific client cluster, to detect the ones which are no longer expected in the reconciled cluster.
 	expectedKeysInReconciledES := sets.New[string]()
@@ -119,7 +121,7 @@ func createAPIKey(
 	esClient esclient.Client,
 	clientES *esv1.Elasticsearch,
 	expectedHash string,
-	clientClusterAPIKeyStore *APIKeyStore,
+	clientClusterAPIKeyStore *keystore.APIKeyStore,
 	reconciledES *esv1.Elasticsearch,
 ) error {
 	// Active API key not found, let's create a new one.
@@ -142,7 +144,7 @@ func maybeUpdateAPIKey(
 	ctx context.Context,
 	log logr.Logger,
 	esClient esclient.Client,
-	clientClusterAPIKeyStore *APIKeyStore,
+	clientClusterAPIKeyStore *keystore.APIKeyStore,
 	remoteCluster esv1.RemoteCluster,
 	activeAPIKey *esclient.CrossClusterAPIKey,
 	apiKeyName string,

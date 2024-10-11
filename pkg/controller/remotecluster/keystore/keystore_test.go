@@ -2,10 +2,11 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package remotecluster
+package keystore
 
 import (
 	"context"
+	ulog "github.com/elastic/cloud-on-k8s/v2/pkg/utils/log"
 	"reflect"
 	"testing"
 
@@ -41,8 +42,9 @@ var (
 
 func TestLoadAPIKeyStore(t *testing.T) {
 	type args struct {
-		c     k8s.Client
-		owner *esv1.Elasticsearch
+		c              k8s.Client
+		owner          *esv1.Elasticsearch
+		pendingChanges *pendingChanges
 	}
 	tests := []struct {
 		name    string
@@ -93,13 +95,16 @@ func TestLoadAPIKeyStore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := LoadAPIKeyStore(ctx, tt.args.c, tt.args.owner)
+			got, err := loadAPIKeyStore(ctx, ulog.Log, tt.args.c, tt.args.owner, tt.args.pendingChanges)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadAPIKeyStore() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("loadAPIKeyStore() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadAPIKeyStore() = %v, want %v", got, tt.want)
+			if !reflect.DeepEqual(got.keys, tt.want.keys) {
+				t.Errorf("loadAPIKeyStore().keys = %v, want.keys %v", got.keys, tt.want.keys)
+			}
+			if !reflect.DeepEqual(got.aliases, tt.want.aliases) {
+				t.Errorf("loadAPIKeyStore().aliases = %v, want.aliases %v", got.aliases, tt.want.aliases)
 			}
 		})
 	}
@@ -189,7 +194,7 @@ func TestAPIKeyStore_Save(t *testing.T) {
 			})},
 		},
 		{
-			name: "Add new keys, remove another",
+			name: "AddKey new keys, remove another",
 			receiver: (&APIKeyStore{}).
 				Update("ns1", "es1", "rc1", "keyid1", "encodedValue1").
 				Update("ns2", "es2", "rc2", "keyid2", "encodedValue2").

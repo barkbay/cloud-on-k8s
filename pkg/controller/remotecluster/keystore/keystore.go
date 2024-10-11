@@ -2,12 +2,13 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package remotecluster
+package keystore
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-logr/logr"
 	"regexp"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -31,7 +32,7 @@ import (
 const (
 	aliasesAnnotationName = "elasticsearch.k8s.elastic.co/remote-cluster-api-keys"
 
-	remoteClusterAPIKeysType = "remote-cluster-api-keys"
+	RemoteClusterAPIKeysType = "remote-cluster-api-keys"
 )
 
 var (
@@ -39,6 +40,7 @@ var (
 )
 
 type APIKeyStore struct {
+	log logr.Logger
 	// aliases maps cluster aliased with the expected key ID
 	aliases map[string]AliasValue
 	// keys maps the ID of an API Key (not its name), to the encoded cross-cluster API key.
@@ -47,6 +49,8 @@ type APIKeyStore struct {
 	resourceVersion string
 	// uid is the UID of the Secret as observed when the Secret has been loaded.
 	uid types.UID
+	// pendingChanges are the pending changes
+	pendingChanges *pendingChanges
 }
 
 type AliasValue struct {
@@ -58,6 +62,13 @@ type AliasValue struct {
 	ID string `json:"id"`
 }
 
+func (aks *APIKeyStore) GetAliases() map[string]AliasValue {
+	if aks == nil {
+		return nil
+	}
+	return aks.aliases
+}
+
 func (aks *APIKeyStore) KeyIDFor(alias string) string {
 	if aks == nil {
 		return ""
@@ -65,7 +76,7 @@ func (aks *APIKeyStore) KeyIDFor(alias string) string {
 	return aks.aliases[alias].ID
 }
 
-func LoadAPIKeyStore(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearch) (*APIKeyStore, error) {
+func loadAPIKeyStore(ctx context.Context, log logr.Logger, c k8s.Client, owner *esv1.Elasticsearch, pendingChanges *pendingChanges) (*APIKeyStore, error) {
 	secretName := types.NamespacedName{
 		Name:      esv1.RemoteAPIKeysSecretName(owner.Name),
 		Namespace: owner.Namespace,
@@ -79,7 +90,8 @@ func LoadAPIKeyStore(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearc
 				"es_name", owner.Name,
 			)
 			// Return an empty store
-			return &APIKeyStore{}, nil
+			emptyKeystore := &APIKeyStore{log: log, pendingChanges: pendingChanges}
+			return emptyKeystore.withPendingChanges(), nil
 		}
 	}
 
@@ -105,15 +117,59 @@ func LoadAPIKeyStore(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearc
 		}
 		keys[strings[1]] = string(encodedAPIKey)
 	}
-	return &APIKeyStore{
+	apiKeyStore := &APIKeyStore{
+		log:             log,
 		aliases:         aliases,
 		keys:            keys,
 		resourceVersion: keyStoreSecret.ResourceVersion,
 		uid:             keyStoreSecret.UID,
-	}, nil
+		pendingChanges:  pendingChanges,
+	}
+	return apiKeyStore.withPendingChanges(), nil
+}
+
+func (aks *APIKeyStore) withPendingChanges() *APIKeyStore {
+	pendingChanges := aks.pendingChanges.Get()
+	var pendingAdds, pendingDeletions int
+	for _, pendingChange := range pendingChanges {
+		if pendingChange.key.IsEmpty() {
+			if aks.KeyIDFor(pendingChange.alias) == "" {
+				aks.log.Info(fmt.Sprintf("Change for alias %s observed, key has been deleted in API keystore", pendingChange.alias))
+				aks.pendingChanges.ForgetDeleteAlias(pendingChange.alias)
+				continue
+			}
+			// We are still expecting this deletion
+			pendingDeletions++
+			aks.Delete(pendingChange.alias)
+			continue
+		}
+		// Check if the key is available in the underlying Secret
+		if keyIDInSecret := aks.KeyIDFor(pendingChange.alias); keyIDInSecret == pendingChange.key.keyID {
+			aks.log.Info(fmt.Sprintf("Change for alias %s observed, key %s saved in API keystore", pendingChange.alias, keyIDInSecret))
+			// Forget this change
+			aks.pendingChanges.ForgetAddKey(pendingChange.alias)
+			continue
+		}
+		// Change is not reflected in the Secret yet.
+		pendingAdds++
+		aks.update(pendingChange.remoteClusterName, pendingChange.remoteClusterNamespace, pendingChange.alias, pendingChange.key.keyID, pendingChange.key.encodedValue)
+	}
+
+	if pendingAdds > 0 || pendingDeletions > 0 {
+		aks.log.Info("Pending changes in API keystore", "add", pendingAdds, "deletion", pendingDeletions)
+	}
+	return aks
 }
 
 func (aks *APIKeyStore) Update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue string) *APIKeyStore {
+	// Save the change in memory
+	aks.pendingChanges.AddKey(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue)
+	// Load the change in this instance of the store
+	aks.update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue)
+	return aks
+}
+
+func (aks *APIKeyStore) update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue string) *APIKeyStore {
 	if aks.aliases == nil {
 		aks.aliases = make(map[string]AliasValue)
 	}
@@ -143,6 +199,14 @@ func (aks *APIKeyStore) Aliases() []string {
 }
 
 func (aks *APIKeyStore) Delete(alias string) *APIKeyStore {
+	// Save the change in memory
+	aks.pendingChanges.DeleteAlias(alias)
+	// Load the change in this instance of the store
+	aks.delete(alias)
+	return aks
+}
+
+func (aks *APIKeyStore) delete(alias string) *APIKeyStore {
 	delete(aks.aliases, alias)
 	delete(aks.keys, alias)
 	return aks
@@ -152,6 +216,7 @@ const (
 	credentialsKeyFormat = "cluster.remote.%s.credentials"
 )
 
+// Save sync the in memory content of the API keystore into the Secret.
 func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearch) error {
 	secretName := types.NamespacedName{
 		Name:      esv1.RemoteAPIKeysSecretName(owner.Name),
@@ -193,7 +258,7 @@ func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner *esv1.Elas
 		data[fmt.Sprintf(credentialsKeyFormat, k)] = []byte(v)
 	}
 	expectedLabels := labels.AddCredentialsLabel(label.NewLabels(k8s.ExtractNamespacedName(owner)))
-	expectedLabels[commonv1.TypeLabelName] = remoteClusterAPIKeysType
+	expectedLabels[commonv1.TypeLabelName] = RemoteClusterAPIKeysType
 	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName.Name,
