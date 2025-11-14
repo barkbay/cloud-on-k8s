@@ -9,6 +9,8 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	drivercommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/common"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/hints"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
 
 type statelessDriver struct {
@@ -31,6 +33,10 @@ func (sd *statelessDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	if results.HasError() {
 		return results
 	}
+
+	sd.ReconcileState.UpdateOrchestrationHints(
+		sd.ReconcileState.OrchestrationHints().Merge(hints.OrchestrationsHints{ServiceAccounts: optional.NewBool(true)}),
+	)
 
 	// reconcile CloneSets and nodes configuration
 	return results.WithResults(sd.reconcileTiers(ctx, sd.Expectations, defaultDriverResult.Meta))
