@@ -82,7 +82,7 @@ func buildVolumes(
 
 	volumes := make([]corev1.Volume, 0, len(persistentVolumes)+len(volumeTemplate))
 	if !isStateless {
-		// CloneSet automatically adds PVC volumes in Spec.VolumeClaimTemplates, no need to add them again.
+		// In stateless mode, the volume used for the cache is added in buildTierResources.
 		// We still need to add the mount point later though...
 		volumes = append(volumes, persistentVolumes...)
 	}

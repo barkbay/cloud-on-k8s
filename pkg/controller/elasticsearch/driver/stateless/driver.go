@@ -38,6 +38,6 @@ func (sd *statelessDriver) Reconcile(ctx context.Context) *reconciler.Results {
 		sd.ReconcileState.OrchestrationHints().Merge(hints.OrchestrationsHints{ServiceAccounts: optional.NewBool(true)}),
 	)
 
-	// reconcile CloneSets and nodes configuration
-	return results.WithResults(sd.reconcileTiers(ctx, sd.Expectations, defaultDriverResult.Meta))
+	// reconcile Deployments and nodes configuration
+	return results.WithResults(sd.reconcileTiers(ctx, sd.Expectations, defaultDriverResult.Meta, defaultDriverResult.KeystoreResources))
 }

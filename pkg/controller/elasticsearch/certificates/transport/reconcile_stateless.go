@@ -30,10 +30,10 @@ func ReconcileStatelessTransportCertificatesSecrets(
 	results := &reconciler.Results{}
 	// We must create transport certificates for all the tiers.
 	for _, tierName := range esv1.AllElasticsearchTierNames {
-		cloneSetName := esv1.PodsControllerResourceName(es.Name, string(tierName))
-		matchLabels := label.NewLabelSelectorForCloneSetName(es.Name, cloneSetName)
+		deploymentName := esv1.PodsControllerResourceName(es.Name, string(tierName))
+		matchLabels := label.NewLabelSelectorForDeploymentName(es.Name, deploymentName)
 		results.WithResults(
-			reconcileNodeSetTransportCertificatesSecrets(ctx, c, matchLabels, ca, additionalCAs, es, cloneSetName, rotationParams, meta),
+			reconcileNodeSetTransportCertificatesSecrets(ctx, c, matchLabels, ca, additionalCAs, es, deploymentName, rotationParams, meta),
 		)
 	}
 	return results

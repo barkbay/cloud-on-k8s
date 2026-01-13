@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	pkgerrors "github.com/pkg/errors"
 	"go.elastic.co/apm/v2"
 	appsv1 "k8s.io/api/apps/v1"
@@ -78,7 +77,7 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 
 		dynamicWatches:        watches.NewDynamicWatches(),
 		statefulExpectations:  expectations.NewClustersExpectations(client, &appsv1.StatefulSet{}),
-		statelessExpectations: expectations.NewClustersExpectations(client, &v1alpha1.CloneSet{}),
+		statelessExpectations: expectations.NewClustersExpectations(client, &appsv1.Deployment{}),
 		Parameters:            params,
 	}
 }

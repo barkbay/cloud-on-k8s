@@ -7,7 +7,6 @@ package scheme
 import (
 	"sync"
 
-	clonesetv1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
@@ -62,8 +61,6 @@ func SetupScheme() {
 		policyv1alpha1.AddToScheme,
 		autoopsv1alpha1.AddToScheme,
 		logstashv1alpha1.AddToScheme,
-		// CloneSet is used for stateless Elasticsearch nodes.
-		clonesetv1alpha1.AddToScheme,
 	}
 	mustAddSchemeOnce(&addToScheme, schemes)
 }

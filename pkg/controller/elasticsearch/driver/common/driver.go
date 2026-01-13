@@ -9,12 +9,18 @@ import (
 	"fmt"
 	"strings"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
 	commonlicense "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/securitycontext"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/stackmon"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/stackconfigpolicy"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
@@ -77,6 +83,23 @@ func (d *DefaultDriverParameters) Reconcile(ctx context.Context) *DefaultDriverP
 	internalService, err = common.ReconcileService(ctx, d.Client, services.NewInternalService(d.ES, results.Meta), &d.ES)
 	if err != nil {
 		return results.WithError(err)
+	}
+
+	// Remote Cluster Server (RCS2) Kubernetes Service reconciliation.
+	if d.ES.Spec.RemoteClusterServer.Enabled {
+		// Remote Cluster Server is enabled, ensure that the related Kubernetes Service does exist.
+		if _, err := common.ReconcileService(ctx, d.Client, services.NewRemoteClusterService(d.ES, results.Meta), &d.ES); err != nil {
+			results.WithError(err)
+		}
+	} else {
+		// Ensure that remote cluster Service does not exist.
+		remoteClusterService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: d.ES.Namespace,
+				Name:      services.RemoteClusterServiceName(d.ES.Name),
+			},
+		}
+		results.WithError(k8s.DeleteResourceIfExists(ctx, d.Client, remoteClusterService))
 	}
 
 	resourcesState, err := reconcile.NewResourcesStateFromAPI(d.Client, d.ES)
@@ -150,8 +173,8 @@ func (d *DefaultDriverParameters) Reconcile(ctx context.Context) *DefaultDriverP
 
 	// Always update the Elasticsearch state bits with the latest observed state.
 	d.ReconcileState.
-		UpdateClusterHealth(observedState()).         // Elasticsearch cluster health
-		UpdateAvailableNodes(*resourcesState).        // Available nodes
+		UpdateClusterHealth(observedState()). // Elasticsearch cluster health
+		UpdateAvailableNodes(*resourcesState). // Available nodes
 		UpdateMinRunningVersion(ctx, *resourcesState) // Min running version
 
 	res = certificates.ReconcileTransport(
@@ -246,7 +269,7 @@ func (d *DefaultDriverParameters) Reconcile(ctx context.Context) *DefaultDriverP
 	}
 
 	// reconcile an empty File based settings Secret if it doesn't exist
-	if d.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
+	if d.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) || d.ES.IsStateless() {
 		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, d.Client, d.LicenseChecker, &d.ES, d.OperatorParameters.OperatorNamespace)
 		if err != nil {
 			return results.WithError(err)
@@ -260,6 +283,31 @@ func (d *DefaultDriverParameters) Reconcile(ctx context.Context) *DefaultDriverP
 		}
 	}
 
+	// Only valid for stateful clusters, use secure file settings in stateless.
+	keystoreParams := initcontainer.GetKeystoreParams()
+	keystoreSecurityContext := securitycontext.For(d.Version, true)
+	keystoreParams.SecurityContext = &keystoreSecurityContext
+
+	// Set up a keystore with secure settings in an init container, if specified by the user.
+	// We are also using the keystore internally for the remote cluster API keys.
+	remoteClusterAPIKeys, err := apiKeyStoreSecretSource(ctx, &d.ES, d.Client)
+	if err != nil {
+		return results.WithError(err)
+	}
+	keystoreResources, err := keystore.ReconcileResources(
+		ctx,
+		d,
+		&d.ES,
+		esv1.ESNamer,
+		results.Meta,
+		keystoreParams,
+		remoteClusterAPIKeys...,
+	)
+	if err != nil {
+		return results.WithError(err)
+	}
+	results.KeystoreResources = keystoreResources
+
 	// set an annotation with the ClusterUUID, if bootstrapped
 	requeue, err := bootstrap.ReconcileClusterUUID(ctx, d.Client, &d.ES, results.EsClient, results.EsReachable)
 	if err != nil {
@@ -267,6 +315,11 @@ func (d *DefaultDriverParameters) Reconcile(ctx context.Context) *DefaultDriverP
 	}
 	if requeue {
 		results = results.WithReconciliationState(reconciler.Requeue.WithReason("Elasticsearch cluster UUID is not reconciled"))
+	}
+
+	// reconcile beats config secrets if Stack Monitoring is defined
+	if err := stackmon.ReconcileConfigSecrets(ctx, d.Client, d.ES, results.Meta); err != nil {
+		return results.WithError(err)
 	}
 
 	// requeue if associations are defined but not yet configured, otherwise we may be in a situation where we deploy
@@ -338,4 +391,25 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 
 	// No policies target this cluster, so ES controller should create the empty secret
 	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
+}
+
+// apiKeyStoreSecretSource returns the Secret that holds the remote API keys, and which should be used as a secure settings source.
+func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
+	// Check if Secret exists
+	secretName := types.NamespacedName{
+		Name:      esv1.RemoteAPIKeysSecretName(es.Name),
+		Namespace: es.Namespace,
+	}
+	if err := c.Get(ctx, secretName, &corev1.Secret{}); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return []commonv1.NamespacedSecretSource{
+		{
+			Namespace:  es.Namespace,
+			SecretName: secretName.Name,
+		},
+	}, nil
 }

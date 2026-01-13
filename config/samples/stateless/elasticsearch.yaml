@@ -1,11 +1,8 @@
 # This is a sample Elasticsearch stateless cluster configuration
 # Requirements:
-# 1. Install the CloneSet controller in your Kubernetes cluster: https://openkruise.io/docs/installation#install-with-helm
-# 2. To pull a private image, create a Kubernetes Secret named elastic-docker-registry with your Docker registry credentials:
-#    https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials
-# 3. Update the object_store section with your S3 bucket details.
-# 4. Adjust s3.client.default.region in the tier configs if needed.
-# 5. Ensure the elasticsearch-object-store Kubernetes Secret exists with the necessary credentials:
+# 1. Update the object_store section with your S3 bucket details.
+# 2. Adjust s3.client.default.region in the tier configs if needed.
+# 3. Ensure the elasticsearch-object-store Kubernetes Secret exists with the necessary credentials:
 ##cat <<EOF | kubectl apply -f -
 ##apiVersion: v1
 ##kind: Secret

@@ -8,31 +8,20 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	controller "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 	commondriver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/bootstrap"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	drivercommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/hints"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/remotecluster"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/securitycontext"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/services"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/stackmon"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	ulog "github.com/elastic/cloud-on-k8s/v3/pkg/utils/log"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/set"
@@ -70,25 +59,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	esClient := defaultDriverResult.EsClient
 	resourcesState := defaultDriverResult.ResourcesState
 	esReachable := defaultDriverResult.EsReachable
-	meta := defaultDriverResult.Meta
-
-	// Remote Cluster Server (RCS2) Kubernetes Service reconciliation.
-	// Only valid for stateful clusters for now.
-	if d.ES.Spec.RemoteClusterServer.Enabled {
-		// Remote Cluster Server is enabled, ensure that the related Kubernetes Service does exist.
-		if _, err := common.ReconcileService(ctx, d.Client, services.NewRemoteClusterService(d.ES, meta), &d.ES); err != nil {
-			results.WithError(err)
-		}
-	} else {
-		// Ensure that remote cluster Service does not exist.
-		remoteClusterService := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: d.ES.Namespace,
-				Name:      services.RemoteClusterServiceName(d.ES.Name),
-			},
-		}
-		results.WithError(k8s.DeleteResourceIfExists(ctx, d.Client, remoteClusterService))
-	}
 
 	// Update the service account orchestration hint. This is done early in the reconciliation loop to unblock association
 	// controllers that may be waiting for the orchestration hint.
@@ -110,36 +80,6 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 		}
 	}
 
-	// Only valid for stateful clusters, use secure file settings in stateless.
-	keystoreParams := initcontainer.GetKeystoreParams()
-	keystoreSecurityContext := securitycontext.For(d.Version, true)
-	keystoreParams.SecurityContext = &keystoreSecurityContext
-
-	// Set up a keystore with secure settings in an init container, if specified by the user.
-	// We are also using the keystore internally for the remote cluster API keys.
-	remoteClusterAPIKeys, err := apiKeyStoreSecretSource(ctx, &d.ES, d.Client)
-	if err != nil {
-		return results.WithError(err)
-	}
-	keystoreResources, err := keystore.ReconcileResources(
-		ctx,
-		d,
-		&d.ES,
-		esv1.ESNamer,
-		meta,
-		keystoreParams,
-		remoteClusterAPIKeys...,
-	)
-	if err != nil {
-		return results.WithError(err)
-	}
-
-	// reconcile beats config secrets if Stack Monitoring is defined
-	err = stackmon.ReconcileConfigSecrets(ctx, d.Client, d.ES, meta)
-	if err != nil {
-		return results.WithError(err)
-	}
-
 	// we want to reconcile suspended Pods before we start reconciling node specs as this is considered a debugging and
 	// troubleshooting tool that does not follow the change budget restrictions
 	// This is only valid for stateful clusters as Pod name cannot be predicted in stateless mode.
@@ -148,28 +88,9 @@ func (d *defaultDriver) Reconcile(ctx context.Context) *reconciler.Results {
 	}
 
 	// reconcile StatefulSets and nodes configuration
-	return results.WithResults(d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, *resourcesState, keystoreResources, meta))
-}
-
-// apiKeyStoreSecretSource returns the Secret that holds the remote API keys, and which should be used as a secure settings source.
-func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
-	// Check if Secret exists
-	secretName := types.NamespacedName{
-		Name:      esv1.RemoteAPIKeysSecretName(es.Name),
-		Namespace: es.Namespace,
-	}
-	if err := c.Get(ctx, secretName, &corev1.Secret{}); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return []commonv1.NamespacedSecretSource{
-		{
-			Namespace:  es.Namespace,
-			SecretName: secretName.Name,
-		},
-	}, nil
+	return results.WithResults(
+		d.reconcileNodeSpecs(ctx, esReachable, esClient, d.ReconcileState, *resourcesState, defaultDriverResult.KeystoreResources, defaultDriverResult.Meta),
+	)
 }
 
 // maybeSetServiceAccountsOrchestrationHint attempts to update an orchestration hint to let the association controllers

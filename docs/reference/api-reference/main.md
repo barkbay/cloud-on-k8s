@@ -1486,6 +1486,7 @@ SelfSignedTransportCertificates holds configuration for the self-signed certific
 | Field | Description |
 | --- | --- |
 | *`count`* __integer__ | Count is the desired number of pods in this tier. |
+| *`rollingUpdate`* __[RollingUpdateDeployment](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#rollingupdatedeployment-v1-apps)__ | RollingUpdate is the rolling update strategy to use when updating pods in this tier.<br>If empty, the default rolling update strategy will be used. |
 | *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate is the pod template to use for the pods in this tier. |
 | *`config`* __[Config](#config)__ | Config holds the Elasticsearch configuration specific to a tier. |
 | *`volumeClaimTemplate`* __[VolumeClaimTemplate](#volumeclaimtemplate)__ | VolumeClaimTemplate is the volume claim template to use for the caching volume in this tier. |

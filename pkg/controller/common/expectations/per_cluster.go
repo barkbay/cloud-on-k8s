@@ -24,7 +24,7 @@ type ClustersExpectation struct {
 
 // NewClustersExpectations returns an initialized ClustersExpectation.
 // The object parameter is the owner of the expected resources. In stateful scenarios, it is typically the
-// StatefulSet controller object. In stateless scenarios, it can be a CloneSet.
+// StatefulSet controller object. In stateless scenarios, it can be a Deployment.
 func NewClustersExpectations(client k8s.Client, object client.Object) *ClustersExpectation {
 	return &ClustersExpectation{
 		client:   client,

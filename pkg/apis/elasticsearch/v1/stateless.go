@@ -7,8 +7,9 @@ package v1
 import (
 	"fmt"
 
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 
@@ -22,6 +23,10 @@ const (
 	SearchTierName ElasticsearchTierName = "search"
 	IndexTierName  ElasticsearchTierName = "index"
 )
+
+// TiersWithMasterRole
+// Index nodes have master role only in the absence of a dedicated master tier (this is the default in serverless).
+var TiersWithMasterRole = sets.New(MasterRole, IndexRole)
 
 var AllElasticsearchTierNames = []ElasticsearchTierName{
 	IndexTierName,
@@ -81,6 +86,12 @@ type TierSpec struct {
 	// +kubebuilder:validation:Required
 	Count int32 `json:"count"`
 
+	// RollingUpdate is the rolling update strategy to use when updating pods in this tier.
+	// If empty, the default rolling update strategy will be used.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	RollingUpdate *v1.RollingUpdateDeployment `json:"rollingUpdate,omitempty"`
+
 	// PodTemplate is the pod template to use for the pods in this tier.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -118,14 +129,9 @@ func (nt *NamedTierSpec) GetName() string {
 }
 
 func (nt *NamedTierSpec) GetVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
-	if nt == nil || nt.TierSpec == nil {
-		return nil
-	}
-	pvct := nt.VolumeClaimTemplate.ToPersistentVolumeClaimTemplate()
-	if pvct == nil {
-		return nil
-	}
-	return []corev1.PersistentVolumeClaim{*pvct}
+	// There is no concept of volume claim templates in stateless mode.
+	// Volumes can be defined in the pod template directly.
+	return nil
 }
 
 func (nt *NamedTierSpec) GetPodTemplate() corev1.PodTemplateSpec {
@@ -144,30 +150,19 @@ type VolumeClaimTemplate struct {
 	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
 }
 
-func (vct *VolumeClaimTemplate) ToPersistentVolumeClaimTemplate() *corev1.PersistentVolumeClaim {
-	if vct == nil {
-		defaultSpec := volume.DefaultDataVolumeClaim.Spec.DeepCopy()
-		defaultVolumeClaimTemplate := &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: volume.ElasticsearchDataVolumeName,
+// DefaultStatelessPersistentVolume returns the default stateless persistent volume definition.
+func DefaultStatelessPersistentVolume() corev1.Volume {
+	defaultSpec := volume.DefaultDataVolumeClaim.Spec.DeepCopy()
+	return corev1.Volume{
+		Name: volume.ElasticsearchDataVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Ephemeral: &corev1.EphemeralVolumeSource{
+				VolumeClaimTemplate: &corev1.PersistentVolumeClaimTemplate{
+					Spec: *defaultSpec,
+				},
 			},
-			Spec: *defaultSpec,
-		}
-		return defaultVolumeClaimTemplate
-	}
-
-	result := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: vct.Metadata.Annotations,
-			Labels:      vct.Metadata.Labels,
-			Name:        volume.ElasticsearchDataVolumeName,
 		},
-		Spec: vct.Spec,
 	}
-	if result.Spec.AccessModes == nil {
-		result.Spec.AccessModes = volume.DefaultDataVolumeClaim.Spec.AccessModes
-	}
-	return result
 }
 
 type SimpleMetadata struct {

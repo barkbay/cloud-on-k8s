@@ -27,14 +27,14 @@ const (
 
 // xpackConfig returns the configuration bit related to XPack settings
 func statelessConfig(tier esv1.ElasticsearchTierName, objectSoreConfig esv1.ObjectStoreConfig) (*CanonicalConfig, error) {
-	// enable x-pack security, including TLS
-	objectSoreConfigAsMap := map[string]interface{}{
+	statelessConfigAsMap := map[string]interface{}{
+		"enabled":             true,
 		"object_store.type":   objectSoreConfig.Type,
 		"object_store.bucket": objectSoreConfig.Bucket,
 		"object_store.client": objectSoreConfig.Client,
 	}
 	if objectSoreConfig.BasePath != "" {
-		objectSoreConfigAsMap["object_store.base_path"] = objectSoreConfig.BasePath
+		statelessConfigAsMap["object_store.base_path"] = objectSoreConfig.BasePath
 	}
 
 	nodeRoles, ok := DefaultNodeRoles[tier]
@@ -43,7 +43,7 @@ func statelessConfig(tier esv1.ElasticsearchTierName, objectSoreConfig esv1.Obje
 	}
 
 	cfg := map[string]interface{}{
-		"stateless":                 objectSoreConfigAsMap,
+		"stateless":                 statelessConfigAsMap,
 		esv1.DiscoverySeedProviders: "file",
 		// to avoid misleading error messages about the inability to connect to localhost for discovery despite us using
 		// file based discovery
@@ -60,14 +60,3 @@ func statelessConfig(tier esv1.ElasticsearchTierName, objectSoreConfig esv1.Obje
 	}
 	return &CanonicalConfig{commonsettings.MustCanonicalConfig(cfg)}, nil
 }
-
-const (
-	// SecureSettingsDirName is the directory name of the file used to store secure Elasticsearch settings
-	SecureSettingsDirName = "secrets"
-	// SecureSettingsFileName is the name of the file used to store secure Elasticsearch settings
-	SecureSettingsFileName = "secrets.json"
-	// SecureSettingsHashAnnotationName is an annotation used to store a hash of the secure Elasticsearch settings
-	SecureSettingsHashAnnotationName = "elasticsearch.k8s.elastic.co/secret-settings-hash"
-	// SecureSettingVolumeName is the name of the volume used to specifically mount the secure settings file from the config secret
-	SecureSettingVolumeName = "elastic-internal-elasticsearch-secure-settings"
-)

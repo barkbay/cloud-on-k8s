@@ -58,8 +58,8 @@ const (
 	// Type represents the Elasticsearch type
 	Type = "elasticsearch"
 
-	// CloneSetNameLabelName used to store the name of the statefulset.
-	CloneSetNameLabelName = "elasticsearch.k8s.elastic.co/cloneset-name"
+	// DeploymentNameLabelName used to store the name of the stateless deployment.
+	DeploymentNameLabelName = "elasticsearch.k8s.elastic.co/deployment-name"
 
 	// TierLabelName holds the tier name in the context of Stateless Elasticsearch clusters.
 	TierLabelName = "elasticsearch.k8s.elastic.co/tier"
@@ -181,7 +181,7 @@ func NewPodLabels(
 	labels[HTTPSchemeLabelName] = scheme
 
 	if isStateless {
-		for k, v := range NewCloneSetLabels(es, ssetName) {
+		for k, v := range NewDeploymentLabels(es, ssetName) {
 			labels[k] = v
 		}
 		return labels
@@ -232,18 +232,19 @@ func NewStatefulSetLabels(es types.NamespacedName, ssetName string) map[string]s
 	return lbls
 }
 
-func NewCloneSetLabels(es types.NamespacedName, ssetName string) map[string]string {
+// NewDeploymentLabels returns labels to apply for an Elasticsearch Deployment in stateless mode.
+func NewDeploymentLabels(es types.NamespacedName, ssetName string) map[string]string {
 	lbls := NewLabels(es)
-	lbls[CloneSetNameLabelName] = ssetName
+	lbls[DeploymentNameLabelName] = ssetName
 	return lbls
 }
 
-// NewLabelSelectorForCloneSetName returns a labels.Selector that matches the labels set on resources managed for
-// a given cloneSetName in a cluster.
-func NewLabelSelectorForCloneSetName(clusterName, cloneSetName string) client.MatchingLabels {
+// NewLabelSelectorForDeploymentName returns a labels.Selector that matches the labels set on resources managed for
+// a given deploymentName in a cluster.
+func NewLabelSelectorForDeploymentName(clusterName, deploymentName string) client.MatchingLabels {
 	return client.MatchingLabels(map[string]string{
-		ClusterNameLabelName:  clusterName,
-		CloneSetNameLabelName: cloneSetName,
+		ClusterNameLabelName:    clusterName,
+		DeploymentNameLabelName: deploymentName,
 	})
 }
 

@@ -5,6 +5,7 @@
 package common
 
 import (
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
 	"k8s.io/client-go/tools/record"
 
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
@@ -93,12 +94,15 @@ func (d *DefaultDriverParameters) Recorder() record.EventRecorder {
 	return d.recorder
 }
 
+// DefaultDriverParametersResult holds the resources created in the common driver reconciliation but used in stateful or stateless drivers.
 type DefaultDriverParametersResult struct {
 	*reconciler.Results
 
 	Meta metadata.Metadata
 
 	ResourcesState *reconcile.ResourcesState
+
+	KeystoreResources *keystore.Resources
 
 	EsClient esclient.Client
 
