@@ -14,6 +14,7 @@ import (
 	agentv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/agent/v1alpha1"
 	apmv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/apm/v1"
 	apmv1beta1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/apm/v1beta1"
+	autoopsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoops/v1alpha1"
 	easv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoscaling/v1alpha1"
 	beatv1beta1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/beat/v1beta1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
@@ -26,6 +27,7 @@ import (
 	kbv1beta1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1beta1"
 	logstashv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/logstash/v1alpha1"
 	emsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/maps/v1alpha1"
+	packageregistryv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/packageregistry/v1alpha1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 )
 
@@ -56,7 +58,9 @@ func SetupScheme() {
 		beatv1beta1.AddToScheme,
 		agentv1alpha1.AddToScheme,
 		emsv1alpha1.AddToScheme,
+		packageregistryv1alpha1.AddToScheme,
 		policyv1alpha1.AddToScheme,
+		autoopsv1alpha1.AddToScheme,
 		logstashv1alpha1.AddToScheme,
 		// CloneSet is used for stateless Elasticsearch nodes.
 		clonesetv1alpha1.AddToScheme,

@@ -142,11 +142,8 @@ func TestUpgradePodsDeletion_WithNodeTypeMutations(t *testing.T) {
 		deleted                      []string
 		wantErr                      bool
 		wantShardsAllocationDisabled bool
-		/* Zen1 checks */
-		minimumMasterNodesCalled     bool
-		minimumMasterNodesCalledWith int
 		recordedEvents               int
-		/* Zend2 checks */
+		/* Zen2 checks */
 		votingExclusionCalledWith []string
 	}{
 		{
@@ -253,9 +250,6 @@ func TestUpgradePodsDeletion_WithNodeTypeMutations(t *testing.T) {
 		assert.Equal(t, tt.wantShardsAllocationDisabled, esClient.DisableReplicaShardsAllocationCalled, tt.name)
 		/* Zen2 checks */
 		assert.ElementsMatch(t, tt.votingExclusionCalledWith, esClient.AddVotingConfigExclusionsCalledWith, tt.name)
-		/* Zen1 checks */
-		assert.Equal(t, tt.minimumMasterNodesCalled, esClient.SetMinimumMasterNodesCalled, tt.name)
-		assert.Equal(t, tt.minimumMasterNodesCalledWith, esClient.SetMinimumMasterNodesCalledWith, tt.name)
 		assert.Equal(t, tt.recordedEvents, len(ctx.reconcileState.Events()), tt.name)
 	}
 }

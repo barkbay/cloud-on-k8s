@@ -6,8 +6,6 @@ package stateless
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,7 +24,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 
@@ -50,11 +47,6 @@ func (sd *statelessDriver) reconcileTiers(
 	}
 
 	ver, err := version.Parse(sd.ES.Spec.Version)
-	if err != nil {
-		return results.WithError(err)
-	}
-
-	secretSettings, err := sd.getSecretSettings(ctx)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -112,22 +104,8 @@ func (sd *statelessDriver) reconcileTiers(
 			continue
 		}
 
-		// Build Settings Secret
-		newSecureSettingsVersion := fmt.Sprintf("%d", time.Now().Unix())
-		secureSettings := settings.NewSecureSettings(existing, newSecureSettingsVersion, secretSettings)
 		cloneSetName := esv1.PodsControllerResourceName(sd.ES.Name, string(tier))
-		operatorPrivilegesSettings, err := settings.NewOperatorPrivilegesSettings(
-			[]settings.OperatorAccount{
-				{
-					Names:     []string{user.ControllerUserName},
-					RealmType: settings.OperatorRealmTypeFile,
-				},
-			}, nil)
-		if err != nil {
-			results.WithError(err)
-			continue
-		}
-		if err := settings.ReconcileConfig(ctx, sd.Client, sd.ES, cloneSetName, cfg, meta, secureSettings, operatorPrivilegesSettings); err != nil {
+		if err := settings.ReconcileConfig(ctx, sd.Client, sd.ES, cloneSetName, cfg, meta); err != nil {
 			results.WithError(err)
 			continue
 		}

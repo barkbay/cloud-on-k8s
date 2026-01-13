@@ -7,8 +7,6 @@ package nodespec
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/stringsutil"
-
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
@@ -127,20 +125,6 @@ func buildVolumes(
 	)
 	volumes = append(volumes, unicastHostsVolume.Volume())
 	volumeMounts = append(volumeMounts, unicastHostsVolume.VolumeMount())
-
-	if isStateless {
-		// mount again the config secret for each settings file watched by ES, with only the file projected in the volume.
-		// If we handle these files like the other config files with symlinks created via the initcontainer, updates to these
-		// files are not seen by ES.
-		secureSettingsVolume := volume.NewSelectiveSecretVolumeWithMountPath(
-			settings.ConfigSecretName(podControllerResourceName),
-			settings.SecureSettingVolumeName,
-			stringsutil.Concat(esvolume.ConfigVolumeMountPath, "/", settings.SecureSettingsDirName),
-			[]string{settings.SecureSettingsFileName},
-		)
-		volumes = append(volumes, secureSettingsVolume.Volume())
-		volumeMounts = append(volumeMounts, secureSettingsVolume.VolumeMount())
-	}
 
 	// version gate for the file-based settings volume and volumeMounts
 	if isStateless || version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
