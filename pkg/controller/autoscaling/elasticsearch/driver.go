@@ -16,7 +16,7 @@ import (
 	"go.elastic.co/apm/v2"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/autoscaler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"

@@ -11,47 +11,36 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 )
 
 // ElasticsearchHealth is the health of the cluster as returned by the health API.
-type ElasticsearchHealth string
+// This is an alias to the common type for backward compatibility.
+type ElasticsearchHealth = escommon.ElasticsearchHealth
 
 // Possible traffic light states Elasticsearch health can have.
 const (
-	ElasticsearchRedHealth     ElasticsearchHealth = "red"
-	ElasticsearchYellowHealth  ElasticsearchHealth = "yellow"
-	ElasticsearchGreenHealth   ElasticsearchHealth = "green"
-	ElasticsearchUnknownHealth ElasticsearchHealth = "unknown"
+	ElasticsearchRedHealth     = escommon.ElasticsearchRedHealth
+	ElasticsearchYellowHealth  = escommon.ElasticsearchYellowHealth
+	ElasticsearchGreenHealth   = escommon.ElasticsearchGreenHealth
+	ElasticsearchUnknownHealth = escommon.ElasticsearchUnknownHealth
 )
 
-var elasticsearchHealthOrder = map[ElasticsearchHealth]int{
-	ElasticsearchRedHealth:    1,
-	ElasticsearchYellowHealth: 2,
-	ElasticsearchGreenHealth:  3,
-}
-
-// Less for ElasticsearchHealth means green > yellow > red
-func (h ElasticsearchHealth) Less(other ElasticsearchHealth) bool {
-	l := elasticsearchHealthOrder[h]
-	r := elasticsearchHealthOrder[other]
-	// 0 is not found/unknown and less is not defined for that
-	return l != 0 && r != 0 && l < r
-}
-
 // ElasticsearchOrchestrationPhase is the phase Elasticsearch is in from the controller point of view.
-type ElasticsearchOrchestrationPhase string
+// This is an alias to the common type for backward compatibility.
+type ElasticsearchOrchestrationPhase = escommon.ElasticsearchOrchestrationPhase
 
 const (
 	// ElasticsearchReadyPhase is operating at the desired spec.
-	ElasticsearchReadyPhase ElasticsearchOrchestrationPhase = "Ready"
+	ElasticsearchReadyPhase = escommon.ElasticsearchReadyPhase
 	// ElasticsearchApplyingChangesPhase controller is working towards a desired state, cluster can be unavailable.
-	ElasticsearchApplyingChangesPhase ElasticsearchOrchestrationPhase = "ApplyingChanges"
+	ElasticsearchApplyingChangesPhase = escommon.ElasticsearchApplyingChangesPhase
 	// ElasticsearchMigratingDataPhase Elasticsearch is currently migrating data to another node.
-	ElasticsearchMigratingDataPhase ElasticsearchOrchestrationPhase = "MigratingData"
+	ElasticsearchMigratingDataPhase = escommon.ElasticsearchMigratingDataPhase
 	// ElasticsearchNodeShutdownStalledPhase Elasticsearch cannot make progress with a node shutdown during downscale or rolling upgrade.
-	ElasticsearchNodeShutdownStalledPhase ElasticsearchOrchestrationPhase = "Stalled"
+	ElasticsearchNodeShutdownStalledPhase = escommon.ElasticsearchNodeShutdownStalledPhase
 	// ElasticsearchResourceInvalid is marking a resource as invalid, should never happen if admission control is installed correctly.
-	ElasticsearchResourceInvalid ElasticsearchOrchestrationPhase = "Invalid"
+	ElasticsearchResourceInvalid = escommon.ElasticsearchResourceInvalid
 )
 
 // ElasticsearchStatus represents the observed state of Elasticsearch.

@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
@@ -165,7 +165,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 						Name: "eck-ns1-es2-generated-alias-from-ns1-es2-to-ns1-es1-with-api-key",
 						CrossClusterAPIKeyUpdateRequest: esclient.CrossClusterAPIKeyUpdateRequest{
 							Metadata: map[string]interface{}{
-								"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+								"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 								"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 								"elasticsearch.k8s.elastic.co/name":        "es2",
 								"elasticsearch.k8s.elastic.co/namespace":   "ns1",
@@ -331,7 +331,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 							ID:   "apikey-from-es5-to-es1",
 							Name: "eck-ns5-es5-generated-ns1-es1-0-with-api-key",
 							Metadata: map[string]interface{}{
-								"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+								"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 								"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 								"elasticsearch.k8s.elastic.co/name":        "es5",
 								"elasticsearch.k8s.elastic.co/namespace":   "ns5",
@@ -360,7 +360,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 					"generated-id-from-fake-es-client-eck-ns4-es4-generated-alias-from-ns4-es4-to-ns1-es1-with-api-key": {
 						RemoteClusterAPIKey: esv1.RemoteClusterAPIKey{},
 						Metadata: map[string]any{
-							"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+							"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 							"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 							"elasticsearch.k8s.elastic.co/name":        "es4",
 							"elasticsearch.k8s.elastic.co/namespace":   "ns4",
@@ -374,7 +374,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 						Name: "eck-ns2-es2-generated-alias-from-ns2-es2-to-ns1-es1-with-api-key",
 						CrossClusterAPIKeyUpdateRequest: esclient.CrossClusterAPIKeyUpdateRequest{
 							Metadata: map[string]interface{}{
-								"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+								"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 								"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 								"elasticsearch.k8s.elastic.co/name":        "es2",
 								"elasticsearch.k8s.elastic.co/namespace":   "ns2",
@@ -386,7 +386,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 						Name: "eck-ns3-es3-generated-alias-from-ns3-es3-to-ns1-es1-with-api-key",
 						CrossClusterAPIKeyUpdateRequest: esclient.CrossClusterAPIKeyUpdateRequest{
 							Metadata: map[string]interface{}{
-								"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+								"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 								"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 								"elasticsearch.k8s.elastic.co/name":        "es3",
 								"elasticsearch.k8s.elastic.co/namespace":   "ns3",
@@ -602,7 +602,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 							ID:   "apikey-from-es5-to-es1",
 							Name: "eck-ns5-es5-generated-ns1-es1-0-with-api-key",
 							Metadata: map[string]interface{}{
-								"elasticsearch.k8s.elastic.co/config-hash": "1384987056",
+								"elasticsearch.k8s.elastic.co/config-hash": "623118784",
 								"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 								"elasticsearch.k8s.elastic.co/name":        "es5",
 								"elasticsearch.k8s.elastic.co/namespace":   "ns5",

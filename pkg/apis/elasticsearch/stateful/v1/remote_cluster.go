@@ -5,7 +5,7 @@
 package v1
 
 import (
-	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
@@ -59,42 +59,17 @@ func (es *Elasticsearch) RemoteClustersCount() (int32, int32) {
 	return withoutAPIKeys, withAPIKeys
 }
 
-// RemoteClusterAPIKey defines a remote cluster API Key.
-type RemoteClusterAPIKey struct {
-	// Access is the name of the API Key. It is automatically generated if not set or empty.
-	// +kubebuilder:validation:Required
-	Access RemoteClusterAccess `json:"access,omitempty"`
-}
+// RemoteClusterAPIKey is an alias to the common type for interface compatibility.
+type RemoteClusterAPIKey = escommon.RemoteClusterAPIKey
 
-// RemoteClusterAccess models the API key specification as documented in https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html
-type RemoteClusterAccess struct {
-	// +kubebuilder:validation:Optional
-	Search *Search `json:"search,omitempty"`
-	// +kubebuilder:validation:Optional
-	Replication *Replication `json:"replication,omitempty"`
-}
+// RemoteClusterAccess is an alias to the common type for interface compatibility.
+type RemoteClusterAccess = escommon.RemoteClusterAccess
 
-type Search struct {
-	// +kubebuilder:validation:Required
-	Names []string `json:"names,omitempty"`
+// Search is an alias to the common type for interface compatibility.
+type Search = escommon.Search
 
-	// +kubebuilder:validation:Optional
-	FieldSecurity *FieldSecurity `json:"field_security,omitempty"`
+// FieldSecurity is an alias to the common type for interface compatibility.
+type FieldSecurity = escommon.FieldSecurity
 
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Query *commonv1.Config `json:"query,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	AllowRestrictedIndices bool `json:"allow_restricted_indices,omitempty"`
-}
-
-type FieldSecurity struct {
-	Grant  []string `json:"grant"`
-	Except []string `json:"except"`
-}
-
-type Replication struct {
-	// +kubebuilder:validation:Required
-	Names []string `json:"names,omitempty"`
-}
+// Replication is an alias to the common type for interface compatibility.
+type Replication = escommon.Replication

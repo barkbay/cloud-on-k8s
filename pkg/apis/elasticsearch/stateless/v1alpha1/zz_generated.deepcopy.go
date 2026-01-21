@@ -10,6 +10,7 @@ package v1alpha1
 
 import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -84,6 +85,13 @@ func (in *ElasticsearchStatelessSpec) DeepCopyInto(out *ElasticsearchStatelessSp
 	if in.SecureSettings != nil {
 		in, out := &in.SecureSettings, &out.SecureSettings
 		*out = make([]v1.SecretSource, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.RemoteClusters != nil {
+		in, out := &in.RemoteClusters, &out.RemoteClusters
+		*out = make([]common.RemoteCluster, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

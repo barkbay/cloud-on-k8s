@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"testing"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/filebeat"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/heartbeat"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/metricbeat"

@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 )
 
 // EmitEvents emits a selected type of event on the Kubernetes cluster event channel.

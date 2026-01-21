@@ -572,7 +572,7 @@ KeyToPath defines how to map a key in a Secret object to a filesystem path.
 LocalObjectSelector defines a reference to a Kubernetes object corresponding to an Elastic resource managed by the operator
 
 :::{admonition} Appears In:
-* [RemoteCluster](#remotecluster)
+* RemoteCluster
 
 :::
 
@@ -1040,21 +1040,6 @@ Package v1 contains API schema definitions for managing Elasticsearch resources.
 
 
 
-### Auth  [#auth]
-
-Auth contains user authentication and authorization security settings for Elasticsearch.
-
-:::{admonition} Appears In:
-* [ElasticsearchSpec](#elasticsearchspec)
-* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`roles`* __[RoleSource](#rolesource) array__ | Roles to propagate to the Elasticsearch cluster. |
-| *`fileRealm`* __[FileRealmSource](#filerealmsource) array__ | FileRealm to propagate to the Elasticsearch cluster. |
-| *`disableElasticUser`* __boolean__ | DisableElasticUser disables the default elastic user that is created by ECK. |
 
 
 
@@ -1125,27 +1110,7 @@ Elasticsearch represents an Elasticsearch resource in a Kubernetes cluster.
 | *`status`* __[ElasticsearchStatus](#elasticsearchstatus)__ |  |
 
 
-### ElasticsearchHealth (string)  [#elasticsearchhealth]
 
-ElasticsearchHealth is the health of the cluster as returned by the health API.
-
-:::{admonition} Appears In:
-* [ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)
-* [ElasticsearchStatus](#elasticsearchstatus)
-
-:::
-
-
-
-### ElasticsearchOrchestrationPhase (string)  [#elasticsearchorchestrationphase]
-
-ElasticsearchOrchestrationPhase is the phase Elasticsearch is in from the controller point of view.
-
-:::{admonition} Appears In:
-* [ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)
-* [ElasticsearchStatus](#elasticsearchstatus)
-
-:::
 
 
 
@@ -1197,33 +1162,8 @@ ElasticsearchStatus represents the observed state of Elasticsearch.
 | *`observedGeneration`* __integer__ | ObservedGeneration is the most recent generation observed for this Elasticsearch cluster.<br>It corresponds to the metadata generation, which is updated on mutation by the API Server.<br>If the generation observed in status diverges from the generation in metadata, the Elasticsearch<br>controller has not yet processed the changes contained in the Elasticsearch specification. |
 
 
-### FieldSecurity  [#fieldsecurity]
 
 
-
-:::{admonition} Appears In:
-* [Search](#search)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`grant`* __string array__ |  |
-| *`except`* __string array__ |  |
-
-
-### FileRealmSource  [#filerealmsource]
-
-FileRealmSource references users to create in the Elasticsearch cluster.
-
-:::{admonition} Appears In:
-* [Auth](#auth)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`secretName`* __string__ | SecretName is the name of the secret. |
 
 
 ### InProgressOperations  [#inprogressoperations]
@@ -1293,158 +1233,24 @@ NodeSet is the specification for a group of Elasticsearch nodes sharing the same
 | *`volumeClaimTemplates`* __[PersistentVolumeClaim](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#persistentvolumeclaim-v1-core) array__ | VolumeClaimTemplates is a list of persistent volume claims to be used by each Pod in this NodeSet.<br>Every claim in this list must have a matching volumeMount in one of the containers defined in the PodTemplate.<br>Items defined here take precedence over any default claims added by the operator with the same name. |
 
 
-### RemoteCluster  [#remotecluster]
-
-RemoteCluster declares a remote Elasticsearch cluster connection.
-
-:::{admonition} Appears In:
-* [ElasticsearchSpec](#elasticsearchspec)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`name`* __string__ | Name is the name of the remote cluster as it is set in the Elasticsearch settings.<br>The name is expected to be unique for each remote clusters. |
-| *`elasticsearchRef`* __[LocalObjectSelector](#localobjectselector)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running within the same k8s cluster. |
-| *`apiKey`* __[RemoteClusterAPIKey](#remoteclusterapikey)__ | APIKey can be used to enable remote cluster access using Cross-Cluster API keys: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html |
-
-
-### RemoteClusterAPIKey  [#remoteclusterapikey]
-
-RemoteClusterAPIKey defines a remote cluster API Key.
-
-:::{admonition} Appears In:
-* [RemoteCluster](#remotecluster)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`access`* __[RemoteClusterAccess](#remoteclusteraccess)__ | Access is the name of the API Key. It is automatically generated if not set or empty. |
-
-
-### RemoteClusterAccess  [#remoteclusteraccess]
-
-RemoteClusterAccess models the API key specification as documented in https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html
-
-:::{admonition} Appears In:
-* [RemoteClusterAPIKey](#remoteclusterapikey)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`search`* __[Search](#search)__ |  |
-| *`replication`* __[Replication](#replication)__ |  |
-
-
-### RemoteClusterServer  [#remoteclusterserver]
 
 
 
-:::{admonition} Appears In:
-* [ElasticsearchSpec](#elasticsearchspec)
-* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`enabled`* __boolean__ |  |
-| *`service`* __[ServiceTemplate](#servicetemplate)__ | Service defines the template for the remote cluster server Service object. |
-
-
-### Replication  [#replication]
 
 
 
-:::{admonition} Appears In:
-* [RemoteClusterAccess](#remoteclusteraccess)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`names`* __string array__ |  |
-
-
-### RoleSource  [#rolesource]
-
-RoleSource references roles to create in the Elasticsearch cluster.
-
-:::{admonition} Appears In:
-* [Auth](#auth)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`secretName`* __string__ | SecretName is the name of the secret. |
-
-
-### Search  [#search]
 
 
 
-:::{admonition} Appears In:
-* [RemoteClusterAccess](#remoteclusteraccess)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`names`* __string array__ |  |
-| *`field_security`* __[FieldSecurity](#fieldsecurity)__ |  |
-| *`query`* __[Config](#config)__ |  |
-| *`allow_restricted_indices`* __boolean__ |  |
-
-
-### SelfSignedTransportCertificates  [#selfsignedtransportcertificates]
-
-SelfSignedTransportCertificates holds configuration for the self-signed certificates generated by the operator.
-
-:::{admonition} Appears In:
-* [TransportTLSOptions](#transporttlsoptions)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`disabled`* __boolean__ | Disabled indicates that provisioning of the self-signed certificates should be disabled. |
-
-
-### TransportConfig  [#transportconfig]
-
-TransportConfig holds the transport layer settings for Elasticsearch.
-
-:::{admonition} Appears In:
-* [ElasticsearchSpec](#elasticsearchspec)
-* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
-
-:::
-
-| Field | Description |
-| --- | --- |
-| *`service`* __[ServiceTemplate](#servicetemplate)__ | Service defines the template for the associated Kubernetes Service object. |
-| *`tls`* __[TransportTLSOptions](#transporttlsoptions)__ | TLS defines options for configuring TLS on the transport layer. |
-
-
-### TransportTLSOptions  [#transporttlsoptions]
 
 
 
-:::{admonition} Appears In:
-* [TransportConfig](#transportconfig)
 
-:::
 
-| Field | Description |
-| --- | --- |
-| *`otherNameSuffix`* __string__ | OtherNameSuffix when defined will be prefixed with the Pod name and used as the common name,<br>and the first DNSName, as well as an OtherName required by Elasticsearch in the Subject Alternative Name<br>extension of each Elasticsearch node's transport TLS certificate.<br>Example: if set to "node.cluster.local", the generated certificate will have its otherName set to "<pod_name>.node.cluster.local". |
-| *`subjectAltNames`* __[SubjectAlternativeName](#subjectalternativename) array__ | SubjectAlternativeNames is a list of SANs to include in the generated node transport TLS certificates. |
-| *`certificate`* __[SecretRef](#secretref)__ | Certificate is a reference to a Kubernetes secret that contains the CA certificate<br>and private key for generating node certificates.<br>The referenced secret should contain the following:<br><br>- `ca.crt`: The CA certificate in PEM format.<br>- `ca.key`: The private key for the CA certificate in PEM format. |
-| *`certificateAuthorities`* __[ConfigMapRef](#configmapref)__ | CertificateAuthorities is a reference to a config map that contains one or more x509 certificates for<br>trusted authorities in PEM format. The certificates need to be in a file called `ca.crt`. |
-| *`selfSignedCertificates`* __[SelfSignedTransportCertificates](#selfsignedtransportcertificates)__ | SelfSignedCertificates allows configuring the self-signed certificate generated by the operator. |
+
+
+
+
 
 
 ### UpdateStrategy  [#updatestrategy]
@@ -1588,6 +1394,7 @@ ElasticsearchStatelessSpec defines the desired state of an ElasticsearchStateles
 | *`auth`* __[Auth](#auth)__ | Auth contains user authentication and authorization security settings for Elasticsearch. |
 | *`secureSettings`* __[SecretSource](#secretsource) array__ | SecureSettings is a list of references to Kubernetes secrets containing sensitive configuration options for Elasticsearch. |
 | *`serviceAccountName`* __string__ | ServiceAccountName is used to check access from the current resource to a resource (for ex. a remote Elasticsearch cluster) in a different namespace.<br>Can only be used if ECK is enforcing RBAC on references. |
+| *`remoteClusters`* __RemoteCluster array__ | RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster. |
 
 
 ### ElasticsearchStatelessStatus  [#elasticsearchstatelessstatus]

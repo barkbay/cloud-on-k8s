@@ -10,39 +10,13 @@ import (
 
 	"github.com/go-test/deep"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	v1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	v1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 )
-
-func TestClusterFromResourceLabels(t *testing.T) {
-	// test when label is not set
-	pod := corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "name",
-			Namespace: "namespace",
-		},
-	}
-	accessor, err := meta.Accessor(&pod)
-	require.NoError(t, err)
-	_, exists := ClusterFromResourceLabels(accessor)
-	require.False(t, exists)
-
-	// test when label is set
-	pod.ObjectMeta.Labels = map[string]string{ClusterNameLabelName: "clusterName"}
-	cluster, exists := ClusterFromResourceLabels(accessor)
-	require.True(t, exists)
-	require.Equal(t, types.NamespacedName{
-		Namespace: "namespace",
-		Name:      "clusterName",
-	}, cluster)
-}
 
 func TestExtractVersion(t *testing.T) {
 	tests := []struct {

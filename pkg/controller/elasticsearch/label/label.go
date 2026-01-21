@@ -7,12 +7,11 @@ package label
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 )
@@ -225,15 +224,4 @@ func NewLabelSelectorForStatefulSetName(clusterName, ssetName string) client.Mat
 		ClusterNameLabelName:     clusterName,
 		StatefulSetNameLabelName: ssetName,
 	})
-}
-
-// ClusterFromResourceLabels returns the NamespacedName of the Elasticsearch associated
-// to the given resource, by retrieving its name from the resource labels.
-// It does implicitly consider the cluster and the resource to be in the same namespace.
-func ClusterFromResourceLabels(metaObject metav1.Object) (types.NamespacedName, bool) {
-	resourceName, exists := metaObject.GetLabels()[ClusterNameLabelName]
-	return types.NamespacedName{
-		Namespace: metaObject.GetNamespace(),
-		Name:      resourceName,
-	}, exists
 }

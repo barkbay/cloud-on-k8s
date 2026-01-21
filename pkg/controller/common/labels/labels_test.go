@@ -15,7 +15,7 @@ import (
 	apm "github.com/elastic/cloud-on-k8s/v3/pkg/apis/apm/v1"
 	beat "github.com/elastic/cloud-on-k8s/v3/pkg/apis/beat/v1beta1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	es "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	es "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	enterprisesearch "github.com/elastic/cloud-on-k8s/v3/pkg/apis/enterprisesearch/v1"
 	kibana "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	maps "github.com/elastic/cloud-on-k8s/v3/pkg/apis/maps/v1alpha1"

@@ -5,18 +5,24 @@
 package v1alpha1
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
 
 const (
-	ElasticsearchContainerName = "elasticsearch"
+	// ElasticsearchContainerName is the name of the Elasticsearch container in pods.
+	ElasticsearchContainerName = escommon.ElasticsearchContainerName
 	// Kind is inferred from the struct name using reflection in SchemeBuilder.Register()
 	// we duplicate it as a constant here for practical purposes.
 	Kind = "ElasticsearchStateless"
+	// DownwardNodeLabelsAnnotation holds an optional list of expected node labels to be set as annotations on the Elasticsearch Pods.
+	DownwardNodeLabelsAnnotation = "eck.k8s.elastic.co/downward-node-labels"
 )
 
 // ElasticsearchStatelessSpec defines the desired state of an ElasticsearchStateless cluster.
@@ -31,7 +37,7 @@ type ElasticsearchStatelessSpec struct {
 	// RemoteClusterServer specifies if the remote cluster server should be enabled.
 	// This must be enabled if this cluster is a remote cluster which is expected to be accessed using API key authentication.
 	// +kubebuilder:validation:Optional
-	RemoteClusterServer esv1.RemoteClusterServer `json:"remoteClusterServer,omitempty"`
+	RemoteClusterServer escommon.RemoteClusterServer `json:"remoteClusterServer,omitempty"`
 
 	// ObjectStore contains the configuration for the object store used for stateless data.
 	// +kubebuilder:validation:Required
@@ -47,11 +53,11 @@ type ElasticsearchStatelessSpec struct {
 
 	// Transport holds transport layer settings for Elasticsearch.
 	// +kubebuilder:validation:Optional
-	Transport esv1.TransportConfig `json:"transport,omitempty"`
+	Transport escommon.TransportConfig `json:"transport,omitempty"`
 
 	// Auth contains user authentication and authorization security settings for Elasticsearch.
 	// +kubebuilder:validation:Optional
-	Auth esv1.Auth `json:"auth,omitempty"`
+	Auth escommon.Auth `json:"auth,omitempty"`
 
 	// SecureSettings is a list of references to Kubernetes secrets containing sensitive configuration options for Elasticsearch.
 	// +kubebuilder:validation:Optional
@@ -61,6 +67,10 @@ type ElasticsearchStatelessSpec struct {
 	// Can only be used if ECK is enforcing RBAC on references.
 	// +kubebuilder:validation:Optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster.
+	// +optional
+	RemoteClusters []escommon.RemoteCluster `json:"remoteClusters,omitempty"`
 }
 
 // ObjectStoreConfig contains the configuration for the object store used for stateless data.
@@ -106,10 +116,10 @@ type ElasticsearchStatelessStatus struct {
 	Version string `json:"version,omitempty"`
 
 	// Health is the health of the cluster as returned by the health API.
-	Health esv1.ElasticsearchHealth `json:"health,omitempty"`
+	Health escommon.ElasticsearchHealth `json:"health,omitempty"`
 
 	// Phase is the phase Elasticsearch is in from the controller point of view.
-	Phase esv1.ElasticsearchOrchestrationPhase `json:"phase,omitempty"`
+	Phase escommon.ElasticsearchOrchestrationPhase `json:"phase,omitempty"`
 
 	// ObservedGeneration is the most recent generation observed for this ElasticsearchStateless cluster.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
@@ -174,6 +184,84 @@ func (ess *ElasticsearchStateless) SecureSettings() []commonv1.SecretSource {
 func (ess *ElasticsearchStateless) GetObservedGeneration() int64 {
 	return ess.Status.ObservedGeneration
 }
+
+// GetVersion returns the Elasticsearch version.
+func (ess ElasticsearchStateless) GetVersion() string {
+	return ess.Spec.Version
+}
+
+// GetImage returns the Elasticsearch Docker image.
+func (ess ElasticsearchStateless) GetImage() string {
+	return ess.Spec.Image
+}
+
+// GetHTTP returns the HTTP layer configuration.
+func (ess ElasticsearchStateless) GetHTTP() commonv1.HTTPConfig {
+	return ess.Spec.HTTP
+}
+
+// GetTransport returns the transport layer configuration.
+func (ess ElasticsearchStateless) GetTransport() escommon.TransportConfig {
+	return ess.Spec.Transport
+}
+
+// GetAuth returns the authentication and authorization settings.
+func (ess ElasticsearchStateless) GetAuth() escommon.Auth {
+	return ess.Spec.Auth
+}
+
+// GetSecureSettings returns the list of secure settings secret sources.
+func (ess ElasticsearchStateless) GetSecureSettings() []commonv1.SecretSource {
+	return ess.Spec.SecureSettings
+}
+
+// GetServiceAccountName returns the service account name.
+func (ess ElasticsearchStateless) GetServiceAccountName() string {
+	return ess.Spec.ServiceAccountName
+}
+
+// GetRemoteClusterServer returns the remote cluster server configuration.
+func (ess ElasticsearchStateless) GetRemoteClusterServer() escommon.RemoteClusterServer {
+	return ess.Spec.RemoteClusterServer
+}
+
+// GetRemoteClusters returns the list of remote cluster configurations.
+func (ess ElasticsearchStateless) GetRemoteClusters() []escommon.RemoteCluster {
+	return ess.Spec.RemoteClusters
+}
+
+// SupportsRemoteClusterAPIKeys returns true for stateless Elasticsearch clusters as they always support API keys.
+func (ess ElasticsearchStateless) SupportsRemoteClusterAPIKeys() (*optional.Bool, error) {
+	return optional.NewBool(true), nil
+}
+
+// IsStateless returns true for stateless Elasticsearch clusters.
+func (ess ElasticsearchStateless) IsStateless() bool {
+	return true
+}
+
+// DownwardNodeLabels returns the set of expected node labels to be copied as annotations on the Elasticsearch Pods.
+func (ess ElasticsearchStateless) DownwardNodeLabels() []string {
+	expectedAnnotations, exist := ess.Annotations[DownwardNodeLabelsAnnotation]
+	expectedAnnotations = strings.TrimSpace(expectedAnnotations)
+	if !exist || expectedAnnotations == "" {
+		return nil
+	}
+	return strings.Split(expectedAnnotations, ",")
+}
+
+// HasDownwardNodeLabels returns true if some node labels are expected on the Elasticsearch Pods.
+func (ess ElasticsearchStateless) HasDownwardNodeLabels() bool {
+	return len(ess.DownwardNodeLabels()) > 0
+}
+
+// IsConfiguredToAllowDowngrades returns true if the DisableDowngradeValidation annotation is set to the value of true.
+func (ess ElasticsearchStateless) IsConfiguredToAllowDowngrades() bool {
+	return commonv1.IsConfiguredToAllowDowngrades(&ess)
+}
+
+// Ensure ElasticsearchStateless implements escommon.ElasticsearchCluster interface.
+var _ escommon.ElasticsearchCluster = &ElasticsearchStateless{}
 
 // +kubebuilder:object:root=true
 

@@ -10204,6 +10204,8 @@ spec:
                             generated if not set or empty.
                           properties:
                             replication:
+                              description: Replication defines replication access
+                                for remote cluster API keys.
                               properties:
                                 names:
                                   items:
@@ -10213,10 +10215,14 @@ spec:
                               - names
                               type: object
                             search:
+                              description: Search defines search access for remote
+                                cluster API keys.
                               properties:
                                 allow_restricted_indices:
                                   type: boolean
                                 field_security:
+                                  description: FieldSecurity defines field-level security
+                                    for search access.
                                   properties:
                                     except:
                                       items:
