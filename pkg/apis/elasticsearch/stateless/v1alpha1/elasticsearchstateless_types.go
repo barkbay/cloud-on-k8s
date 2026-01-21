@@ -12,6 +12,7 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
+
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
 
@@ -258,6 +259,12 @@ func (ess ElasticsearchStateless) HasDownwardNodeLabels() bool {
 // IsConfiguredToAllowDowngrades returns true if the DisableDowngradeValidation annotation is set to the value of true.
 func (ess ElasticsearchStateless) IsConfiguredToAllowDowngrades() bool {
 	return commonv1.IsConfiguredToAllowDowngrades(&ess)
+}
+
+// GetAssociations returns the list of associations for this ElasticsearchStateless cluster.
+// Currently returns an empty slice as ElasticsearchStateless does not support monitoring associations.
+func (ess *ElasticsearchStateless) GetAssociations() []commonv1.Association {
+	return []commonv1.Association{}
 }
 
 // Ensure ElasticsearchStateless implements escommon.ElasticsearchCluster interface.

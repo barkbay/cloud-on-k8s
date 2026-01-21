@@ -251,6 +251,7 @@ type Replication struct {
 
 // ElasticsearchCluster is an interface that defines common accessors for Elasticsearch cluster resources.
 // Both stateful Elasticsearch and stateless ElasticsearchStateless implement this interface.
+// This interface also satisfies the HasKeystore interface from the keystore package.
 // +kubebuilder:object:generate=false
 type ElasticsearchCluster interface {
 	// client.Object embeds metav1.Object and runtime.Object, providing access to
@@ -270,6 +271,9 @@ type ElasticsearchCluster interface {
 	GetAuth() Auth
 	// GetSecureSettings returns the list of secure settings secret sources.
 	GetSecureSettings() []commonv1.SecretSource
+	// SecureSettings returns the list of secure settings secret sources.
+	// This method is required to satisfy the HasKeystore interface.
+	SecureSettings() []commonv1.SecretSource
 	// GetServiceAccountName returns the service account name.
 	GetServiceAccountName() string
 	// GetRemoteClusterServer returns the remote cluster server configuration.
@@ -287,4 +291,6 @@ type ElasticsearchCluster interface {
 	HasDownwardNodeLabels() bool
 	// IsConfiguredToAllowDowngrades returns true if the cluster allows downgrades.
 	IsConfiguredToAllowDowngrades() bool
+	// GetAssociations returns the list of associations for this Elasticsearch cluster.
+	GetAssociations() []commonv1.Association
 }
