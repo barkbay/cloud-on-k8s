@@ -224,6 +224,19 @@ updating docs/operating-eck/eck-permissions.asciidoc file.
   - update
   - patch
 - apiGroups:
+  - elasticsearch.k8s.elastic.co
+  resources:
+  - elasticsearchstatelesses
+  - elasticsearchstatelesses/status
+  - elasticsearchstatelesses/finalizers # needed for ownerReferences with blockOwnerDeletion on OCP
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
   - autoscaling.k8s.elastic.co
   resources:
   - elasticsearchautoscalers

@@ -21,6 +21,7 @@ applies_to:
 * [common.k8s.elastic.co/v1alpha1](#commonk8selasticcov1alpha1)
 * [common.k8s.elastic.co/v1beta1](#commonk8selasticcov1beta1)
 * [elasticsearch.k8s.elastic.co/v1](#elasticsearchk8selasticcov1)
+* [elasticsearch.k8s.elastic.co/v1alpha1](#elasticsearchk8selasticcov1alpha1)
 * [elasticsearch.k8s.elastic.co/v1beta1](#elasticsearchk8selasticcov1beta1)
 * [enterprisesearch.k8s.elastic.co/v1](#enterprisesearchk8selasticcov1)
 * [enterprisesearch.k8s.elastic.co/v1beta1](#enterprisesearchk8selasticcov1beta1)
@@ -532,6 +533,7 @@ HTTPConfig holds the HTTP layer configuration for resources.
 * [AgentSpec](#agentspec)
 * [ApmServerSpec](#apmserverspec)
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 * [EnterpriseSearchSpec](#enterprisesearchspec)
 * [EnterpriseSearchSpec](#enterprisesearchspec)
 * [KibanaSpec](#kibanaspec)
@@ -701,6 +703,7 @@ SecretSource defines a data source based on a Kubernetes Secret.
 * [BeatSpec](#beatspec)
 * [ElasticsearchConfigPolicySpec](#elasticsearchconfigpolicyspec)
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 * [KibanaConfigPolicySpec](#kibanaconfigpolicyspec)
 * [KibanaSpec](#kibanaspec)
 * [LogstashSpec](#logstashspec)
@@ -1043,6 +1046,7 @@ Auth contains user authentication and authorization security settings for Elasti
 
 :::{admonition} Appears In:
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 
 :::
 
@@ -1126,6 +1130,7 @@ Elasticsearch represents an Elasticsearch resource in a Kubernetes cluster.
 ElasticsearchHealth is the health of the cluster as returned by the health API.
 
 :::{admonition} Appears In:
+* [ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)
 * [ElasticsearchStatus](#elasticsearchstatus)
 
 :::
@@ -1137,6 +1142,7 @@ ElasticsearchHealth is the health of the cluster as returned by the health API.
 ElasticsearchOrchestrationPhase is the phase Elasticsearch is in from the controller point of view.
 
 :::{admonition} Appears In:
+* [ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)
 * [ElasticsearchStatus](#elasticsearchstatus)
 
 :::
@@ -1338,6 +1344,7 @@ RemoteClusterAccess models the API key specification as documented in https://ww
 
 :::{admonition} Appears In:
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 
 :::
 
@@ -1412,6 +1419,7 @@ TransportConfig holds the transport layer settings for Elasticsearch.
 
 :::{admonition} Appears In:
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 
 :::
 
@@ -1513,6 +1521,154 @@ Inspired by https://github.com/kubernetes/enhancements/pull/2440
 
 :::
 
+
+
+
+% TODO add function to crd-ref-docs return anchor used in links docs-v3 does not seem to produce valid markdown anchors
+## elasticsearch.k8s.elastic.co/v1alpha1 [#elasticsearchk8selasticcov1alpha1]
+
+Package v1alpha1 contains API Schema definitions for the elasticsearch v1alpha1 API group
+
+### Resource Types
+- [ElasticsearchStateless](#elasticsearchstateless)
+- [ElasticsearchStatelessList](#elasticsearchstatelesslist)
+
+
+
+### ElasticsearchStateless  [#elasticsearchstateless]
+
+ElasticsearchStateless represents a stateless Elasticsearch resource in a Kubernetes cluster.
+
+:::{admonition} Appears In:
+* [ElasticsearchStatelessList](#elasticsearchstatelesslist)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`apiVersion`* __string__ | `elasticsearch.k8s.elastic.co/v1alpha1` |
+| *`kind`* __string__ | `ElasticsearchStateless` | 
+| *`metadata`* __[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#objectmeta-v1-meta)__ | Refer to Kubernetes API documentation for fields of `metadata`. |
+| *`spec`* __[ElasticsearchStatelessSpec](#elasticsearchstatelessspec)__ |  |
+| *`status`* __[ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)__ |  |
+
+
+### ElasticsearchStatelessList  [#elasticsearchstatelesslist]
+
+ElasticsearchStatelessList contains a list of ElasticsearchStateless clusters.
+
+
+
+| Field | Description |
+| --- | --- |
+| *`apiVersion`* __string__ | `elasticsearch.k8s.elastic.co/v1alpha1` |
+| *`kind`* __string__ | `ElasticsearchStatelessList` | 
+| *`metadata`* __[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#listmeta-v1-meta)__ | Refer to Kubernetes API documentation for fields of `metadata`. |
+| *`items`* __[ElasticsearchStateless](#elasticsearchstateless) array__ |  |
+
+
+### ElasticsearchStatelessSpec  [#elasticsearchstatelessspec]
+
+ElasticsearchStatelessSpec defines the desired state of an ElasticsearchStateless cluster.
+
+:::{admonition} Appears In:
+* [ElasticsearchStateless](#elasticsearchstateless)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`version`* __string__ | Version of Elasticsearch. |
+| *`image`* __string__ | Image is the Elasticsearch Docker image to deploy. |
+| *`remoteClusterServer`* __[RemoteClusterServer](#remoteclusterserver)__ | RemoteClusterServer specifies if the remote cluster server should be enabled.<br>This must be enabled if this cluster is a remote cluster which is expected to be accessed using API key authentication. |
+| *`objectStore`* __[ObjectStoreConfig](#objectstoreconfig)__ | ObjectStore contains the configuration for the object store used for stateless data. |
+| *`tiers`* __[ElasticsearchStatelessTiers](#elasticsearchstatelesstiers)__ | Tiers defines the different tiers of the stateless Elasticsearch cluster. |
+| *`http`* __[HTTPConfig](#httpconfig)__ | HTTP holds HTTP layer settings for Elasticsearch. |
+| *`transport`* __[TransportConfig](#transportconfig)__ | Transport holds transport layer settings for Elasticsearch. |
+| *`auth`* __[Auth](#auth)__ | Auth contains user authentication and authorization security settings for Elasticsearch. |
+| *`secureSettings`* __[SecretSource](#secretsource) array__ | SecureSettings is a list of references to Kubernetes secrets containing sensitive configuration options for Elasticsearch. |
+| *`serviceAccountName`* __string__ | ServiceAccountName is used to check access from the current resource to a resource (for ex. a remote Elasticsearch cluster) in a different namespace.<br>Can only be used if ECK is enforcing RBAC on references. |
+
+
+### ElasticsearchStatelessStatus  [#elasticsearchstatelessstatus]
+
+ElasticsearchStatelessStatus represents the observed state of ElasticsearchStateless.
+
+:::{admonition} Appears In:
+* [ElasticsearchStateless](#elasticsearchstateless)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`availableNodes`* __integer__ | AvailableNodes is the number of available instances. |
+| *`version`* __string__ | Version of the stack resource currently running. |
+| *`health`* __[ElasticsearchHealth](#elasticsearchhealth)__ | Health is the health of the cluster as returned by the health API. |
+| *`phase`* __[ElasticsearchOrchestrationPhase](#elasticsearchorchestrationphase)__ | Phase is the phase Elasticsearch is in from the controller point of view. |
+| *`observedGeneration`* __integer__ | ObservedGeneration is the most recent generation observed for this ElasticsearchStateless cluster. |
+| *`indexTierStatus`* __[TierStatus](#tierstatus)__ | IndexTierStatus contains the status of the index tier. |
+| *`searchTierStatus`* __[TierStatus](#tierstatus)__ | SearchTierStatus contains the status of the search tier. |
+| *`mlTierStatus`* __[TierStatus](#tierstatus)__ | MLTierStatus contains the status of the ML tier. |
+
+
+### ElasticsearchStatelessTiers  [#elasticsearchstatelesstiers]
+
+ElasticsearchStatelessTiers defines the tiers of a stateless Elasticsearch cluster.
+
+:::{admonition} Appears In:
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`index`* __[TierSpec](#tierspec)__ | Index tier handles indexing operations. |
+| *`search`* __[TierSpec](#tierspec)__ | Search tier handles search operations. |
+| *`ml`* __[TierSpec](#tierspec)__ | ML tier handles machine learning operations. |
+
+
+### ObjectStoreConfig  [#objectstoreconfig]
+
+ObjectStoreConfig contains the configuration for the object store used for stateless data.
+
+:::{admonition} Appears In:
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`secretName`* __string__ | SecretName is the name of the secret containing the object store credentials. |
+
+
+### TierSpec  [#tierspec]
+
+TierSpec defines the specification for a tier in a stateless Elasticsearch cluster.
+
+:::{admonition} Appears In:
+* [ElasticsearchStatelessTiers](#elasticsearchstatelesstiers)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`replicas`* __integer__ | Replicas is the number of replicas for this tier. |
+| *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate provides customisation options for the Pods belonging to this tier. |
+
+
+### TierStatus  [#tierstatus]
+
+TierStatus represents the status of a tier.
+
+:::{admonition} Appears In:
+* [ElasticsearchStatelessStatus](#elasticsearchstatelessstatus)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`availableReplicas`* __integer__ | AvailableReplicas is the number of available replicas for this tier. |
+| *`expectedReplicas`* __integer__ | ExpectedReplicas is the expected number of replicas for this tier. |
 
 
 

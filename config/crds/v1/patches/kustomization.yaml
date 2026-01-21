@@ -91,5 +91,12 @@ patches:
       kind: CustomResourceDefinition
       name: packageregistries.packageregistry.k8s.elastic.co
     path: packageregistry-patches.yaml
+  # custom patches for ElasticsearchStateless
+  - target:
+      group: apiextensions.k8s.io
+      version: v1
+      kind: CustomResourceDefinition
+      name: elasticsearchstatelesses.elasticsearch.k8s.elastic.co
+    path: elasticsearchstateless-patches.yaml
 
 

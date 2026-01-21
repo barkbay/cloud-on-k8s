@@ -1,0 +1,56 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: ElasticsearchStateless
+metadata:
+  name: elasticsearch-stateless
+spec:
+  version: 9.4.0
+  objectStore:
+     secretName: gcs-creds
+  tiers:
+    index:
+      replicas: 1
+      podTemplate:
+        spec:
+          containers:
+          - name: elasticsearch
+            resources:
+              limits:
+                memory: 4Gi
+              requests:
+                cpu: "2"
+                memory: 4Gi
+    search:
+      replicas: 1
+      podTemplate:
+        spec:
+          containers:
+          - name: elasticsearch
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: "2"
+                memory: 2Gi
+          volumes: ## Optional, a default volume of 1Gi is automatically created if not specified.
+          - ephemeral:
+              volumeClaimTemplate:
+                spec:
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 10Gi
+                  volumeMode: Filesystem
+            name: elasticsearch-data
+    ml:
+      replicas: 0
+      podTemplate:
+        spec:
+          containers:
+          - name: elasticsearch
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: "2"
+                memory: 2Gi
