@@ -40,7 +40,7 @@ type ApmServerSpec struct {
 	HTTP commonv1.HTTPConfig `json:"http,omitempty"`
 
 	// ElasticsearchRef is a reference to the output Elasticsearch cluster running in the same Kubernetes cluster.
-	ElasticsearchRef commonv1.ObjectSelector `json:"elasticsearchRef,omitempty"`
+	ElasticsearchRef commonv1.ElasticsearchRef `json:"elasticsearchRef,omitempty"`
 
 	// KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.
 	// It allows APM agent central configuration management in Kibana.
@@ -235,7 +235,11 @@ func (aes *ApmEsAssociation) AssociationType() commonv1.AssociationType {
 }
 
 func (aes *ApmEsAssociation) AssociationRef() commonv1.ObjectSelector {
-	return aes.Spec.ElasticsearchRef.WithDefaultNamespace(aes.Namespace)
+	return aes.Spec.ElasticsearchRef.WithDefaultNamespace(aes.Namespace).ObjectSelector
+}
+
+func (aes *ApmEsAssociation) AssociationRefKind() string {
+	return aes.Spec.ElasticsearchRef.Kind
 }
 
 func (aes *ApmEsAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
@@ -285,6 +289,10 @@ func (akb *ApmKibanaAssociation) AssociationType() commonv1.AssociationType {
 
 func (akb *ApmKibanaAssociation) AssociationRef() commonv1.ObjectSelector {
 	return akb.Spec.KibanaRef.WithDefaultNamespace(akb.Namespace)
+}
+
+func (akb *ApmKibanaAssociation) AssociationRefKind() string {
+	return "" // Kibana association doesn't use Kind
 }
 
 func (akb *ApmKibanaAssociation) RequiresAssociation() bool {

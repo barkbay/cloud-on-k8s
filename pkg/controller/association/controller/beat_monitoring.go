@@ -11,8 +11,8 @@ import (
 
 	beatv1b1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/beat/v1beta1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -24,14 +24,21 @@ import (
 // Beat is configured with sidecars to send its monitoring data to the Elasticsearch referenced in the association.
 func AddBeatMonitoring(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &beatv1b1.Beat{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedObjTemplate: func() commonv1.Associated { return &beatv1b1.Beat{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		ExternalServiceURL:        getElasticsearchExternalURL,
 		AssociationType:           commonv1.BeatMonitoringAssociationType,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "beat-monitoring",
-		AssociatedShortName:       "beat-mon",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName:     "beat-monitoring",
+		AssociatedShortName: "beat-mon",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				BeatAssociationLabelName:      associated.Name,

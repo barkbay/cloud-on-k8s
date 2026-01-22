@@ -15,12 +15,12 @@ import (
 
 var (
 	sampleEs          = esv1.Elasticsearch{}
-	monitoringEsRef   = commonv1.ObjectSelector{Name: "monitoring", Namespace: "observability"}
+	monitoringEsRef   = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring", Namespace: "observability"}}
 	sampleMonitoredEs = esv1.Elasticsearch{
 		Spec: esv1.ElasticsearchSpec{
 			Monitoring: commonv1.Monitoring{
 				Metrics: commonv1.MetricsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{monitoringEsRef},
+					ElasticsearchRefs: []commonv1.ElasticsearchRef{monitoringEsRef},
 				},
 			},
 		},
@@ -48,7 +48,7 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -61,7 +61,7 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -77,7 +77,7 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -93,10 +93,10 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m2", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m2", Namespace: "b"}}},
 						},
 					},
 				},
@@ -112,10 +112,10 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m2", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m2", Namespace: "b"}}},
 						},
 					},
 				},
@@ -131,10 +131,10 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -150,10 +150,10 @@ func TestIsReconcilable(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m2", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m2", Namespace: "b"}}},
 						},
 					},
 				},

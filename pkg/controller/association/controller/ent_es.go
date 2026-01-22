@@ -10,9 +10,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	entv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/enterprisesearch/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	esuser "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -34,14 +34,21 @@ const (
 
 func AddEntES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &entv1.EnterpriseSearch{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedObjTemplate: func() commonv1.Associated { return &entv1.EnterpriseSearch{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		AssociationType:           commonv1.ElasticsearchAssociationType,
 		ExternalServiceURL:        getElasticsearchExternalURL,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "ent-es",
-		AssociatedShortName:       "ent",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName:     "ent-es",
+		AssociatedShortName: "ent",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				EntESAssociationLabelName:      associated.Name,

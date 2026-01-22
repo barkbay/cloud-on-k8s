@@ -151,7 +151,7 @@ func (b Builder) WithESValidations(validations ...ValidationFunc) Builder {
 }
 
 func (b Builder) WithElasticsearchRef(ref commonv1.ObjectSelector) Builder {
-	b.Beat.Spec.ElasticsearchRef = ref
+	b.Beat.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: ref}
 	return b
 }
 
@@ -319,7 +319,7 @@ func ApplyYamls(t *testing.T, b Builder, configYaml, podTemplateYaml string) Bui
 }
 
 func (b Builder) WithMonitoring(esRef commonv1.ObjectSelector) Builder {
-	b.Beat.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ObjectSelector{esRef}
+	b.Beat.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ElasticsearchRef{{ObjectSelector: esRef}}
 	return b
 }
 

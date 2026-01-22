@@ -32,7 +32,7 @@ type MapsSpec struct {
 	Count int32 `json:"count,omitempty"`
 
 	// ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster.
-	ElasticsearchRef commonv1.ObjectSelector `json:"elasticsearchRef,omitempty"`
+	ElasticsearchRef commonv1.ElasticsearchRef `json:"elasticsearchRef,omitempty"`
 
 	// Config holds the ElasticMapsServer configuration. See: https://www.elastic.co/guide/en/kibana/current/maps-connect-to-ems.html#elastic-maps-server-configuration
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -91,7 +91,11 @@ func (m *ElasticMapsServer) AssociationType() commonv1.AssociationType {
 }
 
 func (m *ElasticMapsServer) AssociationRef() commonv1.ObjectSelector {
-	return m.Spec.ElasticsearchRef.WithDefaultNamespace(m.Namespace)
+	return m.Spec.ElasticsearchRef.WithDefaultNamespace(m.Namespace).ObjectSelector
+}
+
+func (m *ElasticMapsServer) AssociationRefKind() string {
+	return m.Spec.ElasticsearchRef.Kind
 }
 
 func (m *ElasticMapsServer) ServiceAccountName() string {

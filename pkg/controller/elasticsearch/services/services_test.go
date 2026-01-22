@@ -115,7 +115,7 @@ func TestNewExternalService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			es := mkElasticsearch(tc.httpConf)
-			haveSvc := NewExternalService(es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
+			haveSvc := NewExternalService(&es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
 			compare.JSONEqual(t, tc.wantSvc(), haveSvc)
 		})
 	}

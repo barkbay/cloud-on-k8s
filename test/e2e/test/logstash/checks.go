@@ -151,11 +151,11 @@ func CheckStatus(b Builder, k *test.K8sClient) test.Step {
 	}
 }
 
-func uniqueAssociationCount(refsList ...[]v1.ObjectSelector) int {
+func uniqueAssociationCount(refsList ...[]v1.ElasticsearchRef) int {
 	uniqueAssociations := make(map[v1.ObjectSelector]struct{})
 	for _, refs := range refsList {
 		for _, val := range refs {
-			uniqueAssociations[val] = struct{}{}
+			uniqueAssociations[val.ObjectSelector] = struct{}{}
 		}
 	}
 	return len(uniqueAssociations)

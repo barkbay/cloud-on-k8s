@@ -55,9 +55,12 @@ func addWatches(mgr manager.Manager, c controller.Controller, r *Reconciler) err
 		return err
 	}
 
-	// Dynamically watch the referenced resources (e.g. Elasticsearch B for a Kibana A -> Elasticsearch B association)
-	if err := c.Watch(source.Kind(mgr.GetCache(), r.ReferencedObjTemplate(), r.watches.ReferencedResources)); err != nil {
-		return err
+	// Dynamically watch the referenced resources for all supported kinds
+	// (e.g. Elasticsearch and ElasticsearchStateless for Kibana A -> Elasticsearch B association)
+	for _, kind := range r.ReferencedKinds() {
+		if err := c.Watch(source.Kind(mgr.GetCache(), r.ReferencedObjTemplate(kind), r.watches.ReferencedResources)); err != nil {
+			return err
+		}
 	}
 
 	// Dynamically watch Secrets (CA Secret of the referenced resource, ES user secret or custom referenced object secret)

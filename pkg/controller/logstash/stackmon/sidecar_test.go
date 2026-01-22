@@ -39,8 +39,8 @@ func TestWithMonitoring(t *testing.T) {
 			Version: "8.6.0",
 		},
 	}
-	monitoringEsRef := []commonv1.ObjectSelector{{Name: "monitoring", Namespace: "observability"}}
-	logsEsRef := []commonv1.ObjectSelector{{Name: "logs", Namespace: "observability"}}
+	monitoringEsRef := []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring", Namespace: "observability"}}}
+	logsEsRef := []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "logs", Namespace: "observability"}}}
 
 	fakeMetricsBeatUserSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "sample-observability-monitoring-beat-es-mon-user", Namespace: "aerospace"},

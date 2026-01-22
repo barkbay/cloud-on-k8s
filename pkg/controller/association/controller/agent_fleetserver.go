@@ -15,6 +15,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/agent"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	ver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -24,15 +25,16 @@ import (
 
 func AddAgentFleetServer(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate:     func() client.Object { return &agentv1alpha1.Agent{} },
-		ExternalServiceURL:        getFleetServerExternalURL,
+		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &agentv1alpha1.Agent{} },
+		ExternalServiceURL:    getFleetServerExternalURL,
 		ReferencedResourceVersion: referencedFleetServerStatusVersion,
-		ReferencedResourceNamer:   agent.Namer,
-		AssociationName:           "agent-fleetserver",
-		AssociatedShortName:       "agent",
-		AssociationType:           commonv1.FleetServerAssociationType,
-		AdditionalSecrets:         additionalSecrets,
+		ReferencedResourceNamer: func(_ string) name.Namer { return agent.Namer },
+		ReferencedKinds:         func() []string { return []string{agentv1alpha1.Kind} },
+		AssociationName:         "agent-fleetserver",
+		AssociatedShortName:     "agent",
+		AssociationType:         commonv1.FleetServerAssociationType,
+		AdditionalSecrets:       additionalSecrets,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				AgentAssociationLabelName:      associated.Name,

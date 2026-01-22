@@ -186,12 +186,20 @@ func (b Builder) WithElasticsearchRefs(refs ...logstashv1alpha1.ElasticsearchClu
 }
 
 func (b Builder) WithMetricsMonitoring(metricsESRef ...commonv1.ObjectSelector) Builder {
-	b.Logstash.Spec.Monitoring.Metrics.ElasticsearchRefs = metricsESRef
+	refs := make([]commonv1.ElasticsearchRef, len(metricsESRef))
+	for i, ref := range metricsESRef {
+		refs[i] = commonv1.ElasticsearchRef{ObjectSelector: ref}
+	}
+	b.Logstash.Spec.Monitoring.Metrics.ElasticsearchRefs = refs
 	return b
 }
 
 func (b Builder) WithLogsMonitoring(logsESRef ...commonv1.ObjectSelector) Builder {
-	b.Logstash.Spec.Monitoring.Logs.ElasticsearchRefs = logsESRef
+	refs := make([]commonv1.ElasticsearchRef, len(logsESRef))
+	for i, ref := range logsESRef {
+		refs[i] = commonv1.ElasticsearchRef{ObjectSelector: ref}
+	}
+	b.Logstash.Spec.Monitoring.Logs.ElasticsearchRefs = refs
 	return b
 }
 

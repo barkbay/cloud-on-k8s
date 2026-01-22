@@ -286,7 +286,7 @@ func transformToE2E(namespace, fullTestName, suffix string, transformers []Build
 			builder = b.WithNamespace(namespace).
 				WithVersion(test.Ctx().ElasticStackVersion).
 				WithSuffix(suffix).
-				WithElasticsearchRef(tweakServiceRef(b.Kibana.Spec.ElasticsearchRef, suffix)).
+				WithElasticsearchRef(tweakServiceRef(b.Kibana.Spec.ElasticsearchRef.ObjectSelector, suffix)).
 				WithRestrictedSecurityContext().
 				WithLabel(run.TestNameLabel, fullTestName).
 				WithPodLabel(run.TestNameLabel, fullTestName).
@@ -297,7 +297,7 @@ func transformToE2E(namespace, fullTestName, suffix string, transformers []Build
 			builder = b.WithNamespace(namespace).
 				WithVersion(test.Ctx().ElasticStackVersion).
 				WithSuffix(suffix).
-				WithElasticsearchRef(tweakServiceRef(b.ApmServer.Spec.ElasticsearchRef, suffix)).
+				WithElasticsearchRef(tweakServiceRef(b.ApmServer.Spec.ElasticsearchRef.ObjectSelector, suffix)).
 				WithKibanaRef(tweakServiceRef(b.ApmServer.Spec.KibanaRef, suffix)).
 				WithConfig(map[string]interface{}{"apm-server.ilm.enabled": false}).
 				WithRestrictedSecurityContext().
@@ -308,7 +308,7 @@ func transformToE2E(namespace, fullTestName, suffix string, transformers []Build
 			b = b.WithNamespace(namespace).
 				WithVersion(test.Ctx().ElasticStackVersion).
 				WithSuffix(suffix).
-				WithElasticsearchRef(tweakServiceRef(b.Beat.Spec.ElasticsearchRef, suffix)).
+				WithElasticsearchRef(tweakServiceRef(b.Beat.Spec.ElasticsearchRef.ObjectSelector, suffix)).
 				WithLabel(run.TestNameLabel, fullTestName).
 				WithPodLabel(run.TestNameLabel, fullTestName).
 				WithESValidations(beat.HasEventFromBeat(beatcommon.Type(b.Beat.Spec.Type))).

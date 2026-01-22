@@ -88,7 +88,7 @@ func ReconcileSharedResources(
 	}
 
 	// Reconcile external service.
-	externalService, err := common.ReconcileService(ctx, client, services.NewExternalService(es, meta), &es)
+	externalService, err := common.ReconcileService(ctx, client, services.NewExternalService(&es, meta), &es)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return nil, results.WithReconciliationState(DefaultRequeue.WithReason(fmt.Sprintf("Pending %s service recreation", escommon.HTTPService(&es))))

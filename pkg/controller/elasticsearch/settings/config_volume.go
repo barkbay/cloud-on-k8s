@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/volume"
@@ -26,26 +25,30 @@ const (
 	ConfigVolumeMountPath = "/mnt/elastic-internal/elasticsearch-config"
 )
 
-// ConfigSecretName is the name of the secret that holds the ES config for the given StatefulSet.
-func ConfigSecretName(ssetName string) string {
-	return escommon.StatefulNamer.Suffix(ssetName, escommon.ConfigSecretSuffix)
+// ConfigSecretName is the name of the secret that holds the ES config for the given StatefulSet or Deployment.
+func ConfigSecretName(ssetName string, isStateless bool) string {
+	namer := escommon.StatefulNamer
+	if isStateless {
+		namer = escommon.StatelessNamer
+	}
+	return namer.Suffix(ssetName, escommon.ConfigSecretSuffix)
 }
 
 // ConfigSecretVolume returns a SecretVolume to hold the config of nodes in the given stateful set..
-func ConfigSecretVolume(ssetName string) volume.SecretVolume {
+func ConfigSecretVolume(ssetName string, isStateless bool) volume.SecretVolume {
 	return volume.NewSecretVolumeWithMountPath(
-		ConfigSecretName(ssetName),
+		ConfigSecretName(ssetName, isStateless),
 		ConfigVolumeName,
 		ConfigVolumeMountPath,
 	)
 }
 
-func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, meta metadata.Metadata) corev1.Secret {
-	mergedMeta := meta.Merge(metadata.Metadata{Labels: label.NewConfigLabels(k8s.ExtractNamespacedName(&es), ssetName)})
+func ConfigSecret(es escommon.ElasticsearchCluster, ssetName string, configData []byte, meta metadata.Metadata) corev1.Secret {
+	mergedMeta := meta.Merge(metadata.Metadata{Labels: label.NewConfigLabels(k8s.ExtractNamespacedName(es), ssetName)})
 	return corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   es.Namespace,
-			Name:        ConfigSecretName(ssetName),
+			Namespace:   es.GetNamespace(),
+			Name:        ConfigSecretName(ssetName, es.IsStateless()),
 			Labels:      mergedMeta.Labels,
 			Annotations: mergedMeta.Annotations,
 		},
@@ -56,13 +59,13 @@ func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, met
 }
 
 // ReconcileConfig ensures the ES config for the pod is set in the apiserver.
-func ReconcileConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsearch, ssetName string, config CanonicalConfig, meta metadata.Metadata) error {
+func ReconcileConfig(ctx context.Context, client k8s.Client, es escommon.ElasticsearchCluster, ssetName string, config CanonicalConfig, meta metadata.Metadata) error {
 	rendered, err := config.Render()
 	if err != nil {
 		return err
 	}
 	expected := ConfigSecret(es, ssetName, rendered, meta)
-	_, err = reconciler.ReconcileSecret(ctx, client, expected, &es)
+	_, err = reconciler.ReconcileSecret(ctx, client, expected, es)
 	return err
 }
 
@@ -73,7 +76,7 @@ func DeleteConfig(ctx context.Context, client k8s.Client, namespace string, sset
 	cfgSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      ConfigSecretName(ssetName),
+			Name:      ConfigSecretName(ssetName, false /* This function should only be required when scaling down StatefulSets*/),
 		},
 	}
 	return client.Delete(ctx, &cfgSecret)

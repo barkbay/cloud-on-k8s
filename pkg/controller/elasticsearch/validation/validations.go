@@ -372,8 +372,8 @@ func validMonitoring(es esv1.Elasticsearch) field.ErrorList {
 
 func validAssociations(es esv1.Elasticsearch) field.ErrorList {
 	monitoringPath := field.NewPath("spec").Child("monitoring")
-	err1 := commonv1.CheckAssociationRefs(monitoringPath.Child("metrics"), es.GetMonitoringMetricsRefs()...)
-	err2 := commonv1.CheckAssociationRefs(monitoringPath.Child("logs"), es.GetMonitoringLogsRefs()...)
+	err1 := commonv1.CheckAssociationRefs(monitoringPath.Child("metrics"), commonv1.ToObjectSelectors(es.GetMonitoringMetricsRefs())...)
+	err2 := commonv1.CheckAssociationRefs(monitoringPath.Child("logs"), commonv1.ToObjectSelectors(es.GetMonitoringLogsRefs())...)
 	return append(err1, err2...)
 }
 

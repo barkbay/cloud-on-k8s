@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -50,17 +50,17 @@ const (
 	ServiceAccountMinimumBytes = 64
 )
 
-func applicationSecretLabels(es esv1.Elasticsearch) map[string]string {
+func applicationSecretLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return labels.AddCredentialsLabel(map[string]string{
-		label.ClusterNamespaceLabelName: es.Namespace,
-		label.ClusterNameLabelName:      es.Name,
+		label.ClusterNamespaceLabelName: es.GetNamespace(),
+		label.ClusterNameLabelName:      es.GetName(),
 	})
 }
 
-func esSecretsLabels(es esv1.Elasticsearch) map[string]string {
+func esSecretsLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return map[string]string{
-		label.ClusterNamespaceLabelName: es.Namespace,
-		label.ClusterNameLabelName:      es.Name,
+		label.ClusterNamespaceLabelName: es.GetNamespace(),
+		label.ClusterNameLabelName:      es.GetName(),
 		commonv1.TypeLabelName:          esuser.ServiceAccountTokenType,
 	}
 }
@@ -69,7 +69,7 @@ func esSecretsLabels(es esv1.Elasticsearch) map[string]string {
 func reconcileApplicationSecret(
 	ctx context.Context,
 	client k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	applicationSecretName types.NamespacedName,
 	meta metadata.Metadata,
 	tokenName string,
@@ -94,7 +94,7 @@ func reconcileApplicationSecret(
 		}
 	} else {
 		// Attempt to read current token, create a new one in case of an error.
-		token, err = getOrCreateToken(ctx, &es, applicationSecretName.Name, applicationStore.Data, serviceAccount, tokenName)
+		token, err = getOrCreateToken(ctx, es, applicationSecretName.Name, applicationStore.Data, serviceAccount, tokenName)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func reconcileApplicationSecret(
 
 func getOrCreateToken(
 	ctx context.Context,
-	es *esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	secretName string,
 	secretData map[string][]byte,
 	serviceAccountName commonv1.ServiceAccountName,
@@ -147,7 +147,7 @@ func getOrCreateToken(
 func reconcileElasticsearchSecret(
 	ctx context.Context,
 	client k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	elasticsearchSecretName types.NamespacedName,
 	meta metadata.Metadata,
 	token Token,
@@ -172,14 +172,14 @@ func reconcileElasticsearchSecret(
 			esuser.ServiceAccountHashField:      []byte(token.Hash),
 		},
 	}
-	_, err := reconciler.ReconcileSecret(ctx, client, esSecret, &es)
+	_, err := reconciler.ReconcileSecret(ctx, client, esSecret, es)
 	return err
 }
 
 func ReconcileServiceAccounts(
 	ctx context.Context,
 	client k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	meta metadata.Metadata,
 	applicationSecretName types.NamespacedName,
 	elasticsearchSecretName types.NamespacedName,
@@ -195,9 +195,9 @@ func ReconcileServiceAccounts(
 }
 
 // getCurrentApplicationToken returns the current token from the application Secret, or nil if the content of the Secret is not valid.
-func getCurrentApplicationToken(ctx context.Context, es *esv1.Elasticsearch, secretName string, secretData map[string][]byte) *Token {
+func getCurrentApplicationToken(ctx context.Context, es escommon.ElasticsearchCluster, secretName string, secretData map[string][]byte) *Token {
 	if len(secretData) == 0 {
-		ulog.FromContext(ctx).V(1).Info("secret is empty", "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
+		ulog.FromContext(ctx).V(1).Info("secret is empty", "es_name", es.GetName(), "namespace", es.GetNamespace(), "secret", secretName)
 		return nil
 	}
 	result := &Token{}
@@ -228,10 +228,10 @@ func getCurrentApplicationToken(ctx context.Context, es *esv1.Elasticsearch, sec
 	return result
 }
 
-func getFieldOrNil(ctx context.Context, es *esv1.Elasticsearch, secretName string, secretData map[string][]byte, fieldName string) *string {
+func getFieldOrNil(ctx context.Context, es escommon.ElasticsearchCluster, secretName string, secretData map[string][]byte, fieldName string) *string {
 	data, exists := secretData[fieldName]
 	if !exists {
-		ulog.FromContext(ctx).V(1).Info(fmt.Sprintf("%s field is missing in service account token Secret", fieldName), "es_name", es.Name, "namespace", es.Namespace, "secret", secretName)
+		ulog.FromContext(ctx).V(1).Info(fmt.Sprintf("%s field is missing in service account token Secret", fieldName), "es_name", es.GetName(), "namespace", es.GetNamespace(), "secret", secretName)
 		return nil
 	}
 	fieldValue := string(data)

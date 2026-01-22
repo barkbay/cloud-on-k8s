@@ -14,8 +14,8 @@ import (
 type HasMonitoring interface {
 	client.Object
 	commonv1.HasIdentityLabels
-	GetMonitoringMetricsRefs() []commonv1.ObjectSelector
-	GetMonitoringLogsRefs() []commonv1.ObjectSelector
+	GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef
+	GetMonitoringLogsRefs() []commonv1.ElasticsearchRef
 	MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association
 }
 
@@ -27,7 +27,7 @@ func IsReconcilable(resource HasMonitoring) (bool, error) {
 	}
 	allRefs := append(resource.GetMonitoringMetricsRefs(), resource.GetMonitoringLogsRefs()...)
 	for _, ref := range allRefs {
-		assocConf, err := resource.MonitoringAssociation(ref).AssociationConf()
+		assocConf, err := resource.MonitoringAssociation(ref.ObjectSelector).AssociationConf()
 		if err != nil {
 			return false, err
 		}
@@ -52,7 +52,7 @@ func IsLogsDefined(resource HasMonitoring) bool {
 	return AreEsRefsDefined(resource.GetMonitoringLogsRefs())
 }
 
-func AreEsRefsDefined(esRefs []commonv1.ObjectSelector) bool {
+func AreEsRefsDefined(esRefs []commonv1.ElasticsearchRef) bool {
 	for _, ref := range esRefs {
 		if !ref.IsDefined() {
 			return false
@@ -65,7 +65,7 @@ func GetMetricsAssociation(resource HasMonitoring) []commonv1.Association {
 	associations := make([]commonv1.Association, 0)
 	for _, ref := range resource.GetMonitoringMetricsRefs() {
 		if ref.IsDefined() {
-			associations = append(associations, resource.MonitoringAssociation(ref))
+			associations = append(associations, resource.MonitoringAssociation(ref.ObjectSelector))
 		}
 	}
 	return associations
@@ -75,7 +75,7 @@ func GetLogsAssociation(resource HasMonitoring) []commonv1.Association {
 	associations := make([]commonv1.Association, 0)
 	for _, ref := range resource.GetMonitoringLogsRefs() {
 		if ref.IsDefined() {
-			associations = append(associations, resource.MonitoringAssociation(ref))
+			associations = append(associations, resource.MonitoringAssociation(ref.ObjectSelector))
 		}
 	}
 	return associations

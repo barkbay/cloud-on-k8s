@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	commonlabels "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	commonpassword "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password"
@@ -28,20 +28,30 @@ import (
 )
 
 // elasticsearchUserName identifies the associated user in Elasticsearch namespace.
+// For stateless Elasticsearch associations, a "-ess" suffix is added to distinguish from stateful.
 func elasticsearchUserName(association commonv1.Association, userSuffix string) string {
 	// must be namespace-aware since we might have several associated instances running in
 	// different namespaces with the same name: we need one user for each
 	// in the Elasticsearch namespace
 
-	esUserNameTemplate := association.GetNamespace() + "-" + association.GetName() + "%s-" + userSuffix
+	kindSuffix := ""
+	if commonv1.AssociationRefIsStateless(association) {
+		kindSuffix = "-ess"
+	}
+	esUserNameTemplate := association.GetNamespace() + "-" + association.GetName() + "%s-" + userSuffix + kindSuffix
 	return commonv1.FormatNameWithID(esUserNameTemplate, association.AssociationID())
 }
 
 // userSecretObjectName identifies the associated secret object.
+// For stateless Elasticsearch associations, a "-ess" suffix is added to distinguish from stateful.
 func userSecretObjectName(association commonv1.Association, userSuffix string) string {
 	// does not need to be namespace aware, since it lives in associated object namespace.
 
-	return commonv1.FormatNameWithID(association.GetName()+"%s-"+userSuffix, association.AssociationID())
+	kindSuffix := ""
+	if commonv1.AssociationRefIsStateless(association) {
+		kindSuffix = "-ess"
+	}
+	return commonv1.FormatNameWithID(association.GetName()+"%s-"+userSuffix+kindSuffix, association.AssociationID())
 }
 
 // UserKey is the namespaced name to identify the user resource created by the controller.
@@ -85,18 +95,18 @@ func reconcileEsUserSecret(
 	meta metadata.Metadata,
 	userRoles string,
 	userObjectSuffix string,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	generator commonpassword.RandomGenerator,
 ) error {
 	span, ctx := apm.StartSpan(ctx, "reconcile_es_user", tracing.SpanTypeApp)
 	defer span.End()
 
 	esUserSecretMeta := meta.Merge(metadata.Metadata{
-		Labels: map[string]string{eslabel.ClusterNameLabelName: es.Name},
+		Labels: map[string]string{eslabel.ClusterNameLabelName: es.GetName()},
 	})
 
 	secKey := secretKey(association, userObjectSuffix)
-	usrKey := UserKey(association, es.Namespace, userObjectSuffix)
+	usrKey := UserKey(association, es.GetNamespace(), userObjectSuffix)
 	expectedSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        secKey.Name,
@@ -174,7 +184,7 @@ func reconcileEsUserSecret(
 
 	expectedEsUser.Data[esuser.PasswordHashField] = bcryptHash
 
-	owner := es // user is owned by the es resource in es namespace
-	_, err = reconciler.ReconcileSecret(ctx, c, expectedEsUser, &owner)
+	// user is owned by the es resource in es namespace
+	_, err = reconciler.ReconcileSecret(ctx, c, expectedEsUser, es)
 	return err
 }

@@ -107,5 +107,9 @@ func checkIfVersionDeprecated(ems *ElasticMapsServer) (string, field.ErrorList) 
 }
 
 func checkAssociation(ems *ElasticMapsServer) field.ErrorList {
-	return commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), ems.Spec.ElasticsearchRef)
+	errs := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), ems.Spec.ElasticsearchRef.ObjectSelector)
+	if err := ems.Spec.ElasticsearchRef.Validate(); err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec").Child("elasticsearchRef").Child("kind"), ems.Spec.ElasticsearchRef.Kind, err.Error()))
+	}
+	return errs
 }

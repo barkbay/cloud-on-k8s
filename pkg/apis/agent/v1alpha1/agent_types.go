@@ -112,8 +112,8 @@ type AgentSpec struct {
 }
 
 type Output struct {
-	commonv1.ObjectSelector `json:",omitempty,inline"`
-	OutputName              string `json:"outputName,omitempty"`
+	commonv1.ElasticsearchRef `json:",omitempty,inline"`
+	OutputName                string `json:"outputName,omitempty"`
 }
 
 type DaemonSetSpec struct {
@@ -268,7 +268,7 @@ func (a *Agent) GetAssociations() []commonv1.Association {
 	for _, ref := range a.Spec.ElasticsearchRefs {
 		associations = append(associations, &AgentESAssociation{
 			Agent: a,
-			ref:   ref.WithDefaultNamespace(a.Namespace),
+			ref:   ref.WithDefaultNamespace(a.Namespace).ObjectSelector,
 		})
 	}
 
@@ -398,6 +398,10 @@ func (aea *AgentESAssociation) AssociationRef() commonv1.ObjectSelector {
 	return aea.ref
 }
 
+func (aea *AgentESAssociation) AssociationRefKind() string {
+	return "" // Agent ES association uses ObjectSelector, Kind not yet supported
+}
+
 func (aea *AgentESAssociation) AssociationConfAnnotationName() string {
 	return commonv1.ElasticsearchConfigAnnotationName(aea.ref)
 }
@@ -455,6 +459,10 @@ func (a *AgentKibanaAssociation) AssociationRef() commonv1.ObjectSelector {
 	return a.Spec.KibanaRef.WithDefaultNamespace(a.Namespace)
 }
 
+func (a *AgentKibanaAssociation) AssociationRefKind() string {
+	return "" // Kibana association doesn't use Kind
+}
+
 func (a *AgentKibanaAssociation) AssociationConfAnnotationName() string {
 	return commonv1.FormatNameWithID(commonv1.KibanaConfigAnnotationNameBase+"%s", a.AssociationID())
 }
@@ -501,6 +509,10 @@ func (a *AgentFleetServerAssociation) AssociationType() commonv1.AssociationType
 
 func (a *AgentFleetServerAssociation) AssociationRef() commonv1.ObjectSelector {
 	return a.Spec.FleetServerRef.WithDefaultNamespace(a.Namespace)
+}
+
+func (a *AgentFleetServerAssociation) AssociationRefKind() string {
+	return "" // FleetServer association doesn't use Kind
 }
 
 func (a *AgentFleetServerAssociation) AssociationConfAnnotationName() string {

@@ -240,7 +240,7 @@ func (l *Logstash) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &LogstashMonitoringAssociation{
 				Logstash: l,
-				ref:      ref.WithDefaultNamespace(l.Namespace),
+				ref:      ref.ObjectSelector.WithDefaultNamespace(l.Namespace),
 			})
 		}
 	}
@@ -248,7 +248,7 @@ func (l *Logstash) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &LogstashMonitoringAssociation{
 				Logstash: l,
-				ref:      ref.WithDefaultNamespace(l.Namespace),
+				ref:      ref.ObjectSelector.WithDefaultNamespace(l.Namespace),
 			})
 		}
 	}
@@ -321,6 +321,10 @@ func (lses *LogstashESAssociation) AssociationRef() commonv1.ObjectSelector {
 	return lses.ElasticsearchCluster.ObjectSelector
 }
 
+func (lses *LogstashESAssociation) AssociationRefKind() string {
+	return "" // Logstash ES association uses ObjectSelector, Kind not yet supported
+}
+
 func (lses *LogstashESAssociation) AssociationConfAnnotationName() string {
 	return commonv1.ElasticsearchConfigAnnotationName(lses.ElasticsearchCluster.ObjectSelector)
 }
@@ -382,6 +386,10 @@ func (lsmon *LogstashMonitoringAssociation) AssociationRef() commonv1.ObjectSele
 	return lsmon.ref
 }
 
+func (lsmon *LogstashMonitoringAssociation) AssociationRefKind() string {
+	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+}
+
 func (lsmon *LogstashMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
 	return commonv1.GetAndSetAssociationConfByRef(lsmon, lsmon.ref, lsmon.MonitoringAssocConfs)
 }
@@ -403,11 +411,11 @@ func (lsmon *LogstashMonitoringAssociation) AssociationID() string {
 	return lsmon.ref.ToID()
 }
 
-func (l *Logstash) GetMonitoringMetricsRefs() []commonv1.ObjectSelector {
+func (l *Logstash) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef {
 	return l.Spec.Monitoring.Metrics.ElasticsearchRefs
 }
 
-func (l *Logstash) GetMonitoringLogsRefs() []commonv1.ObjectSelector {
+func (l *Logstash) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return l.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 

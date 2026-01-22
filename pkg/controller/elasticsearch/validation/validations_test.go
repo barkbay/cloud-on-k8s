@@ -630,7 +630,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "esmonname"}}}},
+					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "esmonname"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -640,7 +640,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "esmonname", Namespace: "esmonns"}}}},
+					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "esmonname", Namespace: "esmonns"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -650,7 +650,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "esmonname", ServiceName: "esmonsvc"}}}},
+					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "esmonname", ServiceName: "esmonsvc"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -660,7 +660,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "esmonname", Namespace: "esmonns", ServiceName: "esmonsvc"}}}},
+					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "esmonname", Namespace: "esmonns", ServiceName: "esmonsvc"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -670,7 +670,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "esmonname"}}}},
+					Monitoring: commonv1.Monitoring{Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "esmonname"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -680,7 +680,7 @@ func Test_validAssociations(t *testing.T) {
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{
 					Version:    "7.14.0",
-					Monitoring: commonv1.Monitoring{Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "esmonns"}}}},
+					Monitoring: commonv1.Monitoring{Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "esmonns"}}}}},
 				},
 			},
 			expectErrors: false,
@@ -691,8 +691,8 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "es1monname", Namespace: "esmonns1"}}},
-						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "es2monname", Namespace: "esmonns2"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "es1monname", Namespace: "esmonns1"}}}},
+						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "es2monname", Namespace: "esmonns2"}}}},
 					},
 				},
 			},
@@ -704,8 +704,8 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es1monname"}}},
-						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es1monname"}}}},
+						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname"}}}},
 					},
 				},
 			},
@@ -717,8 +717,8 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "es1monname", Namespace: "esmonns"}}},
-						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "es1monname", Namespace: "esmonns"}}}},
+						Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname"}}}},
 					},
 				},
 			},
@@ -730,7 +730,7 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Namespace: "esmonns"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Namespace: "esmonns"}}}},
 					},
 				},
 			},
@@ -742,7 +742,7 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{ServiceName: "esmonsvc"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{ServiceName: "esmonsvc"}}}},
 					},
 				},
 			},
@@ -754,7 +754,7 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "xx", Name: "es1monname"}}},
+						Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "xx", Name: "es1monname"}}}},
 					},
 				},
 			},
@@ -766,7 +766,7 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname", Namespace: "esmonns"}}},
+						Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname", Namespace: "esmonns"}}}},
 					},
 				},
 			},
@@ -778,7 +778,7 @@ func Test_validAssociations(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname", ServiceName: "xx"}}},
+						Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname", ServiceName: "xx"}}}},
 					},
 				},
 			},

@@ -81,25 +81,25 @@ func Test_buildPodTemplate(t *testing.T) {
 			Version:          "7.15.0",
 			Config:           httpPortCfg,
 			Type:             "filebeat",
-			ElasticsearchRef: commonv1.ObjectSelector{Name: "testes", Namespace: "ns"},
-			Monitoring: commonv1.Monitoring{
-				Metrics: commonv1.MetricsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{
-						{
-							Name:      "testes",
-							Namespace: "ns",
-						},
-					},
-				},
-				Logs: commonv1.LogsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{
-						{
-							Name:      "testes",
-							Namespace: "ns",
-						},
-					},
+			ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "testes", Namespace: "ns"}},
+		Monitoring: commonv1.Monitoring{
+			Metrics: commonv1.MetricsMonitoring{
+				ElasticsearchRefs: []commonv1.ElasticsearchRef{
+					{ObjectSelector: commonv1.ObjectSelector{
+						Name:      "testes",
+						Namespace: "ns",
+					}},
 				},
 			},
+			Logs: commonv1.LogsMonitoring{
+				ElasticsearchRefs: []commonv1.ElasticsearchRef{
+					{ObjectSelector: commonv1.ObjectSelector{
+						Name:      "testes",
+						Namespace: "ns",
+					}},
+				},
+			},
+		},
 			DaemonSet: &beatv1beta1.DaemonSetSpec{
 				PodTemplate: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{

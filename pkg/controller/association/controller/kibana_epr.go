@@ -16,6 +16,7 @@ import (
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	eprv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/packageregistry/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	eprctl "github.com/elastic/cloud-on-k8s/v3/pkg/controller/packageregistry"
 	eprlabels "github.com/elastic/cloud-on-k8s/v3/pkg/controller/packageregistry/label"
@@ -25,14 +26,15 @@ import (
 
 func AddKibanaEPR(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate:     func() client.Object { return &eprv1alpha1.PackageRegistry{} },
-		ExternalServiceURL:        getEPRExternalURL,
+		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &eprv1alpha1.PackageRegistry{} },
+		ExternalServiceURL:    getEPRExternalURL,
 		ReferencedResourceVersion: referencedEPRStatusVersion,
-		ReferencedResourceNamer:   eprv1alpha1.Namer,
-		AssociationName:           "kb-epr",
-		AssociatedShortName:       "kb",
-		AssociationType:           commonv1.PackageRegistryAssociationType,
+		ReferencedResourceNamer: func(_ string) name.Namer { return eprv1alpha1.Namer },
+		ReferencedKinds:         func() []string { return []string{eprv1alpha1.Kind} },
+		AssociationName:         "kb-epr",
+		AssociatedShortName:     "kb",
+		AssociationType:         commonv1.PackageRegistryAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				KibanaAssociationLabelName:      associated.Name,

@@ -271,7 +271,7 @@ func reconcileResources(
 	ulog.FromContext(ctx.parentCtx).Info("Reconciling resources", "resource_size", len(resources))
 	for _, res := range resources {
 		res := res
-		if err := settings.ReconcileConfig(ctx.parentCtx, ctx.k8sClient, ctx.es, res.StatefulSet.Name, res.Config, ctx.meta); err != nil {
+		if err := settings.ReconcileConfig(ctx.parentCtx, ctx.k8sClient, &ctx.es, res.StatefulSet.Name, res.Config, ctx.meta); err != nil {
 			return results, fmt.Errorf("reconcile config: %w", err)
 		}
 		if _, err := common.ReconcileService(ctx.parentCtx, ctx.k8sClient, &res.HeadlessService, &ctx.es); err != nil {

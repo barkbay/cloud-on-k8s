@@ -717,8 +717,10 @@ func kibanaFixture() *kbv1.Kibana {
 			Version: "7.17.0",
 			Image:   "my-image",
 			Count:   1,
-			ElasticsearchRef: commonv1.ObjectSelector{
-				Name: "es",
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name: "es",
+				},
 			},
 		},
 	}
@@ -985,8 +987,10 @@ func TestDriver_buildVolumes(t *testing.T) {
 					},
 					Spec: kbv1.KibanaSpec{
 						Version: "7.10.0",
-						ElasticsearchRef: commonv1.ObjectSelector{
-							Name: "test-es",
+						ElasticsearchRef: commonv1.ElasticsearchRef{
+							ObjectSelector: commonv1.ObjectSelector{
+								Name: "test-es",
+							},
 						},
 						PackageRegistryRef: commonv1.ObjectSelector{
 							Name: "test-epr",

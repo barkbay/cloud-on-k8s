@@ -72,8 +72,10 @@ func (r *Reconciler) reconcileWatches(ctx context.Context, associated types.Name
 	// watch the CA secret of the referenced resource in the referenced resource namespace
 	if err := ReconcileWatch(associated, managedElasticRef, r.watches.Secrets, referencedResourceCASecretWatchName(associated), func(association commonv1.Association) types.NamespacedName {
 		ref := association.AssociationRef()
+		kind := commonv1.AssociationRefKindOrDefault(association, commonv1.ElasticsearchKind)
+		namer := r.AssociationInfo.ReferencedResourceNamer(kind)
 		return types.NamespacedName{
-			Name:      certificates.PublicCertsSecretName(r.AssociationInfo.ReferencedResourceNamer, ref.NameOrSecretName()),
+			Name:      certificates.PublicCertsSecretName(namer, ref.NameOrSecretName()),
 			Namespace: ref.Namespace,
 		}
 	}); err != nil {

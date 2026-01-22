@@ -17342,6 +17342,14 @@ spec:
                   Due to existing limitations, only a single ES cluster is currently supported.
                 items:
                   properties:
+                    kind:
+                      description: |-
+                        Kind specifies the Kind of the Elasticsearch resource to reference.
+                        Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                      enum:
+                      - Elasticsearch
+                      - ElasticsearchStateless
+                      type: string
                     name:
                       description: Name of an existing Kubernetes object corresponding
                         to an Elastic resource managed by ECK.

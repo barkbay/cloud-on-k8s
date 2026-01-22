@@ -14,6 +14,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -23,14 +24,15 @@ import (
 
 func AddAgentKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate:     func() client.Object { return &kbv1.Kibana{} },
-		ExternalServiceURL:        getKibanaExternalURL,
+		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &kbv1.Kibana{} },
+		ExternalServiceURL:    getKibanaExternalURL,
 		ReferencedResourceVersion: referencedKibanaStatusVersion,
-		ReferencedResourceNamer:   kbv1.KBNamer,
-		AssociationName:           "agent-kibana",
-		AssociatedShortName:       "agent",
-		AssociationType:           commonv1.KibanaAssociationType,
+		ReferencedResourceNamer: func(_ string) name.Namer { return kbv1.KBNamer },
+		ReferencedKinds:         func() []string { return []string{kbv1.Kind} },
+		AssociationName:         "agent-kibana",
+		AssociatedShortName:     "agent",
+		AssociationType:         commonv1.KibanaAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				AgentAssociationLabelName:      associated.Name,

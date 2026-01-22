@@ -9,10 +9,7 @@ import (
 	"math/rand"
 	"strconv"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/defaults"
@@ -22,6 +19,8 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/network"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/stringsutil"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -64,15 +63,24 @@ func NewTransportService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.
 // ExternalTransportServiceHost returns the hostname and the port used to reach Elasticsearch's transport endpoint.
 // Note: This function takes a NamespacedName (not ElasticsearchCluster) because it's used for remote cluster
 // references where we only have the name/namespace of the target cluster.
-func ExternalTransportServiceHost(es types.NamespacedName) string {
-	return stringsutil.Concat(escommon.StatefulNamer.Suffix(es.Name, escommon.TransportServiceSuffix), ".", es.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
+func ExternalTransportServiceHost(es escommon.ElasticsearchCluster) string {
+	namer := escommon.StatefulNamer
+	if es.IsStateless() {
+		namer = escommon.StatelessNamer
+	}
+	return stringsutil.Concat(namer.Suffix(es.GetName(), escommon.TransportServiceSuffix), ".", es.GetNamespace(), globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
 }
 
-// RemoteClusterServerServiceHost returns the hostname and the port used to reach Elasticsearch's remote cluster server endpoint.
-// Note: This function takes a NamespacedName (not ElasticsearchCluster) because it's used for remote cluster
-// references where we only have the name/namespace of the target cluster.
-func RemoteClusterServerServiceHost(es types.NamespacedName) string {
-	return stringsutil.Concat(escommon.StatefulNamer.Suffix(es.Name, escommon.RemoteClusterServiceSuffix), ".", es.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.RemoteClusterPort))
+// ExternalTransportServiceHostFromRef returns the hostname and the port used to reach Elasticsearch's transport endpoint
+// from a LocalObjectSelector reference. Defaults to stateful Elasticsearch namer.
+func ExternalTransportServiceHostFromRef(ref commonv1.LocalObjectSelector) string {
+	return stringsutil.Concat(escommon.StatefulNamer.Suffix(ref.Name, escommon.TransportServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
+}
+
+// RemoteClusterServerServiceHostFromRef returns the hostname and the port used to reach Elasticsearch's remote cluster server endpoint
+// from a LocalObjectSelector reference. Defaults to stateful Elasticsearch namer.
+func RemoteClusterServerServiceHostFromRef(ref commonv1.LocalObjectSelector) string {
+	return stringsutil.Concat(escommon.StatefulNamer.Suffix(ref.Name, escommon.RemoteClusterServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.RemoteClusterPort))
 }
 
 // ExternalServiceURL returns the URL used to reach Elasticsearch's external endpoint.
@@ -87,16 +95,16 @@ func InternalServiceURL(es esv1.Elasticsearch) string {
 
 // NewExternalService returns the external service associated to the given cluster.
 // It is used by users to perform requests against one of the cluster nodes.
-func NewExternalService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.Service {
-	nsn := k8s.ExtractNamespacedName(&es)
+func NewExternalService(es escommon.ElasticsearchCluster, meta metadata.Metadata) *corev1.Service {
+	nsn := k8s.ExtractNamespacedName(es)
 
 	svc := corev1.Service{
-		ObjectMeta: es.Spec.HTTP.Service.ObjectMeta,
-		Spec:       es.Spec.HTTP.Service.Spec,
+		ObjectMeta: es.GetHTTP().Service.ObjectMeta,
+		Spec:       es.GetHTTP().Service.Spec,
 	}
 
-	svc.ObjectMeta.Namespace = es.Namespace
-	svc.ObjectMeta.Name = escommon.HTTPService(&es)
+	svc.ObjectMeta.Namespace = es.GetNamespace()
+	svc.ObjectMeta.Name = escommon.HTTPService(es)
 
 	// defaults to ClusterIP if not set
 	if svc.Spec.Type == "" {
@@ -105,7 +113,7 @@ func NewExternalService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.S
 	selector := label.NewLabels(nsn)
 	ports := []corev1.ServicePort{
 		{
-			Name:     es.Spec.HTTP.Protocol(),
+			Name:     es.GetHTTP().Protocol(),
 			Protocol: corev1.ProtocolTCP,
 			Port:     network.HTTPPort,
 		},

@@ -126,10 +126,12 @@ func (b Builder) WithSuffix(suffix string) Builder {
 	return b
 }
 
-func (b Builder) LocalRef() commonv1.LocalObjectSelector {
-	return commonv1.LocalObjectSelector{
-		Name:      b.Elasticsearch.Name,
-		Namespace: b.Elasticsearch.Namespace,
+func (b Builder) LocalRef() commonv1.LocalElasticsearchRef {
+	return commonv1.LocalElasticsearchRef{
+		LocalObjectSelector: commonv1.LocalObjectSelector{
+			Name:      b.Elasticsearch.Name,
+			Namespace: b.Elasticsearch.Namespace,
+		},
 	}
 }
 
@@ -522,8 +524,8 @@ func (b Builder) WithPodLabel(key, value string) Builder {
 }
 
 func (b Builder) WithMonitoring(metricsESRef commonv1.ObjectSelector, logsESRef commonv1.ObjectSelector) Builder {
-	b.Elasticsearch.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ObjectSelector{metricsESRef}
-	b.Elasticsearch.Spec.Monitoring.Logs.ElasticsearchRefs = []commonv1.ObjectSelector{logsESRef}
+	b.Elasticsearch.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ElasticsearchRef{{ObjectSelector: metricsESRef}}
+	b.Elasticsearch.Spec.Monitoring.Logs.ElasticsearchRefs = []commonv1.ElasticsearchRef{{ObjectSelector: logsESRef}}
 	return b
 }
 

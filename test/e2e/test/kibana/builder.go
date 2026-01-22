@@ -115,7 +115,7 @@ func (b Builder) WithSuffix(suffix string) Builder {
 }
 
 func (b Builder) WithElasticsearchRef(ref commonv1.ObjectSelector) Builder {
-	b.Kibana.Spec.ElasticsearchRef = ref
+	b.Kibana.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: ref}
 	return b
 }
 
@@ -266,8 +266,8 @@ func (b Builder) WithConfig(config map[string]interface{}) Builder {
 }
 
 func (b Builder) WithMonitoring(metricsESRef commonv1.ObjectSelector, logsESRef commonv1.ObjectSelector) Builder {
-	b.Kibana.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ObjectSelector{metricsESRef}
-	b.Kibana.Spec.Monitoring.Logs.ElasticsearchRefs = []commonv1.ObjectSelector{logsESRef}
+	b.Kibana.Spec.Monitoring.Metrics.ElasticsearchRefs = []commonv1.ElasticsearchRef{{ObjectSelector: metricsESRef}}
+	b.Kibana.Spec.Monitoring.Logs.ElasticsearchRefs = []commonv1.ElasticsearchRef{{ObjectSelector: logsESRef}}
 	return b
 }
 

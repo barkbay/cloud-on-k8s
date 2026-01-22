@@ -190,16 +190,16 @@ func Test_buildBeatConfig(t *testing.T) {
 				Spec: beatv1beta1.BeatSpec{
 					Type:   "filebeat",
 					Config: userCfg,
-					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{
-									Name:      "testesref",
-									Namespace: "test",
-								},
-							},
+				Monitoring: commonv1.Monitoring{
+					Metrics: commonv1.MetricsMonitoring{
+						ElasticsearchRefs: []commonv1.ElasticsearchRef{
+							{ObjectSelector: commonv1.ObjectSelector{
+								Name:      "testesref",
+								Namespace: "test",
+							}},
 						},
 					},
+				},
 				},
 			},
 			want: merge(userCanonicalCfg, settings.MustCanonicalConfig(map[string]interface{}{

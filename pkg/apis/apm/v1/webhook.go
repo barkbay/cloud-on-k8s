@@ -162,7 +162,10 @@ func checkAgentConfigurationMinVersion(as *ApmServer) field.ErrorList {
 }
 
 func checkAssociations(as *ApmServer) field.ErrorList {
-	err1 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), as.Spec.ElasticsearchRef)
+	err1 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), as.Spec.ElasticsearchRef.ObjectSelector)
 	err2 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("kibanaRef"), as.Spec.KibanaRef)
+	if err := as.Spec.ElasticsearchRef.Validate(); err != nil {
+		err1 = append(err1, field.Invalid(field.NewPath("spec").Child("elasticsearchRef").Child("kind"), as.Spec.ElasticsearchRef.Kind, err.Error()))
+	}
 	return append(err1, err2...)
 }

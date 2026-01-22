@@ -213,7 +213,7 @@ func toBeDeleted(beat beatv1beta1.Beat) *beatv1beta1.Beat {
 
 func withESReference(beat beatv1beta1.Beat, selector commonv1.ObjectSelector) *beatv1beta1.Beat {
 	obj := beat.DeepCopy()
-	obj.Spec.ElasticsearchRef = selector
+	obj.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: selector}
 	return obj
 }
 

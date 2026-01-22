@@ -17,7 +17,9 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -38,14 +40,21 @@ const (
 
 func AddApmES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedShortName:       "apm",
-		AssociatedObjTemplate:     func() commonv1.Associated { return &apmv1.ApmServer{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedShortName:   "apm",
+		AssociatedObjTemplate: func() commonv1.Associated { return &apmv1.ApmServer{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		AssociationType:           commonv1.ElasticsearchAssociationType,
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		ExternalServiceURL:        getElasticsearchExternalURL,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "apm-es",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName: "apm-es",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				ApmAssociationLabelName:      associated.Name,
@@ -72,6 +81,21 @@ func getElasticsearchExternalURL(c k8s.Client, assoc commonv1.Association) (stri
 	if !esRef.IsDefined() {
 		return "", nil
 	}
+
+	// Handle both stateful and stateless Elasticsearch kinds
+	if commonv1.AssociationRefIsStateless(assoc) {
+		ess := essv1alpha1.ElasticsearchStateless{}
+		if err := c.Get(context.Background(), esRef.NamespacedName(), &ess); err != nil {
+			return "", err
+		}
+		serviceName := esRef.ServiceName
+		if serviceName == "" {
+			serviceName = escommon.HTTPService(&ess)
+		}
+		nsn := types.NamespacedName{Name: serviceName, Namespace: ess.Namespace}
+		return association.ServiceURL(c, nsn, ess.Spec.HTTP.Protocol(), "")
+	}
+
 	es := esv1.Elasticsearch{}
 	if err := c.Get(context.Background(), esRef.NamespacedName(), &es); err != nil {
 		return "", err

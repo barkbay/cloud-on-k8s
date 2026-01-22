@@ -149,11 +149,15 @@ func checkMonitoring(k *Kibana) field.ErrorList {
 
 func checkAssociations(k *Kibana) field.ErrorList {
 	monitoringPath := field.NewPath("spec").Child("monitoring")
-	err1 := commonv1.CheckAssociationRefs(monitoringPath.Child("metrics"), k.GetMonitoringMetricsRefs()...)
-	err2 := commonv1.CheckAssociationRefs(monitoringPath.Child("logs"), k.GetMonitoringLogsRefs()...)
-	err3 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), k.Spec.ElasticsearchRef)
+	err1 := commonv1.CheckAssociationRefs(monitoringPath.Child("metrics"), commonv1.ToObjectSelectors(k.GetMonitoringMetricsRefs())...)
+	err2 := commonv1.CheckAssociationRefs(monitoringPath.Child("logs"), commonv1.ToObjectSelectors(k.GetMonitoringLogsRefs())...)
+	err3 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("elasticsearchRef"), k.Spec.ElasticsearchRef.ObjectSelector)
 	err4 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("enterpriseSearchRef"), k.Spec.EnterpriseSearchRef)
 	err5 := commonv1.CheckAssociationRefs(field.NewPath("spec").Child("packageRegistryRef"), k.Spec.PackageRegistryRef)
+	// Also validate the ElasticsearchRef Kind
+	if err := k.Spec.ElasticsearchRef.Validate(); err != nil {
+		err3 = append(err3, field.Invalid(field.NewPath("spec").Child("elasticsearchRef").Child("kind"), k.Spec.ElasticsearchRef.Kind, err.Error()))
+	}
 	return append(err1, append(err2, append(err3, append(err4, err5...)...)...)...)
 }
 

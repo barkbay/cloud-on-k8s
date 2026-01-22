@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/cryptutil"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,8 +27,8 @@ import (
 
 // CheckTransportCACertificate attempts a TLS handshake to inspect the peer certificates presented by the Elasticsearch
 // node to verify the expected CA certificate is among them.
-func CheckTransportCACertificate(es esv1.Elasticsearch, ca *x509.Certificate) error {
-	host := services.ExternalTransportServiceHost(k8s.ExtractNamespacedName(&es))
+func CheckTransportCACertificate(es common.ElasticsearchCluster, ca *x509.Certificate) error {
+	host := services.ExternalTransportServiceHost(k8s.ExtractNamespacedName(es))
 	var conn net.Conn
 	var err error
 

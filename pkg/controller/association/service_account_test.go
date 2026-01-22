@@ -48,9 +48,11 @@ var (
 		},
 		Spec: kbv1.KibanaSpec{
 			Count: 1,
-			ElasticsearchRef: commonv1.ObjectSelector{
-				Name:      "elasticsearch-sample",
-				Namespace: "e2e-mercury",
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      "elasticsearch-sample",
+					Namespace: "e2e-mercury",
+				},
 			},
 		},
 	}
@@ -205,7 +207,7 @@ func Test_ReconcileServiceAccounts(t *testing.T) {
 			err := ReconcileServiceAccounts(
 				context.Background(),
 				tt.args.client,
-				existingElasticsearch,
+				&existingElasticsearch,
 				meta,
 				applicationSecretName,
 				elasticsearchSecretName,

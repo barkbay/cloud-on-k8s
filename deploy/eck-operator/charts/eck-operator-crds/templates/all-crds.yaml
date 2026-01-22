@@ -220,6 +220,14 @@ spec:
                   Due to existing limitations, only a single ES cluster is currently supported.
                 items:
                   properties:
+                    kind:
+                      description: |-
+                        Kind specifies the Kind of the Elasticsearch resource to reference.
+                        Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                      enum:
+                      - Elasticsearch
+                      - ElasticsearchStateless
+                      type: string
                     name:
                       description: Name of an existing Kubernetes object corresponding
                         to an Elastic resource managed by ECK.
@@ -1211,6 +1219,14 @@ spec:
                 description: ElasticsearchRef is a reference to the output Elasticsearch
                   cluster running in the same Kubernetes cluster.
                 properties:
+                  kind:
+                    description: |-
+                      Kind specifies the Kind of the Elasticsearch resource to reference.
+                      Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                    enum:
+                    - Elasticsearch
+                    - ElasticsearchStateless
+                    type: string
                   name:
                     description: Name of an existing Kubernetes object corresponding
                       to an Elastic resource managed by ECK.
@@ -2822,6 +2838,14 @@ spec:
                 description: ElasticsearchRef is a reference to an Elasticsearch cluster
                   running in the same Kubernetes cluster.
                 properties:
+                  kind:
+                    description: |-
+                      Kind specifies the Kind of the Elasticsearch resource to reference.
+                      Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                    enum:
+                    - Elasticsearch
+                    - ElasticsearchStateless
+                    type: string
                   name:
                     description: Name of an existing Kubernetes object corresponding
                       to an Elastic resource managed by ECK.
@@ -2901,9 +2925,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -2943,9 +2975,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -3173,6 +3213,14 @@ spec:
                 description: ElasticsearchRef is a reference to an Elasticsearch cluster
                   running in the same Kubernetes cluster.
                 properties:
+                  kind:
+                    description: |-
+                      Kind specifies the Kind of the Elasticsearch resource to reference.
+                      Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                    enum:
+                    - Elasticsearch
+                    - ElasticsearchStateless
+                    type: string
                   name:
                     description: Name of an existing Kubernetes object corresponding
                       to an Elastic resource managed by ECK.
@@ -4582,9 +4630,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -4624,9 +4680,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -9491,6 +9555,14 @@ spec:
                 description: ElasticsearchRef is a reference to the Elasticsearch
                   cluster running in the same Kubernetes cluster.
                 properties:
+                  kind:
+                    description: |-
+                      Kind specifies the Kind of the Elasticsearch resource to reference.
+                      Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                    enum:
+                    - Elasticsearch
+                    - ElasticsearchStateless
+                    type: string
                   name:
                     description: Name of an existing Kubernetes object corresponding
                       to an Elastic resource managed by ECK.
@@ -10069,6 +10141,14 @@ spec:
                 description: ElasticsearchRef is a reference to an Elasticsearch cluster
                   running in the same Kubernetes cluster.
                 properties:
+                  kind:
+                    description: |-
+                      Kind specifies the Kind of the Elasticsearch resource to reference.
+                      Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                    enum:
+                    - Elasticsearch
+                    - ElasticsearchStateless
+                    type: string
                   name:
                     description: Name of an existing Kubernetes object corresponding
                       to an Elastic resource managed by ECK.
@@ -10563,9 +10643,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -10605,9 +10693,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -11494,9 +11590,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.
@@ -11536,9 +11640,17 @@ spec:
                           Due to existing limitations, only a single Elasticsearch cluster is currently supported.
                         items:
                           description: |-
-                            ObjectSelector defines a reference to a Kubernetes object which can be an Elastic resource managed by the operator
-                            or a Secret describing an external Elastic resource not managed by the operator.
+                            ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+                            a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
                           properties:
+                            kind:
+                              description: |-
+                                Kind specifies the Kind of the Elasticsearch resource to reference.
+                                Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                              enum:
+                              - Elasticsearch
+                              - ElasticsearchStateless
+                              type: string
                             name:
                               description: Name of an existing Kubernetes object corresponding
                                 to an Elastic resource managed by ECK.

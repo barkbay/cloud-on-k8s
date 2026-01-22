@@ -10,9 +10,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	emsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/maps/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -37,14 +37,21 @@ const (
 
 func AddMapsES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &emsv1alpha1.ElasticMapsServer{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedObjTemplate: func() commonv1.Associated { return &emsv1alpha1.ElasticMapsServer{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		ExternalServiceURL:        getElasticsearchExternalURL,
 		AssociationType:           commonv1.ElasticsearchAssociationType,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "ems-es",
-		AssociatedShortName:       "ems",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName:     "ems-es",
+		AssociatedShortName: "ems",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				MapsESAssociationLabelName:      associated.Name,

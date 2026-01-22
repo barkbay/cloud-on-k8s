@@ -74,7 +74,7 @@ param2: value2
 					},
 					Spec: esv1.ElasticsearchSpec{
 						Monitoring: commonv1.Monitoring{
-							Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+							Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 						},
 					},
 				},

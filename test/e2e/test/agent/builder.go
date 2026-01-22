@@ -495,7 +495,7 @@ func ApplyYamls(t *testing.T, b Builder, configYaml, podTemplateYaml string) Bui
 
 func ToOutput(selector commonv1.ObjectSelector, outputName string) agentv1alpha1.Output {
 	return agentv1alpha1.Output{
-		ObjectSelector: selector,
-		OutputName:     outputName,
+		ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: selector},
+		OutputName:       outputName,
 	}
 }

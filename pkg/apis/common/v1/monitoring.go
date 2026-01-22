@@ -25,7 +25,7 @@ type MetricsMonitoring struct {
 	// ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.
 	// Due to existing limitations, only a single Elasticsearch cluster is currently supported.
 	// +kubebuilder:validation:Optional
-	ElasticsearchRefs []ObjectSelector `json:"elasticsearchRefs,omitempty"`
+	ElasticsearchRefs []ElasticsearchRef `json:"elasticsearchRefs,omitempty"`
 }
 
 // LogsMonitoring holds a list of Elasticsearch clusters which receive logs data from
@@ -38,5 +38,5 @@ type LogsMonitoring struct {
 	// ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.
 	// Due to existing limitations, only a single Elasticsearch cluster is currently supported.
 	// +kubebuilder:validation:Optional
-	ElasticsearchRefs []ObjectSelector `json:"elasticsearchRefs,omitempty"`
+	ElasticsearchRefs []ElasticsearchRef `json:"elasticsearchRefs,omitempty"`
 }

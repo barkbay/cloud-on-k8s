@@ -17,6 +17,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esuser "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -26,14 +27,15 @@ import (
 
 func AddBeatKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &beatv1beta1.Beat{} },
-		ReferencedObjTemplate:     func() client.Object { return &kbv1.Kibana{} },
-		ExternalServiceURL:        getKibanaExternalURL,
+		AssociatedObjTemplate: func() commonv1.Associated { return &beatv1beta1.Beat{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &kbv1.Kibana{} },
+		ExternalServiceURL:    getKibanaExternalURL,
 		ReferencedResourceVersion: referencedKibanaStatusVersion,
-		ReferencedResourceNamer:   kbv1.KBNamer,
-		AssociationName:           "beat-kibana",
-		AssociatedShortName:       "beat",
-		AssociationType:           commonv1.KibanaAssociationType,
+		ReferencedResourceNamer: func(_ string) name.Namer { return kbv1.KBNamer },
+		ReferencedKinds:         func() []string { return []string{kbv1.Kind} },
+		AssociationName:         "beat-kibana",
+		AssociatedShortName:     "beat",
+		AssociationType:         commonv1.KibanaAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				BeatAssociationLabelName:      associated.Name,

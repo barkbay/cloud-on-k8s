@@ -193,8 +193,8 @@ func TestNewReporter(t *testing.T) {
 			},
 			Spec: esv1.ElasticsearchSpec{
 				Monitoring: commonv1.Monitoring{
-					Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
-					Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+					Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
+					Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 				},
 			},
 			Status: esv1.ElasticsearchStatus{
@@ -238,8 +238,8 @@ func TestNewReporter(t *testing.T) {
 			Spec: logstashv1alpha1.LogstashSpec{
 				Count: 3,
 				Monitoring: commonv1.Monitoring{
-					Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
-					Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+					Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
+					Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 				},
 				Pipelines: []commonv1.Config{
 					{Data: map[string]interface{}{"pipeline.id": "main"}},
@@ -596,7 +596,7 @@ func TestReporter_report(t *testing.T) {
 						},
 						Spec: esv1.ElasticsearchSpec{
 							Monitoring: commonv1.Monitoring{
-								Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+								Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 							},
 						},
 						Status: esv1.ElasticsearchStatus{
@@ -610,7 +610,7 @@ func TestReporter_report(t *testing.T) {
 						},
 						Spec: esv1.ElasticsearchSpec{
 							Monitoring: commonv1.Monitoring{
-								Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+								Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 							},
 						},
 						Status: esv1.ElasticsearchStatus{
@@ -649,7 +649,7 @@ func TestReporter_report(t *testing.T) {
 						},
 						Spec: esv1.ElasticsearchSpec{
 							Monitoring: commonv1.Monitoring{
-								Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "monitoring"}}},
+								Logs: commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring"}}}},
 							},
 						},
 						Status: esv1.ElasticsearchStatus{

@@ -29,7 +29,7 @@ func buildVolumes(
 	additionalMountsFromPolicy []volume.VolumeLike,
 ) ([]corev1.Volume, []corev1.VolumeMount) {
 	esName := cluster.GetName()
-	configVolume := settings.ConfigSecretVolume(esv1.StatefulSet(esName, nodeSpec.Name))
+	configVolume := settings.ConfigSecretVolume(esv1.StatefulSet(esName, nodeSpec.Name), cluster.IsStateless())
 	probeSecret := volume.NewSelectiveSecretVolumeWithMountPath(
 		escommon.InternalUsersSecret(cluster), esvolume.ProbeUserVolumeName,
 		esvolume.PodMountedUsersSecretMountPath, []string{user.ProbeUserName, user.PreStopUserName},

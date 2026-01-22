@@ -264,7 +264,7 @@ func TestNewConfigSettings(t *testing.T) {
 				kb: func() kbv1.Kibana {
 					kb := mkKibana()
 					kb.Spec.Version = "8.0.0" // to use service accounts
-					kb.Spec.ElasticsearchRef = commonv1.ObjectSelector{Name: "test-es"}
+					kb.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "test-es"}}
 					kb.EsAssociation().SetAssociationConf(&commonv1.AssociationConf{
 						AuthSecretName:   "auth-secret",
 						AuthSecretKey:    "token",
@@ -323,7 +323,7 @@ func TestNewConfigSettings(t *testing.T) {
 			args: args{
 				kb: func() kbv1.Kibana {
 					kb := mkKibana()
-					kb.Spec.ElasticsearchRef = commonv1.ObjectSelector{Name: "test-es"}
+					kb.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "test-es"}}
 					kb.EsAssociation().SetAssociationConf(&commonv1.AssociationConf{
 						AuthSecretName: "auth-secret",
 						AuthSecretKey:  "elastic",
@@ -411,7 +411,7 @@ func TestNewConfigSettings(t *testing.T) {
 			args: args{
 				kb: func() kbv1.Kibana {
 					kb := mkKibana()
-					kb.Spec.ElasticsearchRef = commonv1.ObjectSelector{Name: "test-es"}
+					kb.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "test-es"}}
 					kb.EsAssociation().SetAssociationConf(&commonv1.AssociationConf{
 						AuthSecretName: "auth-secret",
 						AuthSecretKey:  "elastic",

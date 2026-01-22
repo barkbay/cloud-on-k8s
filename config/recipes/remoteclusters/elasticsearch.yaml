@@ -15,6 +15,7 @@ spec:
       elasticsearchRef:
         name: cluster2
         namespace: ns2
+        kind: ElasticsearchStateless
       apiKey:
         access:
           search:

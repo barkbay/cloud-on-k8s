@@ -24,7 +24,9 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/about"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
@@ -52,11 +54,18 @@ type AssociationInfo struct { //nolint:revive
 	AssociationType commonv1.AssociationType
 	// AssociatedObjTemplate builds an empty typed associated object (eg. &Kibana{} for a Kibana to Elasticsearch association).
 	AssociatedObjTemplate func() commonv1.Associated
-	// ReferencedObjTemplate builds an empty referenced object (e.g. Elasticsearch{} for a Kibana to Elasticsearch association).
-	ReferencedObjTemplate func() client.Object
-	// ReferencedResourceNamer is used to build the name of the Secret which contains the CA of the referenced resource
-	// (the Elasticsearch Namer for a Kibana to Elasticsearch association).
-	ReferencedResourceNamer name.Namer
+	// ReferencedObjTemplate builds an empty referenced object based on the Kind field of the association reference.
+	// For Elasticsearch associations, the kind parameter can be "Elasticsearch" or "ElasticsearchStateless".
+	// For other associations (e.g., Kibana -> EnterpriseSearch), the kind parameter is ignored.
+	ReferencedObjTemplate func(kind string) client.Object
+	// ReferencedResourceNamer returns the namer based on the Kind field of the association reference.
+	// For Elasticsearch associations, the kind parameter determines whether to use the stateful or stateless namer.
+	// For other associations, the kind parameter is ignored.
+	ReferencedResourceNamer func(kind string) name.Namer
+	// ReferencedKinds returns all the kinds that this association can reference.
+	// This is used to set up watches for all possible referenced resource types.
+	// For Elasticsearch associations, this typically returns both "Elasticsearch" and "ElasticsearchStateless".
+	ReferencedKinds func() []string
 	// ExternalServiceURL is used to build the external service url as it will be set in the resource configuration.
 	ExternalServiceURL func(c k8s.Client, association commonv1.Association) (string, error)
 	// AssociationName is the name of the association (eg. "kb-es").
@@ -231,7 +240,8 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	log := ulog.FromContext(ctx)
 
 	// the referenced object can be an Elastic resource or a custom Secret
-	referencedObj := r.ReferencedObjTemplate()
+	kind := commonv1.AssociationRefKindOrDefault(association, commonv1.ElasticsearchKind)
+	referencedObj := r.ReferencedObjTemplate(kind)
 	if assocRef.IsExternal() {
 		referencedObj = &corev1.Secret{}
 	}
@@ -259,10 +269,11 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 
 	// metadata to propagate to children
 	assocMeta := metadata.Propagate(association, metadata.Metadata{Labels: r.AssociationResourceLabels(k8s.ExtractNamespacedName(association), association.AssociationRef().NamespacedName())})
+	namer := r.AssociationInfo.ReferencedResourceNamer(kind)
 	caSecret, err := r.ReconcileCASecret(
 		ctx,
 		association,
-		r.AssociationInfo.ReferencedResourceNamer,
+		namer,
 		assocRef.NamespacedName(),
 		assocMeta,
 	)
@@ -346,7 +357,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 
 	// check if reference to Elasticsearch is allowed to be established
-	if allowed, err := CheckAndUnbind(ctx, r.accessReviewer, association, &es, r, r.recorder); err != nil || !allowed {
+	if allowed, err := CheckAndUnbind(ctx, r.accessReviewer, association, es, r, r.recorder); err != nil || !allowed {
 		return commonv1.AssociationPending, err
 	}
 
@@ -378,7 +389,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 			es,
 			assocMeta,
 			applicationSecretName,
-			UserKey(association, es.Namespace, r.ElasticsearchUserCreation.UserSecretSuffix),
+			UserKey(association, es.GetNamespace(), r.ElasticsearchUserCreation.UserSecretSuffix),
 			serviceAccount,
 			association.Associated(),
 		)
@@ -420,16 +431,35 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 
 // getElasticsearch attempts to retrieve the referenced Elasticsearch resource. If not found, it removes
 // any existing association configuration on associated, and returns AssociationPending.
+// The kind parameter determines whether to fetch a stateful Elasticsearch or stateless ElasticsearchStateless.
 func (r *Reconciler) getElasticsearch(
 	ctx context.Context,
 	association commonv1.Association,
 	elasticsearchRef commonv1.ObjectSelector,
-) (esv1.Elasticsearch, commonv1.AssociationStatus, error) {
+) (escommon.ElasticsearchCluster, commonv1.AssociationStatus, error) {
 	span, ctx := apm.StartSpan(ctx, "get_elasticsearch", tracing.SpanTypeApp)
 	defer span.End()
 
-	var es esv1.Elasticsearch
-	err := r.Get(ctx, elasticsearchRef.NamespacedName(), &es)
+	// Determine the kind from the association reference
+	kind := commonv1.AssociationRefKindOrDefault(association, commonv1.ElasticsearchKind)
+
+	var es escommon.ElasticsearchCluster
+	var err error
+
+	if kind == commonv1.ElasticsearchStatelessKind {
+		var ess essv1alpha1.ElasticsearchStateless
+		err = r.Get(ctx, elasticsearchRef.NamespacedName(), &ess)
+		if err == nil {
+			es = &ess
+		}
+	} else {
+		var statefulEs esv1.Elasticsearch
+		err = r.Get(ctx, elasticsearchRef.NamespacedName(), &statefulEs)
+		if err == nil {
+			es = &statefulEs
+		}
+	}
+
 	if err != nil {
 		k8s.MaybeEmitErrorEvent(r.recorder, err, association, events.EventAssociationError,
 			"Failed to find referenced backend %s: %v", elasticsearchRef.NamespacedName(), err)
@@ -437,11 +467,11 @@ func (r *Reconciler) getElasticsearch(
 			// ES is not found, remove any existing backend configuration and retry in a bit.
 			if err := RemoveAssociationConf(ctx, r.Client, association); err != nil && !apierrors.IsConflict(err) {
 				ulog.FromContext(ctx).Error(err, "Failed to remove Elasticsearch association configuration")
-				return esv1.Elasticsearch{}, commonv1.AssociationPending, err
+				return nil, commonv1.AssociationPending, err
 			}
-			return esv1.Elasticsearch{}, commonv1.AssociationPending, nil
+			return nil, commonv1.AssociationPending, nil
 		}
-		return esv1.Elasticsearch{}, commonv1.AssociationFailed, err
+		return nil, commonv1.AssociationFailed, err
 	}
 	return es, "", nil
 }

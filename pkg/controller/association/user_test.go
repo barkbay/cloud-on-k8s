@@ -53,9 +53,11 @@ func Test_reconcileEsUser(t *testing.T) {
 	kibanaFixture := kbv1.Kibana{
 		ObjectMeta: kibanaFixtureObjectMeta,
 		Spec: kbv1.KibanaSpec{
-			ElasticsearchRef: commonv1.ObjectSelector{
-				Name:      esFixture.Name,
-				Namespace: esFixture.Namespace,
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      esFixture.Name,
+					Namespace: esFixture.Namespace,
+				},
 			},
 		},
 	}
@@ -224,9 +226,11 @@ func Test_reconcileEsUser(t *testing.T) {
 						Namespace: "ns-2",
 					},
 					Spec: kbv1.KibanaSpec{
-						ElasticsearchRef: commonv1.ObjectSelector{
-							Name:      esFixture.Name,
-							Namespace: esFixture.Namespace,
+						ElasticsearchRef: commonv1.ElasticsearchRef{
+							ObjectSelector: commonv1.ObjectSelector{
+								Name:      esFixture.Name,
+								Namespace: esFixture.Namespace,
+							},
 						},
 					},
 				},
@@ -263,7 +267,7 @@ func Test_reconcileEsUser(t *testing.T) {
 				},
 				"kibana_system",
 				"kibana-user",
-				tt.args.es,
+				&tt.args.es,
 				fixtures.MustTestRandomGenerator(24),
 			); (err != nil) != tt.wantErr {
 				t.Errorf("reconcileEsUser() error = %v, wantErr %v", err, tt.wantErr)

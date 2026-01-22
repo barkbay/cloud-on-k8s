@@ -330,10 +330,10 @@ func Test_AssociationConfs(t *testing.T) {
 	assert.Equal(t, 0, len(es.AssocConfs))
 
 	// es with associations
-	metricsEsRef := commonv1.ObjectSelector{
+	metricsEsRef := commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 		Name:      "metrics",
 		Namespace: "default",
-	}
+	}}
 	esMon := &Elasticsearch{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "esmon",
@@ -346,12 +346,12 @@ func Test_AssociationConfs(t *testing.T) {
 		Spec: ElasticsearchSpec{
 			Monitoring: commonv1.Monitoring{
 				Metrics: commonv1.MetricsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{metricsEsRef},
+					ElasticsearchRefs: []commonv1.ElasticsearchRef{metricsEsRef},
 				},
 				Logs: commonv1.LogsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{{
+					ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "logs",
-						Namespace: "default"},
+						Namespace: "default"}},
 					},
 				},
 			},
@@ -385,7 +385,7 @@ func Test_AssociationConfs(t *testing.T) {
 	assert.Equal(t, 2, len(esMon.AssocConfs))
 
 	// delete just one entry in the map
-	delete(esMon.AssocConfs, metricsEsRef)
+	delete(esMon.AssocConfs, metricsEsRef.ObjectSelector)
 	assert.Equal(t, 1, len(esMon.AssocConfs))
 
 	// checks that the missing entry is set again

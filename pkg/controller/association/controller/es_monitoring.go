@@ -12,6 +12,7 @@ import (
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
@@ -40,14 +41,21 @@ func AddEsMonitoring(mgr manager.Manager, accessReviewer rbac.AccessReviewer, pa
 
 func esMonitoringAssociationInfo() association.AssociationInfo {
 	return association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &esv1.Elasticsearch{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedObjTemplate: func() commonv1.Associated { return &esv1.Elasticsearch{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		ExternalServiceURL:        getElasticsearchExternalURL,
 		AssociationType:           commonv1.EsMonitoringAssociationType,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "es-monitoring",
-		AssociatedShortName:       "es-mon",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName:     "es-monitoring",
+		AssociatedShortName: "es-mon",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				EsAssociationLabelName:      associated.Name,

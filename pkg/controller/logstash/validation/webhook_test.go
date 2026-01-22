@@ -117,7 +117,7 @@ func Test_webhook_Create(t *testing.T) {
 								Spec: v1alpha1.LogstashSpec{
 									Version: "8.12.0",
 									Monitoring: commonv1.Monitoring{
-										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "esmonname", Namespace: "esmonns"}}},
+										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "esmonname", Namespace: "esmonns"}}}},
 									},
 								},
 							},
@@ -145,8 +145,8 @@ func Test_webhook_Create(t *testing.T) {
 								Spec: v1alpha1.LogstashSpec{
 									Version: "8.12.0",
 									Monitoring: commonv1.Monitoring{
-										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es1monname"}}},
-										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname"}}},
+										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es1monname"}}}},
+										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname"}}}},
 									},
 								},
 							},
@@ -174,8 +174,8 @@ func Test_webhook_Create(t *testing.T) {
 								Spec: v1alpha1.LogstashSpec{
 									Version: "8.12.0",
 									Monitoring: commonv1.Monitoring{
-										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es1monname", Name: "xx"}}},
-										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname"}}},
+										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es1monname", Name: "xx"}}}},
+										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname"}}}},
 									},
 								},
 							},
@@ -203,8 +203,8 @@ func Test_webhook_Create(t *testing.T) {
 								Spec: v1alpha1.LogstashSpec{
 									Version: "8.12.0",
 									Monitoring: commonv1.Monitoring{
-										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es1monname"}}},
-										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "es2monname", ServiceName: "xx"}}},
+										Metrics: commonv1.MetricsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es1monname"}}}},
+										Logs:    commonv1.LogsMonitoring{ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "es2monname", ServiceName: "xx"}}}},
 									},
 								},
 							},

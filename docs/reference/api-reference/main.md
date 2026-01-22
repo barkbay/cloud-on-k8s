@@ -140,7 +140,7 @@ AgentSpec defines the desired state of the Agent
 
 | Field | Description |
 | --- | --- |
-| *`ObjectSelector`* __[ObjectSelector](#objectselector)__ |  |
+| *`ElasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ |  |
 | *`outputName`* __string__ |  |
 
 
@@ -203,7 +203,7 @@ ApmServerSpec holds the specification of an APM Server.
 | *`count`* __integer__ | Count of APM Server instances to deploy. |
 | *`config`* __[Config](#config)__ | Config holds the APM Server configuration. See: https://www.elastic.co/guide/en/apm/server/current/configuring-howto-apm-server.html |
 | *`http`* __[HTTPConfig](#httpconfig)__ | HTTP holds the HTTP layer configuration for the APM Server resource. |
-| *`elasticsearchRef`* __[ObjectSelector](#objectselector)__ | ElasticsearchRef is a reference to the output Elasticsearch cluster running in the same Kubernetes cluster. |
+| *`elasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ | ElasticsearchRef is a reference to the output Elasticsearch cluster running in the same Kubernetes cluster. |
 | *`kibanaRef`* __[ObjectSelector](#objectselector)__ | KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.<br>It allows APM agent central configuration management in Kibana. |
 | *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the APM Server pods. |
 | *`revisionHistoryLimit`* __integer__ | RevisionHistoryLimit is the number of revisions to retain to allow rollback in the underlying Deployment. |
@@ -411,7 +411,7 @@ BeatSpec defines the desired state of a Beat.
 | --- | --- |
 | *`type`* __string__ | Type is the type of the Beat to deploy (filebeat, metricbeat, heartbeat, auditbeat, journalbeat, packetbeat, and so on).<br>Any string can be used, but well-known types will have the image field defaulted and have the appropriate<br>Elasticsearch roles created automatically. It also allows for dashboard setup when combined with a `KibanaRef`. |
 | *`version`* __string__ | Version of the Beat. |
-| *`elasticsearchRef`* __[ObjectSelector](#objectselector)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
+| *`elasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
 | *`kibanaRef`* __[ObjectSelector](#objectselector)__ | KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.<br>It allows automatic setup of dashboards and visualizations. |
 | *`image`* __string__ | Image is the Beat Docker image to deploy. Version and Type have to match the Beat in the image. |
 | *`config`* __[Config](#config)__ | Config holds the Beat configuration. At most one of [`Config`, `ConfigRef`] can be specified. |
@@ -525,6 +525,32 @@ ConfigSource references configuration settings.
 
 
 
+### ElasticsearchRef  [#elasticsearchref]
+
+ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
+
+:::{admonition} Appears In:
+* [ApmServerSpec](#apmserverspec)
+* [BeatSpec](#beatspec)
+* [EnterpriseSearchSpec](#enterprisesearchspec)
+* [KibanaSpec](#kibanaspec)
+* [LogsMonitoring](#logsmonitoring)
+* [MapsSpec](#mapsspec)
+* [MetricsMonitoring](#metricsmonitoring)
+* [Output](#output)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`namespace`* __string__ | Namespace of the Kubernetes object. If empty, defaults to the current namespace. |
+| *`name`* __string__ | Name of an existing Kubernetes object corresponding to an Elastic resource managed by ECK. |
+| *`serviceName`* __string__ | ServiceName is the name of an existing Kubernetes service which is used to make requests to the referenced<br>object. It has to be in the same namespace as the referenced resource. If left empty, the default HTTP service of<br>the referenced resource is used. |
+| *`secretName`* __string__ | SecretName is the name of an existing Kubernetes secret that contains connection information for associating an<br>Elastic resource not managed by the operator.<br>The referenced secret must contain the following:<br>- `url`: the URL to reach the Elastic resource<br>- `username`: the username of the user to be authenticated to the Elastic resource<br>- `password`: the password of the user to be authenticated to the Elastic resource<br>- `ca.crt`: the CA certificate in PEM format (optional)<br>- `api-key`: the key to authenticate against the Elastic resource instead of a username and password (supported only for `elasticsearchRefs` in AgentSpec and in BeatSpec)<br>This field cannot be used in combination with the other fields name, namespace or serviceName. |
+| *`kind`* __string__ | Kind specifies the Kind of the Elasticsearch resource to reference.<br>Valid values are "Elasticsearch" (default) or "ElasticsearchStateless". |
+
+
 ### HTTPConfig  [#httpconfig]
 
 HTTPConfig holds the HTTP layer configuration for resources.
@@ -567,11 +593,14 @@ KeyToPath defines how to map a key in a Secret object to a filesystem path.
 | *`path`* __string__ | Path is the relative file path to map the key to.<br>Path must not be an absolute file path and must not contain any ".." components. |
 
 
+
+
 ### LocalObjectSelector  [#localobjectselector]
 
 LocalObjectSelector defines a reference to a Kubernetes object corresponding to an Elastic resource managed by the operator
 
 :::{admonition} Appears In:
+* [LocalElasticsearchRef](#localelasticsearchref)
 * RemoteCluster
 
 :::
@@ -595,7 +624,7 @@ associated resources.
 
 | Field | Description |
 | --- | --- |
-| *`elasticsearchRefs`* __[ObjectSelector](#objectselector) array__ | ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.<br>Due to existing limitations, only a single Elasticsearch cluster is currently supported. |
+| *`elasticsearchRefs`* __[ElasticsearchRef](#elasticsearchref) array__ | ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.<br>Due to existing limitations, only a single Elasticsearch cluster is currently supported. |
 
 
 ### MetricsMonitoring  [#metricsmonitoring]
@@ -610,7 +639,7 @@ associated resources.
 
 | Field | Description |
 | --- | --- |
-| *`elasticsearchRefs`* __[ObjectSelector](#objectselector) array__ | ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.<br>Due to existing limitations, only a single Elasticsearch cluster is currently supported. |
+| *`elasticsearchRefs`* __[ElasticsearchRef](#elasticsearchref) array__ | ElasticsearchRefs is a reference to a list of monitoring Elasticsearch clusters running in the same Kubernetes cluster.<br>Due to existing limitations, only a single Elasticsearch cluster is currently supported. |
 
 
 ### Monitoring  [#monitoring]
@@ -642,13 +671,9 @@ or a Secret describing an external Elastic resource not managed by the operator.
 * [ApmServerSpec](#apmserverspec)
 * [BeatSpec](#beatspec)
 * [ElasticsearchCluster](#elasticsearchcluster)
-* [EnterpriseSearchSpec](#enterprisesearchspec)
+* [ElasticsearchRef](#elasticsearchref)
 * [EnterpriseSearchSpec](#enterprisesearchspec)
 * [KibanaSpec](#kibanaspec)
-* [LogsMonitoring](#logsmonitoring)
-* [MapsSpec](#mapsspec)
-* [MetricsMonitoring](#metricsmonitoring)
-* [Output](#output)
 
 :::
 
@@ -1702,7 +1727,7 @@ EnterpriseSearchSpec holds the specification of an Enterprise Search resource.
 | *`config`* __[Config](#config)__ | Config holds the Enterprise Search configuration. |
 | *`configRef`* __[ConfigSource](#configsource)__ | ConfigRef contains a reference to an existing Kubernetes Secret holding the Enterprise Search configuration.<br>Configuration settings are merged and have precedence over settings specified in `config`. |
 | *`http`* __[HTTPConfig](#httpconfig)__ | HTTP holds the HTTP layer configuration for Enterprise Search resource. |
-| *`elasticsearchRef`* __[ObjectSelector](#objectselector)__ | ElasticsearchRef is a reference to the Elasticsearch cluster running in the same Kubernetes cluster. |
+| *`elasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ | ElasticsearchRef is a reference to the Elasticsearch cluster running in the same Kubernetes cluster. |
 | *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on)<br>for the Enterprise Search pods. |
 | *`serviceAccountName`* __string__ | ServiceAccountName is used to check access from the current resource to a resource (for ex. Elasticsearch) in a different namespace.<br>Can only be used if ECK is enforcing RBAC on references. |
 
@@ -1746,7 +1771,7 @@ KibanaSpec holds the specification of a Kibana instance.
 | *`version`* __string__ | Version of Kibana. |
 | *`image`* __string__ | Image is the Kibana Docker image to deploy. |
 | *`count`* __integer__ | Count of Kibana instances to deploy. |
-| *`elasticsearchRef`* __[ObjectSelector](#objectselector)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
+| *`elasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
 | *`packageRegistryRef`* __[ObjectSelector](#objectselector)__ | PackageRegistryRef is a reference to an Elastic Package Registry running in the same Kubernetes cluster. |
 | *`enterpriseSearchRef`* __[ObjectSelector](#objectselector)__ | EnterpriseSearchRef is a reference to an EnterpriseSearch running in the same Kubernetes cluster.<br>Kibana provides the default Enterprise Search UI starting version 7.14. |
 | *`config`* __[Config](#config)__ | Config holds the Kibana configuration. See: https://www.elastic.co/guide/en/kibana/current/settings.html |
@@ -1977,7 +2002,7 @@ MapsSpec holds the specification of an Elastic Maps Server instance.
 | *`version`* __string__ | Version of Elastic Maps Server. |
 | *`image`* __string__ | Image is the Elastic Maps Server Docker image to deploy. |
 | *`count`* __integer__ | Count of Elastic Maps Server instances to deploy. |
-| *`elasticsearchRef`* __[ObjectSelector](#objectselector)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
+| *`elasticsearchRef`* __[ElasticsearchRef](#elasticsearchref)__ | ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster. |
 | *`config`* __[Config](#config)__ | Config holds the ElasticMapsServer configuration. See: https://www.elastic.co/guide/en/kibana/current/maps-connect-to-ems.html#elastic-maps-server-configuration |
 | *`configRef`* __[ConfigSource](#configsource)__ | ConfigRef contains a reference to an existing Kubernetes Secret holding the Elastic Maps Server configuration.<br>Configuration settings are merged and have precedence over settings specified in `config`. |
 | *`http`* __[HTTPConfig](#httpconfig)__ | HTTP holds the HTTP layer configuration for Elastic Maps Server. |

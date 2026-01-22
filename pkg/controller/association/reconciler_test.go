@@ -49,8 +49,9 @@ var (
 	// but tests are the same for any resource type.
 	kbAssociationInfo = AssociationInfo{
 		AssociatedObjTemplate:   func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate:   func() client.Object { return &esv1.Elasticsearch{} },
-		ReferencedResourceNamer: esv1.ESNamer,
+		ReferencedObjTemplate:   func(_ string) client.Object { return &esv1.Elasticsearch{} },
+		ReferencedResourceNamer: func(_ string) common_name.Namer { return esv1.ESNamer },
+		ReferencedKinds:         func() []string { return []string{commonv1.ElasticsearchKind} },
 		ExternalServiceURL: func(c k8s.Client, association commonv1.Association) (string, error) {
 			esRef := association.AssociationRef()
 			es := esv1.Elasticsearch{}
@@ -123,7 +124,7 @@ var (
 	sampleKibanaWithESRef = func() kbv1.Kibana {
 		sample := sampleKibanaNoEsRef()
 		kb := (&sample).DeepCopy()
-		kb.Spec = kbv1.KibanaSpec{Version: "7.7.0", ElasticsearchRef: commonv1.ObjectSelector{Name: sampleES.Name, Namespace: sampleES.Namespace}}
+		kb.Spec = kbv1.KibanaSpec{Version: "7.7.0", ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: sampleES.Name, Namespace: sampleES.Namespace}}}
 		return *kb
 	}
 	sampleAssociatedKibana = func(customSvc ...string) kbv1.Kibana {
@@ -530,7 +531,7 @@ func TestReconciler_Reconcile_noESAuth(t *testing.T) {
 
 	kbEntAssocInfo := AssociationInfo{
 		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate: func() client.Object { return &entv1.EnterpriseSearch{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &entv1.EnterpriseSearch{} },
 		ExternalServiceURL: func(c k8s.Client, assoc commonv1.Association) (string, error) {
 			entRef := assoc.AssociationRef()
 			if !entRef.IsDefined() {
@@ -556,7 +557,8 @@ func TestReconciler_Reconcile_noESAuth(t *testing.T) {
 			}
 			return ent.Status.Version, false, nil
 		},
-		ReferencedResourceNamer: entv1.Namer,
+		ReferencedResourceNamer: func(_ string) common_name.Namer { return entv1.Namer },
+		ReferencedKinds:         func() []string { return []string{entv1.Kind} },
 		AssociationName:         "kb-ent",
 		AssociatedShortName:     "kb",
 		AssociationType:         commonv1.EntAssociationType,
@@ -749,7 +751,7 @@ func TestReconciler_getElasticsearch(t *testing.T) {
 				"association.k8s.elastic.co/es-conf": "association-conf-data", // we don't care about the data here
 			},
 		},
-		Spec: kbv1.KibanaSpec{ElasticsearchRef: commonv1.ObjectSelector{Name: "es", Namespace: "ns"}},
+		Spec: kbv1.KibanaSpec{ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es", Namespace: "ns"}}},
 	}
 	tests := []struct {
 		name              string
@@ -781,7 +783,7 @@ func TestReconciler_getElasticsearch(t *testing.T) {
 					Namespace: "ns",
 					Name:      "kb",
 				},
-				Spec: kbv1.KibanaSpec{ElasticsearchRef: commonv1.ObjectSelector{Name: "es", Namespace: "ns"}},
+				Spec: kbv1.KibanaSpec{ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es", Namespace: "ns"}}},
 			},
 		},
 	}
@@ -792,7 +794,13 @@ func TestReconciler_getElasticsearch(t *testing.T) {
 			es, status, err := r.getElasticsearch(context.Background(), tt.associated, tt.esRef)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantStatus, status)
-			require.Equal(t, tt.wantES.ObjectMeta, es.ObjectMeta)
+			if tt.wantES.Name == "" && tt.wantES.Namespace == "" {
+				require.Nil(t, es)
+			} else {
+				require.NotNil(t, es)
+				require.Equal(t, tt.wantES.Name, es.GetName())
+				require.Equal(t, tt.wantES.Namespace, es.GetNamespace())
+			}
 
 			var updatedKibana kbv1.Kibana
 			err = c.Get(context.Background(), k8s.ExtractNamespacedName(&tt.wantUpdatedKibana), &updatedKibana)
@@ -808,7 +816,7 @@ func TestReconciler_Reconcile_MultiRef(t *testing.T) {
 	generateAnnotationName := func(namespace, name string) string {
 		agent := agentv1alpha1.Agent{
 			Spec: agentv1alpha1.AgentSpec{
-				ElasticsearchRefs: []agentv1alpha1.Output{{ObjectSelector: commonv1.ObjectSelector{Name: name, Namespace: namespace}}},
+				ElasticsearchRefs: []agentv1alpha1.Output{{ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: name, Namespace: namespace}}}},
 			},
 		}
 		associations := agent.GetAssociations()
@@ -818,7 +826,7 @@ func TestReconciler_Reconcile_MultiRef(t *testing.T) {
 	agentAssociationInfo := AssociationInfo{
 		AssociationType:       commonv1.ElasticsearchAssociationType,
 		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate: func() client.Object { return &esv1.Elasticsearch{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &esv1.Elasticsearch{} },
 		ReferencedResourceVersion: func(c k8s.Client, association commonv1.Association) (string, bool, error) {
 			esRef := association.AssociationRef()
 			var es esv1.Elasticsearch
@@ -838,7 +846,8 @@ func TestReconciler_Reconcile_MultiRef(t *testing.T) {
 			}
 			return services.ExternalServiceURL(es), nil
 		},
-		ReferencedResourceNamer: esv1.ESNamer,
+		ReferencedResourceNamer: func(_ string) common_name.Namer { return esv1.ESNamer },
+		ReferencedKinds:         func() []string { return []string{commonv1.ElasticsearchKind} },
 		AssociationName:         "agent-es",
 		AssociatedShortName:     "agent",
 		Labels: func(associated types.NamespacedName) map[string]string {
@@ -870,16 +879,16 @@ func TestReconciler_Reconcile_MultiRef(t *testing.T) {
 		},
 		Spec: agentv1alpha1.AgentSpec{
 			Version: "7.7.0",
-			ElasticsearchRefs: []agentv1alpha1.Output{
-				{
-					ObjectSelector: commonv1.ObjectSelector{Name: "es1", Namespace: "es1Namespace"},
-					OutputName:     "default",
-				},
-				{
-					ObjectSelector: commonv1.ObjectSelector{Name: "es2", Namespace: "es2Namespace"},
-					OutputName:     "monitoring",
-				},
+		ElasticsearchRefs: []agentv1alpha1.Output{
+			{
+				ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es1", Namespace: "es1Namespace"}},
+				OutputName:       "default",
 			},
+			{
+				ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es2", Namespace: "es2Namespace"}},
+				OutputName:       "monitoring",
+			},
+		},
 		},
 	}
 
@@ -1077,7 +1086,7 @@ func TestReconciler_Reconcile_Transitive_Associations(t *testing.T) {
 	agentAssociationInfo := AssociationInfo{
 		AssociationType:       commonv1.FleetServerAssociationType,
 		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate: func() client.Object { return &agentv1alpha1.Agent{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &agentv1alpha1.Agent{} },
 		ReferencedResourceVersion: func(c k8s.Client, association commonv1.Association) (string, bool, error) {
 			fleetRef := association.AssociationRef()
 			var fleetServer agentv1alpha1.Agent
@@ -1107,7 +1116,8 @@ func TestReconciler_Reconcile_Transitive_Associations(t *testing.T) {
 			}
 			return url, nil
 		},
-		ReferencedResourceNamer: agentNamer,
+		ReferencedResourceNamer: func(_ string) common_name.Namer { return agentNamer },
+		ReferencedKinds:         func() []string { return []string{agentv1alpha1.Kind} },
 		AssociationName:         "agent-fleetserver",
 		AssociatedShortName:     "agent",
 		Labels: func(associated types.NamespacedName) map[string]string {
@@ -1206,12 +1216,12 @@ func TestReconciler_Reconcile_Transitive_Associations(t *testing.T) {
 		Spec: agentv1alpha1.AgentSpec{
 			Version:            "7.7.0",
 			FleetServerEnabled: false,
-			ElasticsearchRefs: []agentv1alpha1.Output{
-				{
-					ObjectSelector: commonv1.ObjectSelector{Name: "es1", Namespace: "es-ns"},
-					OutputName:     "default",
-				},
+		ElasticsearchRefs: []agentv1alpha1.Output{
+			{
+				ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es1", Namespace: "es-ns"}},
+				OutputName:       "default",
 			},
+		},
 		},
 	}
 
@@ -1489,7 +1499,7 @@ func equalKeys(t *testing.T, a map[string][]byte, b map[string][]byte) {
 func TestReconciler_ReconcileSecretRef(t *testing.T) {
 	// Kibana references ES with a custom secret, but neither the secret nor association conf exist yet
 	kb := sampleKibanaNoEsRef()
-	kb.Spec = kbv1.KibanaSpec{ElasticsearchRef: commonv1.ObjectSelector{SecretName: "sample-es-ref-secret"}}
+	kb.Spec = kbv1.KibanaSpec{ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{SecretName: "sample-es-ref-secret"}}}
 
 	require.Empty(t, kb.Annotations[kb.EsAssociation().AssociationConfAnnotationName()])
 	r := testReconciler(&kb, &sampleES, &esHTTPPublicCertsSecret)

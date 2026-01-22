@@ -7,7 +7,7 @@ package hints
 import (
 	"encoding/json"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
 
@@ -63,11 +63,12 @@ func NewFromAnnotations(ann map[string]string) (OrchestrationsHints, error) {
 }
 
 // NewFrom creates new orchestration hints from the Elasticsearch resource.
-func NewFrom(es esv1.Elasticsearch) (OrchestrationsHints, error) {
-	if es.Annotations == nil {
+func NewFrom(es escommon.ElasticsearchCluster) (OrchestrationsHints, error) {
+	annotations := es.GetAnnotations()
+	if annotations == nil {
 		return OrchestrationsHints{}, nil
 	}
-	return NewFromAnnotations(es.Annotations)
+	return NewFromAnnotations(annotations)
 }
 
 // DesiredNodesHint is an orchestration hint indicating to the controller that the Elasticsearch desired nodes API has been

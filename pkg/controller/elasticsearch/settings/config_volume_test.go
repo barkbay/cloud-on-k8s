@@ -22,13 +22,17 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
+const (
+	notStateless = false
+)
+
 // getESConfigSecretForStatefulSet returns the secret holding the ES configuration for the given StatefulSet.
 // This is a test helper function.
 func getESConfigSecretForStatefulSet(client k8s.Client, namespace string, ssetName string) (corev1.Secret, error) {
 	var secret corev1.Secret
 	if err := client.Get(context.Background(), types.NamespacedName{
 		Namespace: namespace,
-		Name:      ConfigSecretName(ssetName),
+		Name:      ConfigSecretName(ssetName, notStateless),
 	}, &secret); err != nil {
 		return corev1.Secret{}, err
 	}
@@ -44,11 +48,11 @@ func getESConfigContentForStatefulSet(client k8s.Client, namespace string, ssetN
 		return CanonicalConfig{}, err
 	}
 	if len(secret.Data) == 0 {
-		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
+		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName, notStateless))
 	}
 	content := secret.Data[ConfigFileName]
 	if len(content) == 0 {
-		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
+		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName, notStateless))
 	}
 
 	cfg, err := common.ParseConfig(content)
@@ -59,7 +63,7 @@ func getESConfigContentForStatefulSet(client k8s.Client, namespace string, ssetN
 }
 
 func TestConfigSecretName(t *testing.T) {
-	require.Equal(t, "ssetname-es-config", ConfigSecretName("ssetname"))
+	require.Equal(t, "ssetname-es-config", ConfigSecretName("ssetname", notStateless))
 }
 
 func Test_getESConfigContentForStatefulSet(t *testing.T) {
@@ -67,7 +71,7 @@ func Test_getESConfigContentForStatefulSet(t *testing.T) {
 	ssetName := "sset"
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ConfigSecretName(ssetName),
+			Name:      ConfigSecretName(ssetName, notStateless),
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
@@ -76,7 +80,7 @@ func Test_getESConfigContentForStatefulSet(t *testing.T) {
 	}
 	secretInvalid := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ConfigSecretName(ssetName),
+			Name:      ConfigSecretName(ssetName, notStateless),
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
@@ -144,7 +148,7 @@ func TestReconcileConfig(t *testing.T) {
 	configSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: es.Namespace,
-			Name:      ConfigSecretName(ssetName),
+			Name:      ConfigSecretName(ssetName, notStateless),
 			Labels: map[string]string{
 				label.ClusterNameLabelName:     es.Name,
 				label.StatefulSetNameLabelName: ssetName,
@@ -189,7 +193,7 @@ func TestReconcileConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := ReconcileConfig(context.Background(), tt.client, tt.es, tt.ssetName, tt.config, metadata.Metadata{}); (err != nil) != tt.wantErr {
+			if err := ReconcileConfig(context.Background(), tt.client, &tt.es, tt.ssetName, tt.config, metadata.Metadata{}); (err != nil) != tt.wantErr {
 				t.Errorf("ReconcileConfig() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			// config in the apiserver should be the expected one

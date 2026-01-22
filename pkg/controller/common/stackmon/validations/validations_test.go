@@ -35,10 +35,10 @@ func TestValidate(t *testing.T) {
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -52,7 +52,7 @@ func TestValidate(t *testing.T) {
 					Version: "7.13.1",
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{{Name: "m1", Namespace: "b"}},
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}}},
 						},
 					},
 				},
@@ -65,12 +65,12 @@ func TestValidate(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{Name: "m1", Namespace: "b"},
-								{Name: "m2", Namespace: "c"},
-							},
+					Metrics: commonv1.MetricsMonitoring{
+						ElasticsearchRefs: []commonv1.ElasticsearchRef{
+							{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}},
+							{ObjectSelector: commonv1.ObjectSelector{Name: "m2", Namespace: "c"}},
 						},
+					},
 					},
 				},
 			},
@@ -82,12 +82,12 @@ func TestValidate(t *testing.T) {
 				Spec: esv1.ElasticsearchSpec{
 					Version: "7.14.0",
 					Monitoring: commonv1.Monitoring{
-						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{Name: "m1", Namespace: "b"},
-								{Name: "m2", Namespace: "c"},
-							},
+					Logs: commonv1.LogsMonitoring{
+						ElasticsearchRefs: []commonv1.ElasticsearchRef{
+							{ObjectSelector: commonv1.ObjectSelector{Name: "m1", Namespace: "b"}},
+							{ObjectSelector: commonv1.ObjectSelector{Name: "m2", Namespace: "c"}},
 						},
+					},
 					},
 				},
 			},

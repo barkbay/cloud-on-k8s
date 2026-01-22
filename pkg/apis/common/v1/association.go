@@ -169,6 +169,11 @@ type Association interface {
 	// to be set in the returned object.
 	AssociationRef() ObjectSelector
 
+	// AssociationRefKind returns the Kind of the referenced resource for associations that support multiple kinds
+	// (e.g., Elasticsearch vs ElasticsearchStateless). Returns empty string if the association doesn't
+	// distinguish between kinds or defaults to the standard kind.
+	AssociationRefKind() string
+
 	// AssociationConfAnnotationName is the name of the annotation used to define the config for the associated resource.
 	// It is used by the association controller to store the configuration and by the controller which is
 	// managing the associated resource to build the appropriate configuration.
@@ -183,6 +188,20 @@ type Association interface {
 
 	// AssociationID uniquely identifies this Association among all Associations of the same type belonging to Associated()
 	AssociationID() string
+}
+
+// AssociationRefIsStateless is a helper function to check if an association references a stateless Elasticsearch.
+func AssociationRefIsStateless(assoc Association) bool {
+	return assoc.AssociationRefKind() == ElasticsearchStatelessKind
+}
+
+// AssociationRefKindOrDefault returns the association's ref kind if set, otherwise the provided default.
+func AssociationRefKindOrDefault(assoc Association, defaultKind string) string {
+	kind := assoc.AssociationRefKind()
+	if kind != "" {
+		return kind
+	}
+	return defaultKind
 }
 
 // FormatNameWithID conditionally formats `template`. `template` is expected to have a single %s verb.
@@ -301,6 +320,115 @@ func (ac *AssociationConf) GetURL() string {
 
 func ElasticsearchConfigAnnotationName(o ObjectSelector) string {
 	// annotation key should be stable to allow the Elasticsearch Controller to only pick up the ones it expects,
-	// based on the ObjectSelector
+	// based on the ObjectSelector.
 	return FormatNameWithID(ElasticsearchConfigAnnotationNameBase+"%s", hash.HashObject(o))
+}
+
+// ElasticsearchStatelessKind is the Kind name for ElasticsearchStateless resources.
+const ElasticsearchStatelessKind = "ElasticsearchStateless"
+
+// ElasticsearchKind is the Kind name for Elasticsearch resources.
+const ElasticsearchKind = "Elasticsearch"
+
+// ValidElasticsearchKinds contains the valid Kind values for Elasticsearch references.
+var ValidElasticsearchKinds = []string{ElasticsearchKind, ElasticsearchStatelessKind}
+
+// ValidateElasticsearchKind validates that the Kind field, if set, contains a valid Elasticsearch kind.
+// An empty Kind is valid and defaults to "Elasticsearch".
+func ValidateElasticsearchKind(kind string) error {
+	if kind == "" {
+		// Empty kind is valid, defaults to Elasticsearch
+		return nil
+	}
+	for _, validKind := range ValidElasticsearchKinds {
+		if kind == validKind {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid kind %q, must be one of: %v", kind, ValidElasticsearchKinds)
+}
+
+// ElasticsearchRef is a reference to an Elasticsearch cluster that can be either
+// a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
+type ElasticsearchRef struct {
+	ObjectSelector `json:",inline"`
+
+	// Kind specifies the Kind of the Elasticsearch resource to reference.
+	// Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=Elasticsearch;ElasticsearchStateless
+	Kind string `json:"kind,omitempty"`
+}
+
+// IsStateless returns true if the Kind field indicates an ElasticsearchStateless resource.
+func (r ElasticsearchRef) IsStateless() bool {
+	return r.Kind == ElasticsearchStatelessKind
+}
+
+// GetKindOrDefault returns the Kind if set, otherwise returns the provided default.
+func (r ElasticsearchRef) GetKindOrDefault(defaultKind string) string {
+	if r.Kind != "" {
+		return r.Kind
+	}
+	return defaultKind
+}
+
+// WithDefaultNamespace returns a copy of the ElasticsearchRef with the namespace defaulted if not set.
+func (r ElasticsearchRef) WithDefaultNamespace(defaultNamespace string) ElasticsearchRef {
+	return ElasticsearchRef{
+		ObjectSelector: r.ObjectSelector.WithDefaultNamespace(defaultNamespace),
+		Kind:           r.Kind,
+	}
+}
+
+// Validate validates the ElasticsearchRef.
+func (r ElasticsearchRef) Validate() error {
+	return ValidateElasticsearchKind(r.Kind)
+}
+
+// ToObjectSelectors converts a slice of ElasticsearchRef to a slice of ObjectSelector.
+func ToObjectSelectors(refs []ElasticsearchRef) []ObjectSelector {
+	result := make([]ObjectSelector, len(refs))
+	for i, ref := range refs {
+		result[i] = ref.ObjectSelector
+	}
+	return result
+}
+
+// LocalElasticsearchRef is a reference to an Elasticsearch cluster within the same Kubernetes cluster
+// that can be either a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
+type LocalElasticsearchRef struct {
+	LocalObjectSelector `json:",inline"`
+
+	// Kind specifies the Kind of the Elasticsearch resource to reference.
+	// Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=Elasticsearch;ElasticsearchStateless
+	Kind string `json:"kind,omitempty"`
+}
+
+// IsStateless returns true if the Kind field indicates an ElasticsearchStateless resource.
+func (r LocalElasticsearchRef) IsStateless() bool {
+	return r.Kind == ElasticsearchStatelessKind
+}
+
+// GetKindOrDefault returns the Kind if set, otherwise returns the provided default.
+func (r LocalElasticsearchRef) GetKindOrDefault(defaultKind string) string {
+	if r.Kind != "" {
+		return r.Kind
+	}
+	return defaultKind
+}
+
+// WithDefaultNamespace returns a copy of the LocalElasticsearchRef with the namespace defaulted if not set.
+func (r LocalElasticsearchRef) WithDefaultNamespace(defaultNamespace string) LocalElasticsearchRef {
+	return LocalElasticsearchRef{
+		LocalObjectSelector: r.LocalObjectSelector.WithDefaultNamespace(defaultNamespace),
+		Kind:                r.Kind,
+	}
+}
+
+// Validate validates the LocalElasticsearchRef.
+func (r LocalElasticsearchRef) Validate() error {
+	return ValidateElasticsearchKind(r.Kind)
 }

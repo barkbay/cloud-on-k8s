@@ -99,7 +99,7 @@ func (b Builder) WithNodeCount(count int) Builder {
 }
 
 func (b Builder) WithElasticsearchRef(ref commonv1.ObjectSelector) Builder {
-	b.ApmServer.Spec.ElasticsearchRef = ref
+	b.ApmServer.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: ref}
 	return b
 }
 

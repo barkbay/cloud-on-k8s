@@ -40,9 +40,11 @@ func Test_deleteOrphanedResources(t *testing.T) {
 	kibanaFixture := kbv1.Kibana{
 		ObjectMeta: kibanaFixtureObjectMeta,
 		Spec: kbv1.KibanaSpec{
-			ElasticsearchRef: commonv1.ObjectSelector{
-				Name:      esFixture.Name,
-				Namespace: esFixture.Namespace,
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      esFixture.Name,
+					Namespace: esFixture.Namespace,
+				},
 			},
 		},
 	}
@@ -93,9 +95,11 @@ func Test_deleteOrphanedResources(t *testing.T) {
 			kibana: kbv1.Kibana{
 				ObjectMeta: kibanaFixtureObjectMeta,
 				Spec: kbv1.KibanaSpec{
-					ElasticsearchRef: commonv1.ObjectSelector{ // ElasticsearchRef without a namespace
-						Name: esFixture.Name,
-						// Namespace: esFixture.Namespace, No namespace on purpose
+					ElasticsearchRef: commonv1.ElasticsearchRef{ // ElasticsearchRef without a namespace
+						ObjectSelector: commonv1.ObjectSelector{
+							Name: esFixture.Name,
+							// Namespace: esFixture.Namespace, No namespace on purpose
+						},
 					},
 				},
 			},
@@ -132,9 +136,11 @@ func Test_deleteOrphanedResources(t *testing.T) {
 			kibana: kbv1.Kibana{
 				ObjectMeta: kibanaFixtureObjectMeta,
 				Spec: kbv1.KibanaSpec{
-					ElasticsearchRef: commonv1.ObjectSelector{
-						Name:      esFixture.Name,
-						Namespace: "ns2", // Kibana does not reference the default namespace anymore
+					ElasticsearchRef: commonv1.ElasticsearchRef{
+						ObjectSelector: commonv1.ObjectSelector{
+							Name:      esFixture.Name,
+							Namespace: "ns2", // Kibana does not reference the default namespace anymore
+						},
 					},
 				},
 			},

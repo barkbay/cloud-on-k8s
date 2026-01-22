@@ -468,7 +468,7 @@ func Test_applyEnvVars(t *testing.T) {
 	agent2 := agent
 	agent2.Spec.ElasticsearchRefs = []agentv1alpha1.Output{
 		{
-			ObjectSelector: commonv1.ObjectSelector{Name: "es", Namespace: "default"},
+			ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es", Namespace: "default"}},
 			OutputName:     "default",
 		},
 	}
@@ -724,7 +724,7 @@ func Test_getVolumesFromAssociations(t *testing.T) {
 						Mode:      agentv1alpha1.AgentFleetMode,
 						KibanaRef: commonv1.ObjectSelector{Name: "kibana"},
 						ElasticsearchRefs: []agentv1alpha1.Output{
-							{ObjectSelector: commonv1.ObjectSelector{Name: "elasticsearch"}, OutputName: "default"},
+							{ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "elasticsearch"}}, OutputName: "default"},
 						},
 						FleetServerRef: commonv1.ObjectSelector{Name: "fleet"},
 					},
@@ -800,7 +800,7 @@ func Test_getRelatedEsAssoc(t *testing.T) {
 						FleetServerEnabled: true,
 						ElasticsearchRefs: []agentv1alpha1.Output{
 							{
-								ObjectSelector: commonv1.ObjectSelector{Name: "es"},
+								ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es"}},
 							},
 						},
 					},
@@ -854,7 +854,7 @@ func Test_getRelatedEsAssoc(t *testing.T) {
 					Spec: agentv1alpha1.AgentSpec{
 						ElasticsearchRefs: []agentv1alpha1.Output{
 							{
-								ObjectSelector: commonv1.ObjectSelector{Name: "es"},
+								ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "es"}},
 							},
 						},
 					},
@@ -884,10 +884,10 @@ func Test_applyRelatedEsAssoc(t *testing.T) {
 		Spec: agentv1alpha1.AgentSpec{
 			ElasticsearchRefs: []agentv1alpha1.Output{
 				{
-					ObjectSelector: commonv1.ObjectSelector{
+					ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "elasticsearch",
 						Namespace: agentNs,
-					},
+					}},
 				},
 			},
 		},
@@ -900,10 +900,10 @@ func Test_applyRelatedEsAssoc(t *testing.T) {
 		Spec: agentv1alpha1.AgentSpec{
 			ElasticsearchRefs: []agentv1alpha1.Output{
 				{
-					ObjectSelector: commonv1.ObjectSelector{
+					ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "elasticsearch",
 						Namespace: "elasticsearch-ns",
-					},
+					}},
 				},
 			},
 		},
@@ -1072,10 +1072,10 @@ func Test_writeEsAssocToConfigHash(t *testing.T) {
 		Spec: agentv1alpha1.AgentSpec{
 			ElasticsearchRefs: []agentv1alpha1.Output{
 				{
-					ObjectSelector: commonv1.ObjectSelector{
+					ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "es",
 						Namespace: "ns",
-					},
+					}},
 				},
 			},
 		},
@@ -1454,10 +1454,10 @@ func Test_getFleetSetupFleetServerEnvVars(t *testing.T) {
 		Spec: agentv1alpha1.AgentSpec{
 			ElasticsearchRefs: []agentv1alpha1.Output{
 				{
-					ObjectSelector: commonv1.ObjectSelector{
+					ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "es",
 						Namespace: "es-ns",
-					},
+					}},
 				},
 			},
 			FleetServerEnabled: true,

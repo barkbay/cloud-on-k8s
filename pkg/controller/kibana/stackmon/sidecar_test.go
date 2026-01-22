@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	esRef    = commonv1.ObjectSelector{Name: "sample", Namespace: "aerospace"}
+	esRef    = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "sample", Namespace: "aerospace"}}
 	sampleKb = kbv1.Kibana{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "sample",
@@ -34,18 +34,18 @@ var (
 			ElasticsearchRef: esRef,
 		},
 	}
-	kbFixtureWithMetricsMonitoring = func(kb kbv1.Kibana, esRef []commonv1.ObjectSelector, conf commonv1.AssociationConf) kbv1.Kibana {
+	kbFixtureWithMetricsMonitoring = func(kb kbv1.Kibana, esRef []commonv1.ElasticsearchRef, conf commonv1.AssociationConf) kbv1.Kibana {
 		kb.Spec.Monitoring.Metrics.ElasticsearchRefs = esRef
 		monitoring.GetMetricsAssociation(&kb)[0].SetAssociationConf(&conf)
 		return kb
 	}
-	kbFixtureWithLogsMonitoring = func(kb kbv1.Kibana, esRef []commonv1.ObjectSelector, conf commonv1.AssociationConf) kbv1.Kibana {
+	kbFixtureWithLogsMonitoring = func(kb kbv1.Kibana, esRef []commonv1.ElasticsearchRef, conf commonv1.AssociationConf) kbv1.Kibana {
 		kb.Spec.Monitoring.Logs.ElasticsearchRefs = esRef
 		monitoring.GetLogsAssociation(&kb)[0].SetAssociationConf(&conf)
 		return kb
 	}
-	monitoringEsRef       = []commonv1.ObjectSelector{{Name: "monitoring", Namespace: "observability"}}
-	logsEsRef             = []commonv1.ObjectSelector{{Name: "logs", Namespace: "observability"}}
+	monitoringEsRef       = []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "monitoring", Namespace: "observability"}}}
+	logsEsRef             = []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{Name: "logs", Namespace: "observability"}}}
 	fakeElasticUserSecret = corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "sample-es-internal-users", Namespace: "aerospace"},
 		Data:       map[string][]byte{"elastic-internal-monitoring": []byte("1234567890")},

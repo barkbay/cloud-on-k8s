@@ -35,7 +35,7 @@ const (
 
 func Metricbeat(ctx context.Context, client k8s.Client, es esv1.Elasticsearch, meta metadata.Metadata) (stackmon.BeatSidecar, error) {
 	username := user.MonitoringUserName
-	password, err := user.GetMonitoringUserPassword(client, k8s.ExtractNamespacedName(&es))
+	password, err := user.GetMonitoringUserPassword(client, k8s.ExtractNamespacedName(&es), es.IsStateless())
 	if err != nil {
 		return stackmon.BeatSidecar{}, err
 	}

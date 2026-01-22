@@ -59,7 +59,7 @@ func Filebeat(ctx context.Context, client k8s.Client, resource monitoring.HasMon
 }
 
 func MetricBeat(ctx context.Context, client k8s.Client, beat *v1beta1.Beat, meta metadata.Metadata) (stackmon.BeatSidecar, error) {
-	if err := beat.ElasticsearchRef().IsValid(); err != nil {
+	if err := beat.GetElasticsearchRef().IsValid(); err != nil {
 		return stackmon.BeatSidecar{}, err
 	}
 

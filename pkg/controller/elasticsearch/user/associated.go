@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -42,9 +43,9 @@ type AssociatedUser struct {
 }
 
 // AssociatedUserLabels returns labels matching associated users for the given es resource.
-func AssociatedUserLabels(es esv1.Elasticsearch) map[string]string {
+func AssociatedUserLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return map[string]string{
-		label.ClusterNameLabelName: es.Name,
+		label.ClusterNameLabelName: es.GetName(),
 		commonv1.TypeLabelName:     AssociatedUserType,
 	}
 }
@@ -57,7 +58,7 @@ func retrieveAssociatedUsers(c k8s.Client, es esv1.Elasticsearch) (users, error)
 	if err := c.List(context.Background(),
 		&associatedUserSecrets,
 		client.InNamespace(es.Namespace),
-		client.MatchingLabels(AssociatedUserLabels(es)),
+		client.MatchingLabels(AssociatedUserLabels(&es)),
 	); err != nil {
 		return nil, err
 	}

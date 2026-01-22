@@ -13,8 +13,10 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	ver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -42,14 +44,21 @@ const (
 
 func AddKibanaES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate:     func() client.Object { return &esv1.Elasticsearch{} },
+		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
+		ReferencedObjTemplate: func(kind string) client.Object {
+			return elasticsearchObjTemplate(kind)
+		},
 		ReferencedResourceVersion: referencedElasticsearchStatusVersion,
 		ExternalServiceURL:        getElasticsearchExternalURL,
 		AssociationType:           commonv1.ElasticsearchAssociationType,
-		ReferencedResourceNamer:   esv1.ESNamer,
-		AssociationName:           "kb-es",
-		AssociatedShortName:       "kb",
+		ReferencedResourceNamer: func(kind string) name.Namer {
+			return elasticsearchNamer(kind)
+		},
+		ReferencedKinds: func() []string {
+			return []string{commonv1.ElasticsearchKind, commonv1.ElasticsearchStatelessKind}
+		},
+		AssociationName:     "kb-es",
+		AssociatedShortName: "kb",
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				KibanaAssociationLabelName:      associated.Name,
@@ -71,6 +80,22 @@ func AddKibanaES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params
 			},
 		},
 	})
+}
+
+// elasticsearchObjTemplate returns the appropriate Elasticsearch object template based on the kind.
+func elasticsearchObjTemplate(kind string) client.Object {
+	if kind == commonv1.ElasticsearchStatelessKind {
+		return &essv1alpha1.ElasticsearchStateless{}
+	}
+	return &esv1.Elasticsearch{}
+}
+
+// elasticsearchNamer returns the appropriate namer based on the Elasticsearch kind.
+func elasticsearchNamer(kind string) name.Namer {
+	if kind == commonv1.ElasticsearchStatelessKind {
+		return essv1alpha1.ESSNamer
+	}
+	return esv1.ESNamer
 }
 
 type elasticsearchVersionResponse struct {
@@ -106,6 +131,16 @@ func referencedElasticsearchStatusVersion(c k8s.Client, esAssociation commonv1.A
 			return "", false, err
 		}
 		return ver, isServerless, nil
+	}
+
+	// Handle both stateful and stateless Elasticsearch kinds
+	if commonv1.AssociationRefIsStateless(esAssociation) {
+		var ess essv1alpha1.ElasticsearchStateless
+		err := c.Get(context.Background(), esRef.NamespacedName(), &ess)
+		if err != nil {
+			return "", false, err
+		}
+		return ess.Status.Version, false, nil
 	}
 
 	var es esv1.Elasticsearch

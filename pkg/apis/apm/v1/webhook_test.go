@@ -188,7 +188,7 @@ func TestWebhook(t *testing.T) {
 			Object: func(t *testing.T, uid string) []byte {
 				t.Helper()
 				apm := mkApmServer(uid)
-				apm.Spec.ElasticsearchRef = commonv1.ObjectSelector{Name: "esname", Namespace: "esns", ServiceName: "essvc"}
+				apm.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "esname", Namespace: "esns", ServiceName: "essvc"}}
 				apm.Spec.KibanaRef = commonv1.ObjectSelector{Name: "kbname", Namespace: "kbns", ServiceName: "essvc"}
 				return serialize(t, apm)
 			},
@@ -200,7 +200,7 @@ func TestWebhook(t *testing.T) {
 			Object: func(t *testing.T, uid string) []byte {
 				t.Helper()
 				apm := mkApmServer(uid)
-				apm.Spec.ElasticsearchRef = commonv1.ObjectSelector{Name: "esname", Namespace: "esns", ServiceName: "essvc"}
+				apm.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "esname", Namespace: "esns", ServiceName: "essvc"}}
 				apm.Spec.KibanaRef = commonv1.ObjectSelector{SecretName: "kbname"}
 				return serialize(t, apm)
 			},
@@ -225,7 +225,7 @@ func TestWebhook(t *testing.T) {
 			Object: func(t *testing.T, uid string) []byte {
 				t.Helper()
 				apm := mkApmServer(uid)
-				apm.Spec.ElasticsearchRef = commonv1.ObjectSelector{SecretName: "esname", Namespace: "esns"}
+				apm.Spec.ElasticsearchRef = commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{SecretName: "esname", Namespace: "esns"}}
 				return serialize(t, apm)
 			},
 			Check: test.ValidationWebhookFailed(

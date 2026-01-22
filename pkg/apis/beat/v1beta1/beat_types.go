@@ -39,7 +39,7 @@ type BeatSpec struct {
 
 	// ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster.
 	// +kubebuilder:validation:Optional
-	ElasticsearchRef commonv1.ObjectSelector `json:"elasticsearchRef,omitempty"`
+	ElasticsearchRef commonv1.ElasticsearchRef `json:"elasticsearchRef,omitempty"`
 
 	// KibanaRef is a reference to a Kibana instance running in the same Kubernetes cluster.
 	// It allows automatic setup of dashboards and visualizations.
@@ -241,7 +241,7 @@ func (b *Beat) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &BeatMonitoringAssociation{
 				Beat: b,
-				ref:  ref.WithDefaultNamespace(b.Namespace),
+				ref:  ref.ObjectSelector.WithDefaultNamespace(b.Namespace),
 			})
 		}
 	}
@@ -249,7 +249,7 @@ func (b *Beat) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &BeatMonitoringAssociation{
 				Beat: b,
-				ref:  ref.WithDefaultNamespace(b.Namespace),
+				ref:  ref.ObjectSelector.WithDefaultNamespace(b.Namespace),
 			})
 		}
 	}
@@ -272,8 +272,8 @@ func (b *Beat) IsMarkedForDeletion() bool {
 	return !b.DeletionTimestamp.IsZero()
 }
 
-func (b *Beat) ElasticsearchRef() commonv1.ObjectSelector {
-	return b.Spec.ElasticsearchRef
+func (b *Beat) GetElasticsearchRef() commonv1.ObjectSelector {
+	return b.Spec.ElasticsearchRef.ObjectSelector
 }
 
 // GetObservedGeneration will return the observedGeneration from the Elastic Beat's status.
@@ -302,7 +302,11 @@ func (b *BeatESAssociation) AssociationType() commonv1.AssociationType {
 }
 
 func (b *BeatESAssociation) AssociationRef() commonv1.ObjectSelector {
-	return b.Spec.ElasticsearchRef.WithDefaultNamespace(b.Namespace)
+	return b.Spec.ElasticsearchRef.WithDefaultNamespace(b.Namespace).ObjectSelector
+}
+
+func (b *BeatESAssociation) AssociationRefKind() string {
+	return b.Spec.ElasticsearchRef.Kind
 }
 
 func (b *BeatESAssociation) AssociationConfAnnotationName() string {
@@ -355,6 +359,10 @@ func (b *BeatKibanaAssociation) AssociationType() commonv1.AssociationType {
 
 func (b *BeatKibanaAssociation) AssociationRef() commonv1.ObjectSelector {
 	return b.Spec.KibanaRef.WithDefaultNamespace(b.Namespace)
+}
+
+func (b *BeatKibanaAssociation) AssociationRefKind() string {
+	return "" // Kibana association doesn't use Kind
 }
 
 func (b *BeatKibanaAssociation) AssociationConfAnnotationName() string {
@@ -426,6 +434,10 @@ func (beatmon *BeatMonitoringAssociation) AssociationRef() commonv1.ObjectSelect
 	return beatmon.ref
 }
 
+func (beatmon *BeatMonitoringAssociation) AssociationRefKind() string {
+	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+}
+
 func (beatmon *BeatMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
 	return commonv1.GetAndSetAssociationConfByRef(beatmon, beatmon.ref, beatmon.monitoringAssocConfs)
 }
@@ -449,11 +461,11 @@ func (beatmon *BeatMonitoringAssociation) AssociationID() string {
 
 // -- HasMonitoring methods
 
-func (b *Beat) GetMonitoringMetricsRefs() []commonv1.ObjectSelector {
+func (b *Beat) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef {
 	return b.Spec.Monitoring.Metrics.ElasticsearchRefs
 }
 
-func (b *Beat) GetMonitoringLogsRefs() []commonv1.ObjectSelector {
+func (b *Beat) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return b.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 

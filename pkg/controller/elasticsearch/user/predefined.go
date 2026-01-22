@@ -236,8 +236,12 @@ func reuseOrGenerateHashes(users users, fileRealm filerealm.Realm, passwordHashe
 	return users, nil
 }
 
-func GetMonitoringUserPassword(c k8s.Client, nsn types.NamespacedName) (string, error) {
-	secretObjKey := types.NamespacedName{Namespace: nsn.Namespace, Name: escommon.StatefulNamer.Suffix(nsn.Name, escommon.InternalUsersSecretSuffix)}
+func GetMonitoringUserPassword(c k8s.Client, nsn types.NamespacedName, isStateless bool) (string, error) {
+	namer := escommon.StatefulNamer
+	if isStateless {
+		namer = escommon.StatelessNamer
+	}
+	secretObjKey := types.NamespacedName{Namespace: nsn.Namespace, Name: namer.Suffix(nsn.Name, escommon.InternalUsersSecretSuffix)}
 	var secret corev1.Secret
 	if err := c.Get(context.Background(), secretObjKey, &secret); err != nil {
 		return "", err

@@ -125,7 +125,7 @@ func Test_checkAssociations(t *testing.T) {
 			args: args{
 				b: &Beat{
 					Spec: BeatSpec{
-						ElasticsearchRef: commonv1.ObjectSelector{Name: "bla", Namespace: "blub"},
+						ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "bla", Namespace: "blub"}},
 						KibanaRef:        commonv1.ObjectSelector{SecretName: "bli"},
 					},
 				},
@@ -137,7 +137,7 @@ func Test_checkAssociations(t *testing.T) {
 			args: args{
 				b: &Beat{
 					Spec: BeatSpec{
-						ElasticsearchRef: commonv1.ObjectSelector{SecretName: "bla", Name: "bla"},
+						ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{SecretName: "bla", Name: "bla"}},
 					},
 				},
 			},
@@ -161,7 +161,7 @@ func Test_checkAssociations(t *testing.T) {
 					Spec: BeatSpec{
 						Monitoring: commonv1.Monitoring{
 							Metrics: commonv1.MetricsMonitoring{
-								ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "bli", Namespace: "blub"}},
+								ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "bli", Namespace: "blub"}}},
 							},
 						},
 					},
@@ -176,7 +176,7 @@ func Test_checkAssociations(t *testing.T) {
 					Spec: BeatSpec{
 						Monitoring: commonv1.Monitoring{
 							Logs: commonv1.LogsMonitoring{
-								ElasticsearchRefs: []commonv1.ObjectSelector{{SecretName: "bli", Namespace: "blub"}},
+								ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{SecretName: "bli", Namespace: "blub"}}},
 							},
 						},
 					},
@@ -273,11 +273,11 @@ func Test_checkMonitoring(t *testing.T) {
 					DaemonSet: &DaemonSetSpec{},
 					Monitoring: commonv1.Monitoring{
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{
+								{ObjectSelector: commonv1.ObjectSelector{
 									Name:      "es",
 									Namespace: "test",
-								},
+								}},
 							},
 						},
 					},
@@ -298,11 +298,11 @@ func Test_checkMonitoring(t *testing.T) {
 					DaemonSet: &DaemonSetSpec{},
 					Monitoring: commonv1.Monitoring{
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{
+								{ObjectSelector: commonv1.ObjectSelector{
 									Name:      "es",
 									Namespace: "test",
-								},
+								}},
 							},
 						},
 					},
@@ -323,19 +323,19 @@ func Test_checkMonitoring(t *testing.T) {
 					DaemonSet: &DaemonSetSpec{},
 					Monitoring: commonv1.Monitoring{
 						Logs: commonv1.LogsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{
+								{ObjectSelector: commonv1.ObjectSelector{
 									Name:      "es",
 									Namespace: "test",
-								},
+								}},
 							},
 						},
 						Metrics: commonv1.MetricsMonitoring{
-							ElasticsearchRefs: []commonv1.ObjectSelector{
-								{
+							ElasticsearchRefs: []commonv1.ElasticsearchRef{
+								{ObjectSelector: commonv1.ObjectSelector{
 									Name:      "es",
 									Namespace: "test",
-								},
+								}},
 							},
 						},
 					},

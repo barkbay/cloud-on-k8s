@@ -15,6 +15,7 @@ import (
 	entv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/enterprisesearch/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	ver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	entctl "github.com/elastic/cloud-on-k8s/v3/pkg/controller/enterprisesearch"
@@ -24,14 +25,15 @@ import (
 
 func AddKibanaEnt(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate:     func() client.Object { return &entv1.EnterpriseSearch{} },
-		ExternalServiceURL:        getEntExternalURL,
+		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
+		ReferencedObjTemplate: func(_ string) client.Object { return &entv1.EnterpriseSearch{} },
+		ExternalServiceURL:    getEntExternalURL,
 		ReferencedResourceVersion: referencedEntStatusVersion,
-		ReferencedResourceNamer:   entv1.Namer,
-		AssociationName:           "kb-ent",
-		AssociatedShortName:       "kb",
-		AssociationType:           commonv1.EntAssociationType,
+		ReferencedResourceNamer: func(_ string) name.Namer { return entv1.Namer },
+		ReferencedKinds:         func() []string { return []string{entv1.Kind} },
+		AssociationName:         "kb-ent",
+		AssociatedShortName:     "kb",
+		AssociationType:         commonv1.EntAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				KibanaAssociationLabelName:      associated.Name,

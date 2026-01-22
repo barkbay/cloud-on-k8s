@@ -34,14 +34,14 @@ func TestCAVolumeName(t *testing.T) {
 			Version: "7.14.0",
 			Monitoring: commonv1.Monitoring{
 				Metrics: commonv1.MetricsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{{
+					ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "extremely-long-and-unwieldy-name-that-exceeds-the-limit",
-						Namespace: "extremely-long-and-unwieldy-namespace-that-exceeds-the-limit"}},
+						Namespace: "extremely-long-and-unwieldy-namespace-that-exceeds-the-limit"}}},
 				},
 				Logs: commonv1.LogsMonitoring{
-					ElasticsearchRefs: []commonv1.ObjectSelector{{
+					ElasticsearchRefs: []commonv1.ElasticsearchRef{{ObjectSelector: commonv1.ObjectSelector{
 						Name:      "extremely-long-and-unwieldy-name-that-exceeds-the-limit",
-						Namespace: "extremely-long-and-unwieldy-namespace-that-exceeds-the-limit"}},
+						Namespace: "extremely-long-and-unwieldy-namespace-that-exceeds-the-limit"}}},
 				},
 			},
 		},

@@ -57,7 +57,7 @@ func Metricbeat(ctx context.Context, client k8s.Client, kb kbv1.Kibana, basePath
 	} else {
 		var err error
 		username = user.MonitoringUserName
-		password, err = user.GetMonitoringUserPassword(client, associatedEsNsn)
+		password, err = user.GetMonitoringUserPassword(client, associatedEsNsn, kb.Spec.ElasticsearchRef.IsStateless())
 		if err != nil {
 			return stackmon.BeatSidecar{}, err
 		}
