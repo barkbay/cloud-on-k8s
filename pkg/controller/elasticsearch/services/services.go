@@ -14,6 +14,7 @@ import (
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/defaults"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/network"
@@ -71,16 +72,26 @@ func ExternalTransportServiceHost(es escommon.ElasticsearchCluster) string {
 	return stringsutil.Concat(namer.Suffix(es.GetName(), escommon.TransportServiceSuffix), ".", es.GetNamespace(), globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
 }
 
-// ExternalTransportServiceHostFromRef returns the hostname and the port used to reach Elasticsearch's transport endpoint
-// from a LocalObjectSelector reference. Defaults to stateful Elasticsearch namer.
-func ExternalTransportServiceHostFromRef(ref commonv1.LocalObjectSelector) string {
-	return stringsutil.Concat(escommon.StatefulNamer.Suffix(ref.Name, escommon.TransportServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
+// ExternalTransportServiceHostWithKind returns the hostname and the port used to reach Elasticsearch's transport endpoint,
+// supporting both stateful Elasticsearch and stateless ElasticsearchStateless kinds based on the ref's Kind field.
+func ExternalTransportServiceHostWithKind(ref commonv1.LocalElasticsearchRef) string {
+	namer := namerForKind(ref.Kind)
+	return stringsutil.Concat(namer.Suffix(ref.Name, escommon.TransportServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.TransportPort))
 }
 
-// RemoteClusterServerServiceHostFromRef returns the hostname and the port used to reach Elasticsearch's remote cluster server endpoint
-// from a LocalObjectSelector reference. Defaults to stateful Elasticsearch namer.
-func RemoteClusterServerServiceHostFromRef(ref commonv1.LocalObjectSelector) string {
-	return stringsutil.Concat(escommon.StatefulNamer.Suffix(ref.Name, escommon.RemoteClusterServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.RemoteClusterPort))
+// RemoteClusterServerServiceHostWithKind returns the hostname and the port used to reach Elasticsearch's remote cluster server endpoint,
+// supporting both stateful Elasticsearch and stateless ElasticsearchStateless kinds based on the ref's Kind field.
+func RemoteClusterServerServiceHostWithKind(ref commonv1.LocalElasticsearchRef) string {
+	namer := namerForKind(ref.Kind)
+	return stringsutil.Concat(namer.Suffix(ref.Name, escommon.RemoteClusterServiceSuffix), ".", ref.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.RemoteClusterPort))
+}
+
+// namerForKind returns the appropriate namer based on the Elasticsearch kind.
+func namerForKind(kind string) name.Namer {
+	if kind == commonv1.ElasticsearchStatelessKind {
+		return escommon.StatelessNamer
+	}
+	return escommon.StatefulNamer
 }
 
 // ExternalServiceURL returns the URL used to reach Elasticsearch's external endpoint.

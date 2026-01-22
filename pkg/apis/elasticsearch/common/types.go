@@ -192,7 +192,8 @@ type RemoteCluster struct {
 	Name string `json:"name"`
 
 	// ElasticsearchRef is a reference to an Elasticsearch cluster running within the same k8s cluster.
-	ElasticsearchRef commonv1.LocalObjectSelector `json:"elasticsearchRef,omitempty"`
+	// Supports both stateful Elasticsearch and stateless ElasticsearchStateless resources via the Kind field.
+	ElasticsearchRef commonv1.LocalElasticsearchRef `json:"elasticsearchRef,omitempty"`
 
 	// APIKey can be used to enable remote cluster access using Cross-Cluster API keys: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html
 	// +kubebuilder:validation:Optional

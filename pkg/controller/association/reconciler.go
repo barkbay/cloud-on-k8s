@@ -367,7 +367,8 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 	// Detect if we should use a service account.
 	var esHints hints.OrchestrationsHints
-	if len(serviceAccount) > 0 {
+	if len(serviceAccount) > 0 &&
+		!es.IsStateless() /* Skip this check as we assume service accounts are available in stateless */ {
 		// We must first ensure that the relevant orchestration hint is set on the Elasticsearch cluster.
 		esHints, err = hints.NewFrom(es)
 		if err != nil {
@@ -380,7 +381,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 
 	// If it is the case, create the related Secrets and update the association configuration on the associated resource.
-	if len(serviceAccount) > 0 && esHints.ServiceAccounts.IsTrue() {
+	if len(serviceAccount) > 0 && (esHints.ServiceAccounts.IsTrue() || es.IsStateless()) {
 		applicationSecretName := secretKey(association, r.ElasticsearchUserCreation.UserSecretSuffix)
 		log.V(1).Info("Ensure service account exists", "sa", serviceAccount)
 		err := ReconcileServiceAccounts(

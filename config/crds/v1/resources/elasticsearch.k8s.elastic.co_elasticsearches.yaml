@@ -10267,9 +10267,18 @@ spec:
                       - access
                       type: object
                     elasticsearchRef:
-                      description: ElasticsearchRef is a reference to an Elasticsearch
-                        cluster running within the same k8s cluster.
+                      description: |-
+                        ElasticsearchRef is a reference to an Elasticsearch cluster running within the same k8s cluster.
+                        Supports both stateful Elasticsearch and stateless ElasticsearchStateless resources via the Kind field.
                       properties:
+                        kind:
+                          description: |-
+                            Kind specifies the Kind of the Elasticsearch resource to reference.
+                            Valid values are "Elasticsearch" (default) or "ElasticsearchStateless".
+                          enum:
+                          - Elasticsearch
+                          - ElasticsearchStateless
+                          type: string
                         name:
                           description: Name of an existing Kubernetes object corresponding
                             to an Elastic resource managed by ECK.
