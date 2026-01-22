@@ -17,12 +17,23 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	fixtures "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client/test_fixtures"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
+
+// testCluster creates a test Elasticsearch cluster for use in tests.
+func testCluster(name, namespace string) *esv1.Elasticsearch {
+	return &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
 
 func Test_updateLicense(t *testing.T) {
 	enterpriseLicense := esclient.License{
@@ -109,7 +120,7 @@ func Test_updateLicense(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := esclient.NewMockClient(version.MustParse("7.17.0"), tt.reqFn)
-			if err := updateLicense(context.Background(), types.NamespacedName{}, c, tt.args.current, tt.args.desired); (err != nil) != tt.wantErr {
+			if err := updateLicense(context.Background(), testCluster("test", "default"), c, tt.args.current, tt.args.desired); (err != nil) != tt.wantErr {
 				t.Errorf("updateLicense() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -117,10 +128,7 @@ func Test_updateLicense(t *testing.T) {
 }
 
 func Test_applyLinkedLicense(t *testing.T) {
-	clusterName := types.NamespacedName{
-		Name:      "test",
-		Namespace: "default",
-	}
+	cluster := testCluster("test", "default")
 	tests := []struct {
 		name             string
 		initialObjs      []client.Object
@@ -135,7 +143,7 @@ func Test_applyLinkedLicense(t *testing.T) {
 			initialObjs: []client.Object{
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      esv1.LicenseSecretName("test"),
+						Name:      escommon.LicenseSecretName(testCluster("test", "default")),
 						Namespace: "default",
 					},
 					Data: map[string][]byte{
@@ -177,7 +185,7 @@ func Test_applyLinkedLicense(t *testing.T) {
 			initialObjs: []client.Object{
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      esv1.LicenseSecretName("test"),
+						Name:      escommon.LicenseSecretName(testCluster("test", "default")),
 						Namespace: "default",
 					},
 				},
@@ -189,7 +197,7 @@ func Test_applyLinkedLicense(t *testing.T) {
 			initialObjs: []client.Object{
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      esv1.LicenseSecretName("test"),
+						Name:      escommon.LicenseSecretName(testCluster("test", "default")),
 						Namespace: "default",
 					},
 					Data: map[string][]byte{
@@ -203,8 +211,8 @@ func Test_applyLinkedLicense(t *testing.T) {
 			wantErr: true,
 			errors: map[client.ObjectKey]error{
 				types.NamespacedName{
-					Namespace: clusterName.Namespace,
-					Name:      esv1.LicenseSecretName("test"),
+					Namespace: "default",
+					Name:      escommon.LicenseSecretName(testCluster("test", "default")),
 				}: errors.New("boom"),
 			},
 		},
@@ -219,7 +227,7 @@ func Test_applyLinkedLicense(t *testing.T) {
 			if err := applyLinkedLicense(
 				context.Background(),
 				c,
-				clusterName,
+				cluster,
 				&updater,
 				tt.currentLicense,
 			); (err != nil) != tt.wantErr {

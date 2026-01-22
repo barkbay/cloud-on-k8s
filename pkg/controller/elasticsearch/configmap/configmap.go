@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -41,7 +42,7 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 		return err
 	}
 
-	nsn := types.NamespacedName{Name: esv1.ScriptsConfigMap(es.Name), Namespace: es.Namespace}
+	nsn := types.NamespacedName{Name: escommon.ScriptsConfigMap(&es), Namespace: es.Namespace}
 	scriptsConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        nsn.Name,

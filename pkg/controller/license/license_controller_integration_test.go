@@ -27,6 +27,7 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
@@ -118,7 +119,7 @@ func TestReconcile(t *testing.T) {
 	// test license assignment and ownership being triggered on cluster create
 	test.RetryUntilSuccess(t, func() error {
 		var clusterLicense corev1.Secret
-		if err := c.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: esv1.LicenseSecretName("foo")}, &clusterLicense); err != nil {
+		if err := c.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: escommon.LicenseSecretName(cluster)}, &clusterLicense); err != nil {
 			return err
 		}
 		return validateOwnerRef(&clusterLicense, cluster.ObjectMeta)

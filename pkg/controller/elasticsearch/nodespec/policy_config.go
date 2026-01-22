@@ -12,6 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
@@ -35,7 +36,7 @@ func getPolicyConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsear
 	// Check for stack config policy Elasticsearch config secret
 	stackConfigPolicyConfigSecret := corev1.Secret{}
 	err := client.Get(ctx, types.NamespacedName{
-		Name:      esv1.StackConfigElasticsearchConfigSecretName(es.Name),
+		Name:      escommon.StackConfigElasticsearchConfigSecretName(&es),
 		Namespace: es.Namespace,
 	}, &stackConfigPolicyConfigSecret)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -69,7 +70,7 @@ func getPolicyConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsear
 		}
 	}
 	for _, secretMount := range additionalSecretMounts {
-		secretName := esv1.StackConfigAdditionalSecretName(es.Name, secretMount.SecretName)
+		secretName := escommon.StackConfigAdditionalSecretName(&es, secretMount.SecretName)
 		secretVolumeFromStackConfigPolicy := volume.NewSecretVolumeWithMountPath(secretName, secretName, secretMount.MountPath)
 		policyConfig.AdditionalVolumes = append(policyConfig.AdditionalVolumes, secretVolumeFromStackConfigPolicy)
 	}

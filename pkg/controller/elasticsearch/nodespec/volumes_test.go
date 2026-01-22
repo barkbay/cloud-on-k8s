@@ -12,11 +12,22 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/volume"
 	esvolume "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 )
+
+// testCluster creates a test Elasticsearch cluster for use in tests.
+func testCluster(name string) escommon.ElasticsearchCluster {
+	return &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "test-ns",
+		},
+	}
+}
 
 // Test_BuildVolumes_DataVolumeMountPath tests that the elasticsearch-data volumeMount is always set.
 func Test_BuildVolumes_DataVolumeMountPath(t *testing.T) {
@@ -90,7 +101,7 @@ func Test_BuildVolumes_DataVolumeMountPath(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			_, volumeMounts := buildVolumes("esname", version.MustParse("8.8.0"), tc.nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{})
+			_, volumeMounts := buildVolumes(testCluster("esname"), version.MustParse("8.8.0"), tc.nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{})
 			assert.True(t, contains(volumeMounts, "elasticsearch-data", "/usr/share/elasticsearch/data"))
 		})
 	}

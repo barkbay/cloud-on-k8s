@@ -7,6 +7,7 @@ package stackconfigpolicy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/filesettings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -22,7 +24,11 @@ import (
 func GetSecureSettingsSecretSourcesForResources(ctx context.Context, kubeClient k8s.Client, resource metav1.Object, resourceKind string) ([]commonv1.NamespacedSecretSource, error) {
 	switch resourceKind {
 	case "Elasticsearch":
-		return filesettings.GetSecureSettingsSecretSources(ctx, kubeClient, resource)
+		es, ok := resource.(escommon.ElasticsearchCluster)
+		if !ok {
+			return nil, fmt.Errorf("resource is not an ElasticsearchCluster")
+		}
+		return filesettings.GetSecureSettingsSecretSources(ctx, kubeClient, es)
 	case "Kibana":
 		return getKibanaSecureSettingsSecretSources(ctx, kubeClient, resource)
 	default:

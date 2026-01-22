@@ -9,9 +9,11 @@ import (
 	"reflect"
 	"testing"
 
+	pkgerrors "github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
@@ -20,11 +22,47 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
+// getESConfigSecretForStatefulSet returns the secret holding the ES configuration for the given StatefulSet.
+// This is a test helper function.
+func getESConfigSecretForStatefulSet(client k8s.Client, namespace string, ssetName string) (corev1.Secret, error) {
+	var secret corev1.Secret
+	if err := client.Get(context.Background(), types.NamespacedName{
+		Namespace: namespace,
+		Name:      ConfigSecretName(ssetName),
+	}, &secret); err != nil {
+		return corev1.Secret{}, err
+	}
+	return secret, nil
+}
+
+// getESConfigContentForStatefulSet retrieves the configuration secret of the given StatefulSet,
+// and returns the corresponding CanonicalConfig.
+// This is a test helper function.
+func getESConfigContentForStatefulSet(client k8s.Client, namespace string, ssetName string) (CanonicalConfig, error) {
+	secret, err := getESConfigSecretForStatefulSet(client, namespace, ssetName)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
+	if len(secret.Data) == 0 {
+		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
+	}
+	content := secret.Data[ConfigFileName]
+	if len(content) == 0 {
+		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
+	}
+
+	cfg, err := common.ParseConfig(content)
+	if err != nil {
+		return CanonicalConfig{}, err
+	}
+	return CanonicalConfig{cfg}, nil
+}
+
 func TestConfigSecretName(t *testing.T) {
 	require.Equal(t, "ssetname-es-config", ConfigSecretName("ssetname"))
 }
 
-func TestGetESConfigContent(t *testing.T) {
+func Test_getESConfigContentForStatefulSet(t *testing.T) {
 	namespace := "namespace"
 	ssetName := "sset"
 	secret := corev1.Secret{
@@ -80,13 +118,13 @@ func TestGetESConfigContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetESConfigContent(tt.client, tt.namespace, tt.ssetName)
+			got, err := getESConfigContentForStatefulSet(tt.client, tt.namespace, tt.ssetName)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetESConfigContent() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("getESConfigContentForStatefulSet() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetESConfigContent() = %v, want %v", got, tt.want)
+				t.Errorf("getESConfigContentForStatefulSet() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -155,7 +193,7 @@ func TestReconcileConfig(t *testing.T) {
 				t.Errorf("ReconcileConfig() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			// config in the apiserver should be the expected one
-			parsed, err := GetESConfigContent(tt.client, tt.es.Namespace, tt.ssetName)
+			parsed, err := getESConfigContentForStatefulSet(tt.client, tt.es.Namespace, tt.ssetName)
 			require.NoError(t, err)
 			require.Equal(t, tt.config, parsed)
 		})

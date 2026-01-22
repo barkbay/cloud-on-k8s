@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
@@ -160,7 +161,7 @@ func TestUpdateSeedHostsConfigMap(t *testing.T) {
 			if err := tt.args.c.Get(context.Background(),
 				types.NamespacedName{
 					Namespace: "ns1",
-					Name:      esv1.UnicastHostsConfigMap(es.Name),
+					Name:      escommon.UnicastHostsConfigMap(&es),
 				}, file); err != nil {
 				t.Errorf("Error while getting the seed hosts configmap: %v", err)
 			}

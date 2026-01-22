@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -83,7 +84,7 @@ func (b Builder) DeletionTestSteps(k *test.K8sClient) test.StepList {
 			Test: test.Eventually(func() error {
 				namespace := b.Elasticsearch.Namespace
 				return k.CheckSecretsRemoved([]types.NamespacedName{
-					{Namespace: namespace, Name: esv1.ElasticUserSecret(b.Elasticsearch.Name)},
+					{Namespace: namespace, Name: escommon.ElasticUserSecret(&b.Elasticsearch)},
 					{Namespace: namespace, Name: certificates.PublicCertsSecretName(esv1.ESNamer, b.Elasticsearch.Name)},
 					{Namespace: namespace, Name: certificates.PublicTransportCertsSecretName(esv1.ESNamer, b.Elasticsearch.Name)},
 				})

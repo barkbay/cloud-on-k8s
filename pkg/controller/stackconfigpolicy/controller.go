@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	kibanav1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
@@ -322,7 +323,7 @@ func (r *ReconcileStackConfigPolicy) reconcileElasticsearchResources(ctx context
 		// Get the file settings secret. Create it if it doesn't exist.
 		// This resolves the race condition from https://github.com/elastic/cloud-on-k8s/issues/8912
 		var actualSettingsSecret corev1.Secret
-		err = r.Client.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.FileSettingsSecretName(es.Name)}, &actualSettingsSecret)
+		err = r.Client.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: escommon.FileSettingsSecretName(&es)}, &actualSettingsSecret)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return results.WithError(err), status
 		}
@@ -343,7 +344,7 @@ func (r *ReconcileStackConfigPolicy) reconcileElasticsearchResources(ctx context
 		// extract the metadata that should be propagated to children
 		meta := metadata.Propagate(&es, metadata.Metadata{Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es))})
 		// create the expected Settings Secret
-		expectedSecret, expectedVersion, err := filesettings.NewSettingsSecretWithVersion(esNsn, &actualSettingsSecret, &esConfigPolicyFinal.Spec, esConfigPolicyFinal.SecretSources, meta)
+		expectedSecret, expectedVersion, err := filesettings.NewSettingsSecretWithVersion(&es, &actualSettingsSecret, &esConfigPolicyFinal.Spec, esConfigPolicyFinal.SecretSources, meta)
 		if err != nil {
 			return results.WithError(err), status
 		}

@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -71,7 +72,7 @@ func Reconcile(
 
 	expected := v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        esv1.RemoteCaSecretName(es.Name),
+			Name:        escommon.RemoteCaSecretName(&es),
 			Namespace:   es.Namespace,
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,

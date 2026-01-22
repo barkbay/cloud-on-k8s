@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
@@ -174,7 +175,7 @@ func reconcileSecret(
 	parent string,
 	esLicense esclient.License,
 ) error {
-	secretName := esv1.LicenseSecretName(cluster.Name)
+	secretName := escommon.LicenseSecretName(&cluster)
 
 	licenseBytes, err := json.Marshal(esLicense)
 	if err != nil {
@@ -214,7 +215,7 @@ func (r *ReconcileLicenses) reconcileClusterLicense(ctx context.Context, cluster
 	matchingSpec, parent, found := r.findLicense(ctx, r, r.checker, minVersion)
 	if !found {
 		// no matching license found, delete cluster level license if it exists to revert to basic
-		clusterLicenseNSN := types.NamespacedName{Namespace: cluster.Namespace, Name: esv1.LicenseSecretName(cluster.Name)}
+		clusterLicenseNSN := types.NamespacedName{Namespace: cluster.Namespace, Name: escommon.LicenseSecretName(&cluster)}
 		log.V(1).Info("No enterprise license found. Attempting to remove cluster license secret", "namespace", cluster.Namespace, "es_name", cluster.Name)
 		err := k8s.DeleteSecretIfExists(ctx, r.Client, clusterLicenseNSN)
 		return noResult, false, err

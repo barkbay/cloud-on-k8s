@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -40,7 +41,7 @@ func NewClient(
 	var controllerUserSecret corev1.Secret
 	key := types.NamespacedName{
 		Namespace: es.Namespace,
-		Name:      esv1.InternalUsersSecret(es.Name),
+		Name:      escommon.InternalUsersSecret(&es),
 	}
 	if err := c.Get(ctx, key, &controllerUserSecret); err != nil {
 		return nil, err

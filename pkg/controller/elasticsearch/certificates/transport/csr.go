@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -97,7 +98,7 @@ func buildGeneralNames(
 		{DNSName: commonName},
 		// add the transport service name for remote cluster connections initially connecting through the service
 		// the DNS name has to match the seed hosts configured in the remote cluster settings
-		{DNSName: fmt.Sprintf("%s.%s.svc", esv1.TransportService(cluster.Name), cluster.Namespace)},
+		{DNSName: fmt.Sprintf("%s.%s.svc", escommon.TransportService(&cluster), cluster.Namespace)},
 		// add the resolvable DNS name of the Pod as published by Elasticsearch
 		{DNSName: fmt.Sprintf("%s.%s", pod.Name, svcName)},
 		{IPAddress: netutil.IPToRFCForm(podIP)},
@@ -110,7 +111,7 @@ func buildGeneralNames(
 		generalNames = append(
 			generalNames,
 			// Remote cluster headless service
-			certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.svc", esv1.RemoteClusterService(cluster.Name), cluster.Namespace)},
+			certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.svc", escommon.RemoteClusterService(&cluster), cluster.Namespace)},
 			// Individual remote_cluster.publish_host is set to <pod name>.<statefulset headless service>.<namespace>.svc
 			certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.%s.svc", pod.Name, svcName, cluster.Namespace)},
 		)

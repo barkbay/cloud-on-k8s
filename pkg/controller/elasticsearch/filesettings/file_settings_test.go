@@ -12,18 +12,27 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 )
 
+// testClusterHelper creates a test Elasticsearch cluster for use in tests.
+func testClusterHelper(name, namespace string) escommon.ElasticsearchCluster {
+	return &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
+
 // Test_updateState tests updateState and consequently mutateSnapshotRepositorySettings.
 func Test_updateState(t *testing.T) {
-	esSample := types.NamespacedName{
-		Namespace: "esNs",
-		Name:      "esName",
-	}
+	esSample := testClusterHelper("esName", "esNs")
 
 	clusterSettings := &commonv1.Config{Data: map[string]any{
 		"indices.recovery.max_bytes_per_sec": "100mb",

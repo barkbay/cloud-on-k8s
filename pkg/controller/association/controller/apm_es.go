@@ -15,12 +15,12 @@ import (
 
 	apmv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/apm/v1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/association"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	eslabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/rbac"
@@ -78,7 +78,7 @@ func getElasticsearchExternalURL(c k8s.Client, assoc commonv1.Association) (stri
 	}
 	serviceName := esRef.ServiceName
 	if serviceName == "" {
-		serviceName = services.ExternalServiceName(es.Name)
+		serviceName = escommon.HTTPService(&es)
 	}
 	nsn := types.NamespacedName{Name: serviceName, Namespace: es.Namespace}
 	return association.ServiceURL(c, nsn, es.Spec.HTTP.Protocol(), "")

@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	commonpassword "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password"
@@ -159,7 +160,7 @@ func aggregateRoles(
 
 // RolesFileRealmSecretKey returns a reference to the K8s secret holding the roles and file realm data.
 func RolesFileRealmSecretKey(es esv1.Elasticsearch) types.NamespacedName {
-	return types.NamespacedName{Namespace: es.Namespace, Name: esv1.RolesAndFileRealmSecret(es.Name)}
+	return types.NamespacedName{Namespace: es.Namespace, Name: escommon.RolesAndFileRealmSecret(&es)}
 }
 
 // reconcileRolesFileRealmSecret creates or updates the single secret holding the file realm and the file-based roles.

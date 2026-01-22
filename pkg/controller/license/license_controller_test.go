@@ -17,6 +17,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	commonlicense "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -137,7 +138,7 @@ func TestReconcileLicenses_reconcileInternal(t *testing.T) {
 			name:    "no existing license but cluster license exists: delete cluster license",
 			cluster: cluster,
 			k8sResources: []crclient.Object{cluster, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-				Name:      esv1.LicenseSecretName("cluster"),
+				Name:      escommon.LicenseSecretName(cluster),
 				Namespace: "namespace",
 			}}},
 			wantErr:            "",
@@ -199,7 +200,7 @@ func TestReconcileLicenses_reconcileInternal(t *testing.T) {
 			// verify that a cluster license was created
 			// following the es naming convention
 			licenseNsn := nsn
-			licenseNsn.Name = esv1.LicenseSecretName(licenseNsn.Name)
+			licenseNsn.Name = escommon.LicenseSecretName(tt.cluster)
 			var license corev1.Secret
 			err = client.Get(context.Background(), licenseNsn, &license)
 			if !tt.wantClusterLicense {

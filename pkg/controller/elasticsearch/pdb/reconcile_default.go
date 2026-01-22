@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	lic "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
@@ -112,7 +113,7 @@ func deleteDefaultPDB(ctx context.Context, k8sClient k8s.Client, es esv1.Elastic
 	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: es.Namespace,
-			Name:      esv1.DefaultPodDisruptionBudget(es.Name),
+			Name:      escommon.DefaultPodDisruptionBudgetName(&es),
 		},
 	}
 	return deletePDB(ctx, k8sClient, pdb)
@@ -147,7 +148,7 @@ func expectedPDB(es esv1.Elasticsearch, statefulSets sset.StatefulSetList, meta 
 	}
 
 	// inherit user-provided ObjectMeta, but set our own name & namespace
-	expected.Name = esv1.DefaultPodDisruptionBudget(es.Name)
+	expected.Name = escommon.DefaultPodDisruptionBudgetName(&es)
 	expected.Namespace = es.Namespace
 	// Add labels and annotations
 	mergedMeta := meta.Merge(metadata.Metadata{

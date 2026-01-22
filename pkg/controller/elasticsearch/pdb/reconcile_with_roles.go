@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -238,7 +239,7 @@ func createPDBForStatefulSets(
 
 	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      esv1.PodDisruptionBudgetNameForRole(es.Name, string(role)),
+			Name:      escommon.PodDisruptionBudgetNameForRole(&es, string(role)),
 			Namespace: es.Namespace,
 		},
 		Spec: buildRoleSpecificPDBSpec(ctx, es, role, statefulSets, allStatefulSets),
@@ -430,7 +431,7 @@ func deleteAllRoleSpecificPDBs(ctx context.Context, k8sClient k8s.Client, es esv
 	// Delete PDBs owned by this Elasticsearch resource
 	for _, pdb := range pdbList {
 		// Ensure we do not delete the default PDB if it exists.
-		if k8s.HasOwner(&pdb, &es) && pdb.GetName() != esv1.DefaultPodDisruptionBudget(es.Name) {
+		if k8s.HasOwner(&pdb, &es) && pdb.GetName() != escommon.DefaultPodDisruptionBudgetName(&es) {
 			if err := k8sClient.Delete(ctx, &pdb); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}

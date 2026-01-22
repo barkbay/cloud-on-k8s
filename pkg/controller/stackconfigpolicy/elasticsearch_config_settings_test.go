@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
@@ -104,7 +105,7 @@ func Test_reconcileSecretMountSecretsESNamespace(t *testing.T) {
 				for _, secretMount := range tt.args.policy.Spec.Elasticsearch.SecretMounts {
 					expectedSecret := &corev1.Secret{}
 					expectedNsn := types.NamespacedName{
-						Name:      esv1.StackConfigAdditionalSecretName(tt.args.es.Name, secretMount.SecretName),
+						Name:      escommon.StackConfigAdditionalSecretName(&tt.args.es, secretMount.SecretName),
 						Namespace: "test-ns",
 					}
 					err := tt.args.client.Get(context.TODO(), expectedNsn, expectedSecret)
@@ -113,7 +114,7 @@ func Test_reconcileSecretMountSecretsESNamespace(t *testing.T) {
 						return
 					}
 
-					require.Equal(t, expectedSecret.Data, getSecretMountSecret(t, esv1.ESNamer.Suffix(tt.args.es.Name, secretMount.SecretName), "test-ns", "test-policy", "test-policy-ns", "delete").Data, "secrets do not match")
+					require.Equal(t, expectedSecret.Data, getSecretMountSecret(t, escommon.StackConfigAdditionalSecretName(&tt.args.es, secretMount.SecretName), "test-ns", "test-policy", "test-policy-ns", "delete").Data, "secrets do not match")
 				}
 			}
 		})

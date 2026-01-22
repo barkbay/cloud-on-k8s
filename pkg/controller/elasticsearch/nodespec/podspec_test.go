@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
@@ -235,7 +236,7 @@ func TestBuildPodTemplateSpecWithDefaultSecurityContext(t *testing.T) {
 			cfg, err := settings.NewMergedESConfig(es.Name, tt.version, corev1.IPv4Protocol, es.Spec.HTTP, *es.Spec.NodeSets[0].Config, nil, false, false)
 			require.NoError(t, err)
 
-			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}})
+			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ScriptsConfigMap(&es)}})
 			actual, err := BuildPodTemplateSpec(context.Background(), client, es, es.Spec.NodeSets[0], cfg, nil, tt.setDefaultFSGroup, PolicyConfig{}, metadata.Metadata{})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantSecurityContext, actual.Spec.SecurityContext)
@@ -264,7 +265,7 @@ func TestBuildPodTemplateSpec(t *testing.T) {
 		},
 	}
 	// shared fixture
-	scriptsConfigMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: sampleES.Namespace, Name: esv1.ScriptsConfigMap(sampleES.Name)}}
+	scriptsConfigMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: sampleES.Namespace, Name: escommon.ScriptsConfigMap(&sampleES)}}
 
 	type args struct {
 		client                    k8s.Client
@@ -550,7 +551,7 @@ func Test_enableLog4JFormatMsgNoLookups(t *testing.T) {
 			require.NoError(t, err)
 			cfg, err := settings.NewMergedESConfig(sampleES.Name, ver, corev1.IPv4Protocol, sampleES.Spec.HTTP, *sampleES.Spec.NodeSets[0].Config, nil, false, false)
 			require.NoError(t, err)
-			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: sampleES.Namespace, Name: esv1.ScriptsConfigMap(sampleES.Name)}})
+			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: sampleES.Namespace, Name: escommon.ScriptsConfigMap(&sampleES)}})
 			actual, err := BuildPodTemplateSpec(context.Background(), client, sampleES, sampleES.Spec.NodeSets[0], cfg, nil, false, PolicyConfig{}, metadata.Metadata{})
 			require.NoError(t, err)
 

@@ -7,6 +7,7 @@ package nodespec
 import (
 	corev1 "k8s.io/api/core/v1"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
@@ -20,44 +21,45 @@ import (
 )
 
 func buildVolumes(
-	esName string,
-	version version.Version,
+	cluster escommon.ElasticsearchCluster,
+	ver version.Version,
 	nodeSpec esv1.NodeSet,
 	keystoreResources *keystore.Resources,
 	downwardAPIVolume volume.DownwardAPI,
 	additionalMountsFromPolicy []volume.VolumeLike,
 ) ([]corev1.Volume, []corev1.VolumeMount) {
+	esName := cluster.GetName()
 	configVolume := settings.ConfigSecretVolume(esv1.StatefulSet(esName, nodeSpec.Name))
 	probeSecret := volume.NewSelectiveSecretVolumeWithMountPath(
-		esv1.InternalUsersSecret(esName), esvolume.ProbeUserVolumeName,
+		escommon.InternalUsersSecret(cluster), esvolume.ProbeUserVolumeName,
 		esvolume.PodMountedUsersSecretMountPath, []string{user.ProbeUserName, user.PreStopUserName},
 	)
 	httpCertificatesVolume := volume.NewSecretVolumeWithMountPath(
-		certificates.InternalCertsSecretName(esv1.ESNamer, esName),
+		certificates.InternalCertsSecretName(escommon.NamerFor(cluster), esName),
 		esvolume.HTTPCertificatesSecretVolumeName,
 		esvolume.HTTPCertificatesSecretVolumeMountPath,
 	)
 	transportCertificatesVolume := transportCertificatesVolume(esv1.StatefulSet(esName, nodeSpec.Name))
 	remoteCertificateAuthoritiesVolume := volume.NewSecretVolumeWithMountPath(
-		esv1.RemoteCaSecretName(esName),
+		escommon.RemoteCaSecretName(cluster),
 		esvolume.RemoteCertificateAuthoritiesSecretVolumeName,
 		esvolume.RemoteCertificateAuthoritiesSecretVolumeMountPath,
 	)
 	unicastHostsVolume := volume.NewConfigMapVolume(
-		esv1.UnicastHostsConfigMap(esName), esvolume.UnicastHostsVolumeName, esvolume.UnicastHostsVolumeMountPath,
+		escommon.UnicastHostsConfigMap(cluster), esvolume.UnicastHostsVolumeName, esvolume.UnicastHostsVolumeMountPath,
 	)
 	usersSecretVolume := volume.NewSecretVolumeWithMountPath(
-		esv1.RolesAndFileRealmSecret(esName),
+		escommon.RolesAndFileRealmSecret(cluster),
 		esvolume.XPackFileRealmVolumeName,
 		esvolume.XPackFileRealmVolumeMountPath,
 	)
 	scriptsVolume := volume.NewConfigMapVolumeWithMode(
-		esv1.ScriptsConfigMap(esName),
+		escommon.ScriptsConfigMap(cluster),
 		esvolume.ScriptsVolumeName,
 		esvolume.ScriptsVolumeMountPath,
 		0755)
 	fileSettingsVolume := volume.NewSecretVolumeWithMountPath(
-		esv1.FileSettingsSecretName(esName),
+		escommon.FileSettingsSecretName(cluster),
 		esvolume.FileSettingsVolumeName,
 		esvolume.FileSettingsVolumeMountPath,
 	)
@@ -116,7 +118,7 @@ func buildVolumes(
 	)
 
 	// version gate for the file-based settings volume and volumeMounts
-	if version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
+	if ver.GTE(filesettings.FileBasedSettingsMinPreVersion) {
 		volumes = append(volumes, fileSettingsVolume.Volume())
 		volumeMounts = append(volumeMounts, fileSettingsVolume.VolumeMount())
 	}

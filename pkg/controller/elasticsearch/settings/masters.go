@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -79,7 +80,7 @@ func UpdateSeedHostsConfigMap(
 	}
 	expected := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        esv1.UnicastHostsConfigMap(es.Name),
+			Name:        escommon.UnicastHostsConfigMap(&es),
 			Namespace:   es.Namespace,
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,

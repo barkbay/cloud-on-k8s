@@ -23,6 +23,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/about"
 	agentv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/agent/v1alpha1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	entv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/enterprisesearch/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
@@ -58,7 +59,7 @@ var (
 			}
 			serviceName := esRef.ServiceName
 			if serviceName == "" {
-				serviceName = services.ExternalServiceName(es.Name)
+				serviceName = escommon.HTTPService(&es)
 			}
 			nsn := types.NamespacedName{Name: serviceName, Namespace: es.Namespace}
 			return ServiceURL(c, nsn, es.Spec.HTTP.Protocol(), "")

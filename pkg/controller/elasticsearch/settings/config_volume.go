@@ -7,15 +7,13 @@ package settings
 import (
 	"context"
 
-	pkgerrors "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
-	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/volume"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -30,7 +28,7 @@ const (
 
 // ConfigSecretName is the name of the secret that holds the ES config for the given StatefulSet.
 func ConfigSecretName(ssetName string) string {
-	return esv1.ConfigSecret(ssetName)
+	return escommon.StatefulNamer.Suffix(ssetName, escommon.ConfigSecretSuffix)
 }
 
 // ConfigSecretVolume returns a SecretVolume to hold the config of nodes in the given stateful set..
@@ -40,40 +38,6 @@ func ConfigSecretVolume(ssetName string) volume.SecretVolume {
 		ConfigVolumeName,
 		ConfigVolumeMountPath,
 	)
-}
-
-// GetESConfigContent retrieves the configuration secret of the given stateful set,
-// and returns the corresponding CanonicalConfig.
-func GetESConfigContent(client k8s.Client, namespace string, ssetName string) (CanonicalConfig, error) {
-	secret, err := GetESConfigSecret(client, namespace, ssetName)
-	if err != nil {
-		return CanonicalConfig{}, err
-	}
-	if len(secret.Data) == 0 {
-		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
-	}
-	content := secret.Data[ConfigFileName]
-	if len(content) == 0 {
-		return CanonicalConfig{}, pkgerrors.Errorf("no configuration found in secret %s", ConfigSecretName(ssetName))
-	}
-
-	cfg, err := common.ParseConfig(content)
-	if err != nil {
-		return CanonicalConfig{}, err
-	}
-	return CanonicalConfig{cfg}, nil
-}
-
-// GetESConfigSecret returns the secret holding the ES configuration for the given pod
-func GetESConfigSecret(client k8s.Client, namespace string, ssetName string) (corev1.Secret, error) {
-	var secret corev1.Secret
-	if err := client.Get(context.Background(), types.NamespacedName{
-		Namespace: namespace,
-		Name:      ConfigSecretName(ssetName),
-	}, &secret); err != nil {
-		return corev1.Secret{}, err
-	}
-	return secret, nil
 }
 
 func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, meta metadata.Metadata) corev1.Secret {

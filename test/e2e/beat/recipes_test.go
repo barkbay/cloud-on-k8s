@@ -20,6 +20,7 @@ import (
 
 	beatv1beta1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/beat/v1beta1"
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	beatcommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/common"
@@ -174,7 +175,7 @@ func TestHeartbeatEsKbHealthRecipe(t *testing.T) {
 		require.NoError(t, err)
 
 		spec := builder.Beat.Spec
-		newEsHost := fmt.Sprintf("%s.%s.svc", esv1.HTTPService(spec.ElasticsearchRef.Name), builder.Beat.Namespace)
+		newEsHost := fmt.Sprintf("%s.%s.svc", escommon.StatefulNamer.Suffix(spec.ElasticsearchRef.Name, escommon.HTTPServiceSuffix), builder.Beat.Namespace)
 		newKbHost := fmt.Sprintf("%s.%s.svc", kbv1.HTTPService(spec.KibanaRef.Name), builder.Beat.Namespace)
 
 		yaml := string(yamlBytes)

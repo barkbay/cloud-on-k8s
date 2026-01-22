@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	ssetfixtures "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
@@ -34,12 +35,12 @@ import (
 )
 
 func TestReconcileRoleSpecificPDBs(t *testing.T) {
-	rolePDB := func(esName, namespace string, role esv1.NodeRole, statefulSetNames []string, maxUnavailable int32) *policyv1.PodDisruptionBudget {
+	rolePDB := func(es escommon.ElasticsearchCluster, role esv1.NodeRole, statefulSetNames []string, maxUnavailable int32) *policyv1.PodDisruptionBudget {
 		pdb := &policyv1.PodDisruptionBudget{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      esv1.PodDisruptionBudgetNameForRole(esName, string(role)),
-				Namespace: namespace,
-				Labels:    map[string]string{label.ClusterNameLabelName: esName},
+				Name:      escommon.PodDisruptionBudgetNameForRole(es, string(role)),
+				Namespace: es.GetNamespace(),
+				Labels:    map[string]string{label.ClusterNameLabelName: es.GetName()},
 			},
 			Spec: policyv1.PodDisruptionBudgetSpec{
 				MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: maxUnavailable},
@@ -56,7 +57,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 				{
 					Key:      label.ClusterNameLabelName,
 					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{esName},
+					Values:   []string{es.GetName()},
 				},
 				{
 					Key:      label.StatefulSetNameLabelName,
@@ -101,8 +102,8 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// Unhealthy es cluster; 0 disruptions allowed
-				rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 0),
-				rolePDB("cluster", "ns", esv1.DataRole, []string{"data1"}, 0),
+				rolePDB(&defaultEs, esv1.MasterRole, []string{"master1"}, 0),
+				rolePDB(&defaultEs, esv1.DataRole, []string{"data1"}, 0),
 			},
 		},
 		{
@@ -124,9 +125,9 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// Unhealthy es cluster; 0 disruptions allowed
-				rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 0),
-				rolePDB("cluster", "ns", esv1.DataRole, []string{"data1"}, 0),
-				rolePDB("cluster", "ns", esv1.DataFrozenRole, []string{"frozen1"}, 0),
+				rolePDB(&defaultEs, esv1.MasterRole, []string{"master1"}, 0),
+				rolePDB(&defaultEs, esv1.DataRole, []string{"data1"}, 0),
+				rolePDB(&defaultEs, esv1.DataFrozenRole, []string{"frozen1"}, 0),
 			},
 		},
 		{
@@ -139,7 +140,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 					WithNodeSet("data2", 2, esv1.DataHotRole),
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
-				rolePDB("cluster", "ns", esv1.DataRole, []string{"data2", "master-data1"}, 1),
+				rolePDB(defaultHealthyES, esv1.DataRole, []string{"data2", "master-data1"}, 1),
 			},
 		},
 		{
@@ -152,7 +153,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 					WithNodeSet("data2", 2, esv1.DataHotRole),
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
-				rolePDB("cluster", "ns", esv1.DataRole, []string{"data2", "master-data1"}, 1),
+				rolePDB(defaultHealthyES, esv1.DataRole, []string{"data2", "master-data1"}, 1),
 			},
 		},
 		{
@@ -168,7 +169,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// single node cluster should allow 1 pod to be unavailable when cluster is healthy.
-				rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 1),
+				rolePDB(defaultHealthyES, esv1.MasterRole, []string{"master1"}, 1),
 			},
 		},
 		{
@@ -183,8 +184,8 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// Unhealthy es cluster; 0 disruptions allowed
-				rolePDB("cluster", "ns", "", []string{"coord1", "coord2"}, 0),
-				rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 0),
+				rolePDB(&defaultEs, "", []string{"coord1", "coord2"}, 0),
+				rolePDB(&defaultEs, esv1.MasterRole, []string{"master1"}, 0),
 			},
 		},
 		{
@@ -199,8 +200,8 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// Unhealthy es cluster; 0 disruptions allowed
-				rolePDB("cluster", "ns", esv1.DataRole, []string{"master-data1", "data-ingest1"}, 0),
-				rolePDB("cluster", "ns", esv1.MLRole, []string{"ml1"}, 0),
+				rolePDB(&defaultEs, esv1.DataRole, []string{"master-data1", "data-ingest1"}, 0),
+				rolePDB(&defaultEs, esv1.MLRole, []string{"ml1"}, 0),
 			},
 		},
 		{
@@ -215,7 +216,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 				return args{
 					initObjs: []client.Object{
 						withOwnerRef(defaultPDB(), es),
-						withOwnerRef(rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 0), es),
+						withOwnerRef(rolePDB(&es, esv1.MasterRole, []string{"master1"}, 0), es),
 					},
 					es: es,
 					builder: NewBuilder("cluster").
@@ -232,7 +233,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 					// Existing PDB with different configuration
 					&policyv1.PodDisruptionBudget{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      esv1.PodDisruptionBudgetNameForRole("cluster", string(esv1.MasterRole)),
+							Name:      escommon.PodDisruptionBudgetNameForRole(&defaultEs, string(esv1.MasterRole)),
 							Namespace: "ns",
 							Labels:    map[string]string{label.ClusterNameLabelName: "cluster"},
 						},
@@ -254,7 +255,7 @@ func TestReconcileRoleSpecificPDBs(t *testing.T) {
 			},
 			wantedPDBs: []*policyv1.PodDisruptionBudget{
 				// Unhealthy es cluster; 0 disruptions allowed
-				rolePDB("cluster", "ns", esv1.MasterRole, []string{"master1"}, 0),
+				rolePDB(&defaultEs, esv1.MasterRole, []string{"master1"}, 0),
 			},
 		},
 	}

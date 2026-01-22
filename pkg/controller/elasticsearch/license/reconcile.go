@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
@@ -18,12 +18,11 @@ import (
 func Reconcile(
 	ctx context.Context,
 	c k8s.Client,
-	esCluster esv1.Elasticsearch,
+	esCluster escommon.ElasticsearchCluster,
 	clusterClient esclient.Client,
 	currentLicense esclient.License,
 ) error {
-	clusterName := k8s.ExtractNamespacedName(&esCluster)
-	return applyLinkedLicense(ctx, c, clusterName, clusterClient, currentLicense)
+	return applyLinkedLicense(ctx, c, esCluster, clusterClient, currentLicense)
 }
 
 // CheckElasticsearchLicense checks that Elasticsearch is licensed, which ensures that the operator is communicating

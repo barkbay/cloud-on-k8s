@@ -14,7 +14,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	commonlicense "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -41,7 +41,7 @@ func isBasic(l esclient.License) bool {
 func applyLinkedLicense(
 	ctx context.Context,
 	c k8s.Client,
-	esCluster types.NamespacedName,
+	esCluster escommon.ElasticsearchCluster,
 	updater esclient.LicenseClient,
 	currentLicense esclient.License,
 ) error {
@@ -53,8 +53,8 @@ func applyLinkedLicense(
 	var license corev1.Secret
 	err := c.Get(ctx,
 		types.NamespacedName{
-			Namespace: esCluster.Namespace,
-			Name:      esv1.LicenseSecretName(esCluster.Name),
+			Namespace: esCluster.GetNamespace(),
+			Name:      escommon.LicenseSecretName(esCluster),
 		},
 		&license,
 	)
@@ -75,7 +75,7 @@ func applyLinkedLicense(
 			// trying to access a commercial feature). While this is not a supported use case,
 			// we tolerate it to avoid a bad user experience because trials can only be started once.
 			ulog.FromContext(ctx).V(1).Info("Preserving existing stack-level trial license",
-				"namespace", esCluster.Namespace, "es_name", esCluster.Name)
+				"namespace", esCluster.GetNamespace(), "es_name", esCluster.GetName())
 			return nil
 		default:
 			// revert the current license to basic
@@ -108,7 +108,7 @@ func startBasic(ctx context.Context, updater esclient.LicenseClient) error {
 // updateLicense make the call to Elasticsearch to set the license. This function exists mainly to facilitate testing.
 func updateLicense(
 	ctx context.Context,
-	esCluster types.NamespacedName,
+	esCluster escommon.ElasticsearchCluster,
 	updater esclient.LicenseClient,
 	current esclient.License,
 	desired esclient.License,
@@ -139,22 +139,22 @@ func updateLicense(
 
 // startTrial starts the trial license after checking that the trial is not yet activated by directly hitting the
 // Elasticsearch API.
-func startTrial(ctx context.Context, c esclient.LicenseClient, esCluster types.NamespacedName) error {
+func startTrial(ctx context.Context, c esclient.LicenseClient, esCluster escommon.ElasticsearchCluster) error {
 	response, err := c.StartTrial(ctx)
 	log := ulog.FromContext(ctx)
 	if err != nil && esclient.IsForbidden(err) {
 		log.Info("failed to start trial most likely because trial was activated previously",
 			"err", err.Error(),
-			"namespace", esCluster.Namespace,
-			"name", esCluster.Name,
+			"namespace", esCluster.GetNamespace(),
+			"name", esCluster.GetName(),
 		)
 		return nil
 	}
 	if response.IsSuccess() {
 		log.Info(
 			"Elasticsearch trial license activated",
-			"namespace", esCluster.Namespace,
-			"name", esCluster.Name,
+			"namespace", esCluster.GetNamespace(),
+			"name", esCluster.GetName(),
 		)
 	}
 	return err

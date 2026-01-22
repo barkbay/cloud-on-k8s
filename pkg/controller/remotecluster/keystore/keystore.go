@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -77,7 +78,7 @@ func (aks *APIKeyStore) KeyIDFor(alias string) string {
 
 func loadAPIKeyStore(ctx context.Context, log logr.Logger, c k8s.Client, owner *esv1.Elasticsearch, pendingChanges *pendingChanges) (*APIKeyStore, error) {
 	secretName := types.NamespacedName{
-		Name:      esv1.RemoteAPIKeysSecretName(owner.Name),
+		Name:      escommon.RemoteAPIKeysSecretName(owner),
 		Namespace: owner.Namespace,
 	}
 	// Attempt to read the Secret
@@ -214,7 +215,7 @@ const (
 // Save synchronizes the in memory content of the API keystore into the Secret.
 func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearch) *reconciler.Results {
 	secretName := types.NamespacedName{
-		Name:      esv1.RemoteAPIKeysSecretName(owner.Name),
+		Name:      escommon.RemoteAPIKeysSecretName(owner),
 		Namespace: owner.Namespace,
 	}
 	if aks.IsEmpty() {

@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
@@ -21,6 +22,13 @@ import (
 )
 
 func Test_getPolicyConfig(t *testing.T) {
+	// testEs is used for computing expected naming values
+	testEs := esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-es",
+			Namespace: "test-ns",
+		},
+	}
 	canonicalConfig := common.MustCanonicalConfig(map[string]interface{}{
 		"logger.org.elasticsearch.discovery": "DEBUG",
 	})
@@ -33,31 +41,21 @@ func Test_getPolicyConfig(t *testing.T) {
 	}{
 		{
 			name: "create valid policy config",
-			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-es",
-					Namespace: "test-ns",
-				},
-			},
-			configSecret: mkConfigSecret(esv1.StackConfigElasticsearchConfigSecretName("test-es"), "test-ns"),
+			es:   testEs,
+			configSecret: mkConfigSecret(escommon.StackConfigElasticsearchConfigSecretName(&testEs), "test-ns"),
 			want: PolicyConfig{
 				ElasticsearchConfig: canonicalConfig,
 				PolicyAnnotations: map[string]string{
 					"policy.k8s.elastic.co/elasticsearch-config-mounts-hash": "testhash",
 				},
 				AdditionalVolumes: []volume.VolumeLike{
-					volume.NewSecretVolumeWithMountPath(esv1.StackConfigAdditionalSecretName("test-es", "test1"), esv1.StackConfigAdditionalSecretName("test-es", "test1"), "/usr/test"),
+					volume.NewSecretVolumeWithMountPath(escommon.StackConfigAdditionalSecretName(&testEs, "test1"), escommon.StackConfigAdditionalSecretName(&testEs, "test1"), "/usr/test"),
 				},
 			},
 		},
 		{
 			name: "create policy config when secret does not exist",
-			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-es",
-					Namespace: "test-ns",
-				},
-			},
+			es:   testEs,
 			want: PolicyConfig{
 				ElasticsearchConfig: common.MustCanonicalConfig(map[string]interface{}{}),
 				PolicyAnnotations: map[string]string{
@@ -67,14 +65,9 @@ func Test_getPolicyConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid config",
-			es: esv1.Elasticsearch{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-es",
-					Namespace: "test-ns",
-				},
-			},
-			configSecret: mkInvalidConfigSecret(esv1.StackConfigElasticsearchConfigSecretName("test-es"), "test-ns"),
+			name:         "invalid config",
+			es:           testEs,
+			configSecret: mkInvalidConfigSecret(escommon.StackConfigElasticsearchConfigSecretName(&testEs), "test-ns"),
 			want: PolicyConfig{
 				ElasticsearchConfig: nil,
 				PolicyAnnotations: map[string]string{

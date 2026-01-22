@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
@@ -55,7 +56,7 @@ func reconcileElasticUser(
 	if es.Spec.Auth.DisableElasticUser {
 		return nil, nil
 	}
-	secretName := esv1.ElasticUserSecret(es.Name)
+	secretName := escommon.ElasticUserSecret(&es)
 	// if user has set up the elastic user via the file realm do not create the operator managed secret to avoid confusion
 	if userProvidedFileRealm.PasswordHashForUser(ElasticUserName) != nil {
 		return nil, k8s.DeleteSecretIfExists(ctx, c, types.NamespacedName{
@@ -121,7 +122,7 @@ func reconcileInternalUsers(
 		es,
 		existingFileRealm,
 		users,
-		esv1.InternalUsersSecret(es.Name),
+		escommon.InternalUsersSecret(&es),
 		true,
 		passwordHasher,
 		generator,
@@ -236,7 +237,7 @@ func reuseOrGenerateHashes(users users, fileRealm filerealm.Realm, passwordHashe
 }
 
 func GetMonitoringUserPassword(c k8s.Client, nsn types.NamespacedName) (string, error) {
-	secretObjKey := types.NamespacedName{Namespace: nsn.Namespace, Name: esv1.InternalUsersSecret(nsn.Name)}
+	secretObjKey := types.NamespacedName{Namespace: nsn.Namespace, Name: escommon.StatefulNamer.Suffix(nsn.Name, escommon.InternalUsersSecretSuffix)}
 	var secret corev1.Secret
 	if err := c.Get(context.Background(), secretObjKey, &secret); err != nil {
 		return "", err

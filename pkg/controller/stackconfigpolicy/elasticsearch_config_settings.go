@@ -14,6 +14,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
@@ -61,7 +62,7 @@ func newElasticsearchConfigSecret(esConfig policyv1alpha1.ElasticsearchConfigPol
 	elasticsearchConfigSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   es.Namespace,
-			Name:        esv1.StackConfigElasticsearchConfigSecretName(es.Name),
+			Name:        escommon.StackConfigElasticsearchConfigSecretName(&es),
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,
 		},
@@ -96,7 +97,7 @@ func reconcileSecretMounts(ctx context.Context, c k8s.Client, es esv1.Elasticsea
 			},
 		})
 		// Recreate it in the Elasticsearch namespace, prefix with es name.
-		secretName := esv1.StackConfigAdditionalSecretName(es.Name, secretMount.SecretName)
+		secretName := escommon.StackConfigAdditionalSecretName(&es, secretMount.SecretName)
 		expected := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:   es.Namespace,

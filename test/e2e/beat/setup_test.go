@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"testing"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/filebeat"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/beat/heartbeat"
@@ -116,7 +117,7 @@ func TestBeatKibanaRef(t *testing.T) {
 		WithDeployment().
 		WithElasticsearchRef(esBuilder.Ref())
 
-	configYaml := fmt.Sprintf(e2eHeartBeatConfigTpl, esv1.HTTPService(esBuilder.Elasticsearch.Name), esBuilder.Elasticsearch.Namespace)
+	configYaml := fmt.Sprintf(e2eHeartBeatConfigTpl, escommon.HTTPService(&esBuilder.Elasticsearch), esBuilder.Elasticsearch.Namespace)
 
 	hbBuilder = beat.ApplyYamls(t, hbBuilder, configYaml, e2eHeartbeatPodTemplate)
 

@@ -23,6 +23,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/comparison"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
@@ -181,8 +182,8 @@ func TestHandleUpscaleAndSpecChanges(t *testing.T) {
 	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: nodespec.HeadlessServiceName("sset1")}, &corev1.Service{}))
 	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: nodespec.HeadlessServiceName("sset2")}, &corev1.Service{}))
 	// config should be created for both
-	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: esv1.ConfigSecret("sset1")}, &corev1.Secret{}))
-	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: esv1.ConfigSecret("sset2")}, &corev1.Secret{}))
+	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: escommon.StatefulNamer.Suffix("sset1", escommon.ConfigSecretSuffix)}, &corev1.Secret{}))
+	require.NoError(t, k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "ns", Name: escommon.StatefulNamer.Suffix("sset2", escommon.ConfigSecretSuffix)}, &corev1.Secret{}))
 
 	// upscale data nodes
 	actualStatefulSets = es_sset.StatefulSetList{sset1, sset2}

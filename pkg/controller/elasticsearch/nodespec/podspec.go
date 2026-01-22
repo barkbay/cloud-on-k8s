@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/container"
@@ -70,7 +71,7 @@ func BuildPodTemplateSpec(
 	}
 
 	downwardAPIVolume := volume.DownwardAPI{}.WithAnnotations(es.HasDownwardNodeLabels())
-	volumes, volumeMounts := buildVolumes(es.Name, ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes)
+	volumes, volumeMounts := buildVolumes(&es, ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes)
 
 	labels, err := buildLabels(es, cfg, nodeSet)
 	if err != nil {
@@ -104,7 +105,7 @@ func BuildPodTemplateSpec(
 
 	// We retrieve the ConfigMap that holds the scripts to trigger a Pod restart if it is updated.
 	esScripts := &corev1.ConfigMap{}
-	if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}, esScripts); err != nil {
+	if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ScriptsConfigMap(&es)}, esScripts); err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
 	annotations := buildAnnotations(es, cfg, keystoreResources, getScriptsConfigMapContent(esScripts), policyConfig.PolicyAnnotations)

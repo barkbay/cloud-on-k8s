@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password/fixtures"
@@ -77,7 +78,7 @@ func Test_ReconcileRolesFileRealmSecret(t *testing.T) {
 	require.NoError(t, err)
 	// retrieve reconciled secret
 	var secret corev1.Secret
-	err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.RolesAndFileRealmSecret(es.Name)}, &secret)
+	err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.RolesAndFileRealmSecret(&es)}, &secret)
 	require.NoError(t, err)
 	require.Len(t, secret.Data, 4)
 	require.Contains(t, string(secret.Data[RolesFile]), "click_admins")
@@ -107,7 +108,7 @@ func Test_aggregateFileRealm(t *testing.T) {
 			assertions: func(t *testing.T, c k8s.Client, es esv1.Elasticsearch) {
 				t.Helper()
 				var secret corev1.Secret
-				err := c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)}, &secret)
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)}, &secret)
 				require.True(t, apierrors.IsNotFound(err))
 			},
 		},

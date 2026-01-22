@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
@@ -71,7 +72,7 @@ func CheckStackConfigPolicyESSecretMountsVolume(k *test.K8sClient, es esv1.Elast
 				}
 				// Make sure the secret name and the mountpath match
 				for _, secretMount := range scp.Spec.Elasticsearch.SecretMounts {
-					mountPath, ok := volumeMountPathMap[esv1.StackConfigAdditionalSecretName(es.Name, secretMount.SecretName)]
+					mountPath, ok := volumeMountPathMap[escommon.StackConfigAdditionalSecretName(&es, secretMount.SecretName)]
 					require.True(t, ok)
 					require.Equal(t, secretMount.MountPath, mountPath)
 				}

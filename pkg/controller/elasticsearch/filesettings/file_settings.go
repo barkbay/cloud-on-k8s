@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"k8s.io/apimachinery/pkg/types"
-
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -81,7 +80,7 @@ func newEmptySettingsState() SettingsState {
 }
 
 // updateState updates the Settings state from a StackConfigPolicy for a given Elasticsearch.
-func (s *Settings) updateState(es types.NamespacedName, esConfigPolicy policyv1alpha1.ElasticsearchConfigPolicySpec) error {
+func (s *Settings) updateState(es escommon.ElasticsearchCluster, esConfigPolicy policyv1alpha1.ElasticsearchConfigPolicySpec) error {
 	esConfigPolicy = *esConfigPolicy.DeepCopy() // be sure to not mutate the original es config policy
 	state := newEmptySettingsState()
 	// mutate Snapshot Repositories
@@ -89,9 +88,9 @@ func (s *Settings) updateState(es types.NamespacedName, esConfigPolicy policyv1a
 		for name, untypedDefinition := range esConfigPolicy.SnapshotRepositories.Data {
 			definition, ok := untypedDefinition.(map[string]interface{})
 			if !ok {
-				return fmt.Errorf(`invalid type (%T) for definition of snapshot repository %q of Elasticsearch "%s/%s"`, untypedDefinition, name, es.Namespace, es.Name)
+				return fmt.Errorf(`invalid type (%T) for definition of snapshot repository %q of Elasticsearch "%s/%s"`, untypedDefinition, name, es.GetNamespace(), es.GetName())
 			}
-			repoSettings, err := mutateSnapshotRepositorySettings(definition, es.Namespace, es.Name)
+			repoSettings, err := mutateSnapshotRepositorySettings(definition, es.GetNamespace(), es.GetName())
 			if err != nil {
 				return err
 			}

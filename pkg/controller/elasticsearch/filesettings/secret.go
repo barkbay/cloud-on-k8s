@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	commonlabel "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
@@ -33,13 +33,13 @@ const (
 // The Settings version is updated using the current timestamp only when the Settings have changed.
 // If the new settings from the policy changed compared to the actual from the secret, the settings version is
 // updated
-func NewSettingsSecretWithVersion(es types.NamespacedName, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
+func NewSettingsSecretWithVersion(es escommon.ElasticsearchCluster, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
 	newVersion := time.Now().UnixNano()
 	return newSettingsSecret(newVersion, es, currentSecret, esConfigPolicy, namespacedSecretSources, meta)
 }
 
 // NewSettingsSecret returns a new SettingsSecret for a given Elasticsearch and StackConfigPolicy.
-func newSettingsSecret(version int64, es types.NamespacedName, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
+func newSettingsSecret(version int64, es escommon.ElasticsearchCluster, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
 	settings := NewEmptySettings(version)
 
 	// update the settings according to the config policy
@@ -73,8 +73,8 @@ func newSettingsSecret(version int64, es types.NamespacedName, currentSecret *co
 	}
 	settingsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   es.Namespace,
-			Name:        esv1.FileSettingsSecretName(es.Name),
+			Namespace:   es.GetNamespace(),
+			Name:        escommon.FileSettingsSecretName(es),
 			Labels:      secretMeta.Labels,
 			Annotations: secretMeta.Annotations,
 		},
@@ -145,10 +145,10 @@ func getSecureSettings(settingsSecret corev1.Secret) ([]commonv1.NamespacedSecre
 	return secretSources, nil
 }
 
-// GetSecureSettingsSecretSources gets SecureSettings Secret sources for a given Elastic resource.
-func GetSecureSettingsSecretSources(ctx context.Context, c k8s.Client, resource metav1.Object) ([]commonv1.NamespacedSecretSource, error) {
+// GetSecureSettingsSecretSources gets SecureSettings Secret sources for a given Elasticsearch cluster.
+func GetSecureSettingsSecretSources(ctx context.Context, c k8s.Client, es escommon.ElasticsearchCluster) ([]commonv1.NamespacedSecretSource, error) {
 	var secret corev1.Secret
-	err := c.Get(ctx, types.NamespacedName{Namespace: resource.GetNamespace(), Name: esv1.FileSettingsSecretName(resource.GetName())}, &secret)
+	err := c.Get(ctx, types.NamespacedName{Namespace: es.GetNamespace(), Name: escommon.FileSettingsSecretName(es)}, &secret)
 	if apierrors.IsNotFound(err) {
 		return []commonv1.NamespacedSecretSource{}, nil
 	}

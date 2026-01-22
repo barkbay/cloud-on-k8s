@@ -14,6 +14,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/test/e2e/test"
@@ -72,7 +73,7 @@ func TestDeleteServices(t *testing.T) {
 			{
 				Name: "Delete external service",
 				Test: test.Eventually(func() error {
-					s, err := k.GetService(b.Elasticsearch.Namespace, esv1.HTTPService(b.Elasticsearch.Name))
+					s, err := k.GetService(b.Elasticsearch.Namespace, escommon.HTTPService(&b.Elasticsearch))
 					if apierrors.IsNotFound(err) {
 						// already deleted
 						return nil
@@ -90,7 +91,7 @@ func TestDeleteServices(t *testing.T) {
 			{
 				Name: "Service should be recreated",
 				Test: test.Eventually(func() error {
-					_, err := k.GetService(b.Elasticsearch.Namespace, esv1.HTTPService(b.Elasticsearch.Name))
+					_, err := k.GetService(b.Elasticsearch.Namespace, escommon.HTTPService(&b.Elasticsearch))
 					return err
 				}),
 			},

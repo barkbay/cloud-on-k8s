@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password/fixtures"
@@ -44,7 +45,7 @@ func Test_reconcileElasticUser(t *testing.T) {
 			name: "elastic user secret exists but is invalid: generate a new elastic user",
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)},
 					Data:       nil, // no password or password removed
 				},
 			},
@@ -62,7 +63,7 @@ func Test_reconcileElasticUser(t *testing.T) {
 			name: "reuse the existing elastic user and password hash",
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)},
 					Data:       map[string][]byte{ElasticUserName: []byte("existingPassword")},
 				},
 			},
@@ -78,7 +79,7 @@ func Test_reconcileElasticUser(t *testing.T) {
 			name: "reuse the password but generate a new hash if the existing one doesn't match",
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)},
 					Data:       map[string][]byte{ElasticUserName: []byte("existingPassword")},
 				},
 			},
@@ -95,7 +96,7 @@ func Test_reconcileElasticUser(t *testing.T) {
 			name: "reuse the password but generate a new hash if there is none in the file realm",
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)},
 					Data:       map[string][]byte{ElasticUserName: []byte("existingPassword")},
 				},
 			},
@@ -124,7 +125,7 @@ func Test_reconcileElasticUser(t *testing.T) {
 			require.NoError(t, bcrypt.CompareHashAndPassword(user.PasswordHash, user.Password))
 			// reconciled secret should have the updated password
 			var secret corev1.Secret
-			err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.ElasticUserSecret(es.Name)}, &secret)
+			err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)}, &secret)
 			require.NoError(t, err)
 			require.Equal(t, user.Password, secret.Data[ElasticUserName])
 			tt.assertions(t, got)
@@ -197,7 +198,7 @@ func Test_reconcileInternalUsers(t *testing.T) {
 			es:   func() esv1.Elasticsearch { return es },
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.InternalUsersSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.InternalUsersSecret(&es)},
 					Data: map[string][]byte{
 						ControllerUserName: []byte("controllerUserPassword"),
 						ProbeUserName:      []byte("probeUserPassword"),
@@ -221,7 +222,7 @@ func Test_reconcileInternalUsers(t *testing.T) {
 			es:   func() esv1.Elasticsearch { return es },
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.InternalUsersSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.InternalUsersSecret(&es)},
 					Data: map[string][]byte{
 						ControllerUserName: []byte("controllerUserPassword"),
 						ProbeUserName:      []byte("probeUserPassword"),
@@ -247,7 +248,7 @@ func Test_reconcileInternalUsers(t *testing.T) {
 			es:   func() esv1.Elasticsearch { return es },
 			existingSecrets: []client.Object{
 				&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: esv1.InternalUsersSecret(es.Name)},
+					ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.InternalUsersSecret(&es)},
 					Data: map[string][]byte{
 						ControllerUserName: []byte("controllerUserPassword"),
 						ProbeUserName:      []byte("probeUserPassword"),
@@ -334,7 +335,7 @@ func Test_reconcileInternalUsers(t *testing.T) {
 			require.NoError(t, bcrypt.CompareHashAndPassword(probeUser.PasswordHash, probeUser.Password))
 			// reconciled secret should have the updated passwords
 			var secret corev1.Secret
-			err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.InternalUsersSecret(es.Name)}, &secret)
+			err = c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.InternalUsersSecret(&es)}, &secret)
 			require.NoError(t, err)
 			require.Equal(t, controllerUser.Password, secret.Data[ControllerUserName])
 			require.Equal(t, probeUser.Password, secret.Data[ProbeUserName])

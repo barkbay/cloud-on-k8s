@@ -15,11 +15,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonlicense "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
+
+// testCluster creates a test Elasticsearch cluster for use in tests.
+func testCluster(name, namespace string) *esv1.Elasticsearch {
+	return &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
 
 func Test_esReachableConditionMessage(t *testing.T) {
 	type args struct {
@@ -295,7 +306,7 @@ func Test_maybeReconcileEmptyFileSettingsSecret(t *testing.T) {
 			existingSecrets: []corev1.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      esv1.FileSettingsSecretName("test-es"),
+						Name:      escommon.FileSettingsSecretName(testCluster("test-es", "default")),
 						Namespace: "default",
 					},
 				},
@@ -361,7 +372,7 @@ func Test_maybeReconcileEmptyFileSettingsSecret(t *testing.T) {
 
 			// Check if secret was created
 			var secret corev1.Secret
-			secretName := esv1.FileSettingsSecretName(tt.es.Name)
+			secretName := escommon.FileSettingsSecretName(tt.es)
 			secretErr := c.Get(t.Context(), types.NamespacedName{
 				Name:      secretName,
 				Namespace: tt.es.Namespace,
