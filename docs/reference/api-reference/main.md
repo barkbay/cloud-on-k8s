@@ -593,6 +593,22 @@ KeyToPath defines how to map a key in a Secret object to a filesystem path.
 | *`path`* __string__ | Path is the relative file path to map the key to.<br>Path must not be an absolute file path and must not contain any ".." components. |
 
 
+### LocalElasticsearchRef  [#localelasticsearchref]
+
+LocalElasticsearchRef is a reference to an Elasticsearch cluster within the same Kubernetes cluster
+that can be either a stateful Elasticsearch (default) or an ElasticsearchStateless resource.
+
+:::{admonition} Appears In:
+* RemoteCluster
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`namespace`* __string__ | Namespace of the Kubernetes object. If empty, defaults to the current namespace. |
+| *`name`* __string__ | Name of an existing Kubernetes object corresponding to an Elastic resource managed by ECK. |
+| *`serviceName`* __string__ | ServiceName is the name of an existing Kubernetes service which is used to make requests to the referenced<br>object. It has to be in the same namespace as the referenced resource. If left empty, the default HTTP service of<br>the referenced resource is used. |
+| *`kind`* __string__ | Kind specifies the Kind of the Elasticsearch resource to reference.<br>Valid values are "Elasticsearch" (default) or "ElasticsearchStateless". |
 
 
 ### LocalObjectSelector  [#localobjectselector]
@@ -601,7 +617,6 @@ LocalObjectSelector defines a reference to a Kubernetes object corresponding to 
 
 :::{admonition} Appears In:
 * [LocalElasticsearchRef](#localelasticsearchref)
-* RemoteCluster
 
 :::
 

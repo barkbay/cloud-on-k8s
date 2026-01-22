@@ -85,9 +85,11 @@ func (cb *clusterBuilder) withRemoteCluster(namespace, name string) *clusterBuil
 	cb.remoteClusters = append(cb.remoteClusters,
 		esv1.RemoteCluster{
 			Name: fmt.Sprintf("alias-from-%s-%s-to-%s-%s", cb.namespace, cb.name, namespace, name),
-			ElasticsearchRef: commonv1.LocalObjectSelector{
-				Name:      name,
-				Namespace: namespace,
+			ElasticsearchRef: commonv1.LocalElasticsearchRef{
+				LocalObjectSelector: commonv1.LocalObjectSelector{
+					Name:      name,
+					Namespace: namespace,
+				},
 			},
 		})
 	return cb
@@ -97,9 +99,11 @@ func (cb *clusterBuilder) withAPIKey(namespace, name string, apiKey *esv1.Remote
 	cb.remoteClusters = append(cb.remoteClusters,
 		esv1.RemoteCluster{
 			Name: fmt.Sprintf("generated-alias-from-%s-%s-to-%s-%s-with-api-key", cb.namespace, cb.name, namespace, name),
-			ElasticsearchRef: commonv1.LocalObjectSelector{
-				Name:      name,
-				Namespace: namespace,
+			ElasticsearchRef: commonv1.LocalElasticsearchRef{
+				LocalObjectSelector: commonv1.LocalObjectSelector{
+					Name:      name,
+					Namespace: namespace,
+				},
 			},
 			APIKey: apiKey,
 		})

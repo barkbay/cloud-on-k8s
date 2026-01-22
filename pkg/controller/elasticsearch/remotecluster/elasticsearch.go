@@ -113,12 +113,12 @@ func updateSettingsInternal(
 	remoteClustersToApply := make(map[string]esclient.RemoteCluster)
 	for name, remoteCluster := range remoteClustersInSpec {
 		remoteClustersToUpdate = append(remoteClustersToUpdate, name)
-		// Declare remote cluster in ES
-		seedHosts := []string{services.ExternalTransportServiceHostFromRef(remoteCluster.ElasticsearchRef)}
+		// Declare remote cluster in ES - use kind-aware functions to support both Elasticsearch and ElasticsearchStateless
+		seedHosts := []string{services.ExternalTransportServiceHostWithKind(remoteCluster.ElasticsearchRef)}
 		if remoteCluster.APIKey != nil {
 			// User specified an API key. It means that the remote cluster is expected to be accessed using the remote
 			// cluster Service instead of relying on the transport layer.
-			seedHosts = []string{services.RemoteClusterServerServiceHostFromRef(remoteCluster.ElasticsearchRef)}
+			seedHosts = []string{services.RemoteClusterServerServiceHostWithKind(remoteCluster.ElasticsearchRef)}
 		}
 		remoteClustersToApply[name] = esclient.RemoteCluster{Seeds: seedHosts}
 		// Ensure this cluster is tracked in the annotation
