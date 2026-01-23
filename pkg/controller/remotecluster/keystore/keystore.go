@@ -21,7 +21,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -76,10 +75,10 @@ func (aks *APIKeyStore) KeyIDFor(alias string) string {
 	return aks.aliases[alias].ID
 }
 
-func loadAPIKeyStore(ctx context.Context, log logr.Logger, c k8s.Client, owner *esv1.Elasticsearch, pendingChanges *pendingChanges) (*APIKeyStore, error) {
+func loadAPIKeyStore(ctx context.Context, log logr.Logger, c k8s.Client, owner escommon.ElasticsearchCluster, pendingChanges *pendingChanges) (*APIKeyStore, error) {
 	secretName := types.NamespacedName{
 		Name:      escommon.RemoteAPIKeysSecretName(owner),
-		Namespace: owner.Namespace,
+		Namespace: owner.GetNamespace(),
 	}
 	// Attempt to read the Secret
 	keyStoreSecret := &corev1.Secret{}
@@ -213,10 +212,10 @@ const (
 )
 
 // Save synchronizes the in memory content of the API keystore into the Secret.
-func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner *esv1.Elasticsearch) *reconciler.Results {
+func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner escommon.ElasticsearchCluster) *reconciler.Results {
 	secretName := types.NamespacedName{
 		Name:      escommon.RemoteAPIKeysSecretName(owner),
-		Namespace: owner.Namespace,
+		Namespace: owner.GetNamespace(),
 	}
 	if aks.IsEmpty() {
 		return aks.deleteSecret(ctx, c, secretName)

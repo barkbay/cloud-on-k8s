@@ -110,7 +110,7 @@ func (r *baseReconcileAutoscaling) attemptOnlineReconciliation(
 	}
 	log := logconf.FromContext(ctx)
 	log.V(1).Info("Starting online autoscaling reconciliation")
-	esClient, err := r.esClientProvider(ctx, r.Client, r.Dialer, es)
+	esClient, err := r.esClientProvider(ctx, r.Client, r.Dialer, &es)
 	if err != nil {
 		return nil, err
 	}

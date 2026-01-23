@@ -946,6 +946,7 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 		// it's Add function signature is the same as the association controllers.
 		{name: "AutoOpsAgentPolicy", registerFunc: autoops.Add},
 		{name: "RemoteCA", registerFunc: remotecluster.Add},
+		{name: "RemoteCAStateless", registerFunc: remotecluster.AddStateless},
 		{name: "APM-ES", registerFunc: associationctl.AddApmES},
 		{name: "APM-KB", registerFunc: associationctl.AddApmKibana},
 		{name: "KB-ES", registerFunc: associationctl.AddKibanaES},

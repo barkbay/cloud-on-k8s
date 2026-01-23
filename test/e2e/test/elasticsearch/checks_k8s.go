@@ -440,7 +440,7 @@ func CheckClusterUUIDAnnotation(es esv1.Elasticsearch, k *test.K8sClient) test.S
 			if err := k.Client.Get(context.Background(), k8s.ExtractNamespacedName(&es), &retrievedES); err != nil {
 				return err
 			}
-			if !bootstrap.AnnotatedForBootstrap(retrievedES) {
+			if !bootstrap.AnnotatedForBootstrap(&retrievedES) {
 				return errors.New("no bootstrap annotation set")
 			}
 			return nil

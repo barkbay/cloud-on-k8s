@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -34,11 +34,12 @@ func UpdateSettings(
 	esClient esclient.Client,
 	eventRecorder record.EventRecorder,
 	licenseChecker license.Checker,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 ) (bool, error) {
 	remoteClustersInSpec := getRemoteClustersInSpec(es)
 	isRemoteClustersSpec := len(remoteClustersInSpec) > 0
-	_, isRemoteClustersAnnotation := es.Annotations[ManagedRemoteClustersAnnotationName]
+	annotations := es.GetAnnotations()
+	_, isRemoteClustersAnnotation := annotations[ManagedRemoteClustersAnnotationName]
 
 	if !isRemoteClustersSpec && !isRemoteClustersAnnotation {
 		// nothing to do, skip
@@ -55,9 +56,9 @@ func UpdateSettings(
 	if !enabled && isRemoteClustersSpec {
 		ulog.FromContext(ctx).Info(
 			enterpriseFeaturesDisabledMsg,
-			"namespace", es.Namespace, "es_name", es.Name,
+			"namespace", es.GetNamespace(), "es_name", es.GetName(),
 		)
-		eventRecorder.Eventf(&es, corev1.EventTypeWarning, events.EventAssociationError, enterpriseFeaturesDisabledMsg)
+		eventRecorder.Eventf(es, corev1.EventTypeWarning, events.EventAssociationError, enterpriseFeaturesDisabledMsg)
 		return false, nil
 	}
 
@@ -77,10 +78,10 @@ func UpdateSettings(
 //  5. Apply the settings through the Elasticsearch API
 func updateSettingsInternal(
 	ctx context.Context,
-	remoteClustersInSpec map[string]esv1.RemoteCluster,
+	remoteClustersInSpec map[string]escommon.RemoteCluster,
 	c k8s.Client,
 	esClient esclient.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 ) (requeue bool, err error) {
 	remoteClustersInAnnotation := getRemoteClustersInAnnotation(es)
 
@@ -143,8 +144,8 @@ func updateSettingsInternal(
 		sort.Strings(remoteClustersToUpdate)
 		sort.Strings(remoteClustersToDelete)
 		ulog.FromContext(ctx).Info("Updating remote cluster settings",
-			"namespace", es.Namespace,
-			"es_name", es.Name,
+			"namespace", es.GetNamespace(),
+			"es_name", es.GetName(),
 			"updated_remote_clusters", remoteClustersToUpdate,
 			"deleted_remote_clusters", remoteClustersToDelete,
 		)
@@ -168,13 +169,13 @@ func getRemoteClustersInElasticsearch(ctx context.Context, esClient esclient.Cli
 
 // getRemoteClustersInSpec returns a map with the expected remote clusters as declared by the user in the Elasticsearch specification.
 // A map is returned here because it will be used to quickly compare with the ones that are new or missing.
-func getRemoteClustersInSpec(es esv1.Elasticsearch) map[string]esv1.RemoteCluster {
-	remoteClusters := make(map[string]esv1.RemoteCluster)
-	for _, remoteCluster := range es.Spec.RemoteClusters {
+func getRemoteClustersInSpec(es escommon.ElasticsearchCluster) map[string]escommon.RemoteCluster {
+	remoteClusters := make(map[string]escommon.RemoteCluster)
+	for _, remoteCluster := range es.GetRemoteClusters() {
 		if !remoteCluster.ElasticsearchRef.IsDefined() {
 			continue
 		}
-		remoteCluster.ElasticsearchRef = remoteCluster.ElasticsearchRef.WithDefaultNamespace(es.Namespace)
+		remoteCluster.ElasticsearchRef = remoteCluster.ElasticsearchRef.WithDefaultNamespace(es.GetNamespace())
 		remoteClusters[remoteCluster.Name] = remoteCluster
 	}
 	return remoteClusters

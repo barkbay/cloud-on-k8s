@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
@@ -21,9 +21,13 @@ const (
 // getRemoteClustersInAnnotation returns a set that contains a list of remote clusters that may have been declared in Elasticsearch.
 // A map is returned here to quickly compare with the ones that are new or missing.
 // If there's no remote clusters the map is empty but not nil.
-func getRemoteClustersInAnnotation(es esv1.Elasticsearch) map[string]struct{} {
+func getRemoteClustersInAnnotation(es escommon.ElasticsearchCluster) map[string]struct{} {
 	remoteClusters := make(map[string]struct{})
-	serializedRemoteClusters, ok := es.Annotations[ManagedRemoteClustersAnnotationName]
+	annotations := es.GetAnnotations()
+	if annotations == nil {
+		return remoteClusters
+	}
+	serializedRemoteClusters, ok := annotations[ManagedRemoteClustersAnnotationName]
 	if !ok || strings.TrimSpace(serializedRemoteClusters) == "" {
 		return remoteClusters
 	}
@@ -33,24 +37,26 @@ func getRemoteClustersInAnnotation(es esv1.Elasticsearch) map[string]struct{} {
 	return remoteClusters
 }
 
-func annotateWithCreatedRemoteClusters(ctx context.Context, c k8s.Client, es esv1.Elasticsearch, remoteClusters map[string]struct{}) error {
+func annotateWithCreatedRemoteClusters(ctx context.Context, c k8s.Client, es escommon.ElasticsearchCluster, remoteClusters map[string]struct{}) error {
+	annotations := es.GetAnnotations()
 	if len(remoteClusters) == 0 {
 		// if there are no annotations, there's nothing to do
-		if len(es.Annotations) == 0 {
+		if len(annotations) == 0 {
 			return nil
 		}
 
 		// if the annotation exists, delete it
-		if _, ok := es.Annotations[ManagedRemoteClustersAnnotationName]; ok {
-			delete(es.Annotations, ManagedRemoteClustersAnnotationName)
-			return c.Update(ctx, &es)
+		if _, ok := annotations[ManagedRemoteClustersAnnotationName]; ok {
+			delete(annotations, ManagedRemoteClustersAnnotationName)
+			es.SetAnnotations(annotations)
+			return c.Update(ctx, es)
 		}
 
 		return nil
 	}
 
-	if es.Annotations == nil {
-		es.Annotations = make(map[string]string)
+	if annotations == nil {
+		annotations = make(map[string]string)
 	}
 
 	annotation := make([]string, 0, len(remoteClusters))
@@ -60,11 +66,12 @@ func annotateWithCreatedRemoteClusters(ctx context.Context, c k8s.Client, es esv
 
 	sort.Strings(annotation)
 	expected := strings.Join(annotation, ",")
-	current, ok := es.Annotations[ManagedRemoteClustersAnnotationName]
+	current, ok := annotations[ManagedRemoteClustersAnnotationName]
 
 	if !ok || current != expected {
-		es.Annotations[ManagedRemoteClustersAnnotationName] = expected
-		return c.Update(ctx, &es)
+		annotations[ManagedRemoteClustersAnnotationName] = expected
+		es.SetAnnotations(annotations)
+		return c.Update(ctx, es)
 	}
 	return nil
 }

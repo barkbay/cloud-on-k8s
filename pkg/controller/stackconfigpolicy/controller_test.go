@@ -48,7 +48,7 @@ type fakeEsClient struct {
 }
 
 var fakeClientProvider = func(fileSettings esclient.FileSettings, err error) commonesclient.Provider {
-	return func(ctx context.Context, c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error) {
+	return func(ctx context.Context, c k8s.Client, dialer net.Dialer, es escommon.ElasticsearchCluster) (esclient.Client, error) {
 		fakeEsClient := fakeEsClient{
 			fileSettings: fileSettings,
 			err:          err,

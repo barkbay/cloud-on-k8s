@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
@@ -686,17 +687,17 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 			unexpectedSecrets: []types.NamespacedName{
 				{
 					Namespace: "ns1",
-					Name: remoteCASecretName("es1", types.NamespacedName{
+					Name: remoteCASecretNameString("es1", types.NamespacedName{
 						Namespace: "ns2",
 						Name:      "es2",
-					}),
+					}, false, false),
 				},
 				{
 					Namespace: "ns2",
-					Name: remoteCASecretName("es2", types.NamespacedName{
+					Name: remoteCASecretNameString("es2", types.NamespacedName{
 						Namespace: "ns1",
 						Name:      "es1",
-					}),
+					}, false, false),
 				},
 			},
 			want:    reconcile.Result{},
@@ -763,17 +764,17 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 			unexpectedSecrets: []types.NamespacedName{
 				{
 					Namespace: "ns3",
-					Name: remoteCASecretName("es3", types.NamespacedName{
+					Name: remoteCASecretNameString("es3", types.NamespacedName{
 						Namespace: "ns1",
 						Name:      "es1",
-					}),
+					}, false, false),
 				},
 				{
 					Namespace: "ns2",
-					Name: remoteCASecretName("es2", types.NamespacedName{
+					Name: remoteCASecretNameString("es2", types.NamespacedName{
 						Namespace: "ns1",
 						Name:      "es1",
-					}),
+					}, false, false),
 				},
 			},
 			want:    reconcile.Result{},
@@ -804,17 +805,17 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 			unexpectedSecrets: []types.NamespacedName{
 				{
 					Namespace: "ns1",
-					Name: remoteCASecretName("es1", types.NamespacedName{
+					Name: remoteCASecretNameString("es1", types.NamespacedName{
 						Namespace: "ns2",
 						Name:      "es2",
-					}),
+					}, false, false),
 				},
 				{
 					Namespace: "ns2",
-					Name: remoteCASecretName("es2", types.NamespacedName{
+					Name: remoteCASecretNameString("es2", types.NamespacedName{
 						Namespace: "ns1",
 						Name:      "es1",
-					}),
+					}, false, false),
 				},
 			},
 			want:    reconcile.Result{},
@@ -878,11 +879,11 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 			unexpectedSecrets: []types.NamespacedName{
 				{
 					Namespace: "ns1",
-					Name:      remoteCASecretName("es1", types.NamespacedName{Namespace: "ns2", Name: "es2"}),
+					Name:      remoteCASecretNameString("es1", types.NamespacedName{Namespace: "ns2", Name: "es2"}, false, false),
 				},
 				{
 					Namespace: "ns2",
-					Name:      remoteCASecretName("es2", types.NamespacedName{Namespace: "ns1", Name: "es1"}),
+					Name:      remoteCASecretNameString("es2", types.NamespacedName{Namespace: "ns1", Name: "es1"}, false, false),
 				},
 			},
 			want:    reconcile.Result{},
@@ -897,16 +898,18 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 				fakeESClient = tt.fakeESClient
 			}
 			k8sClient := k8s.NewFakeClient(tt.fields.clusters...)
-			r := &ReconcileRemoteClusters{
-				Client:         k8sClient,
-				accessReviewer: tt.fields.accessReviewer,
-				watches:        w,
-				licenseChecker: tt.fields.licenseChecker,
-				recorder:       record.NewFakeRecorder(10),
-				esClientProvider: func(_ context.Context, _ k8s.Client, _ net.Dialer, _ esv1.Elasticsearch) (esclient.Client, error) {
-					return fakeESClient, nil
+			r := &ReconcileRemoteClustersStateful{
+				baseRemoteClustersReconciler: baseRemoteClustersReconciler{
+					Client:         k8sClient,
+					accessReviewer: tt.fields.accessReviewer,
+					watches:        w,
+					licenseChecker: tt.fields.licenseChecker,
+					recorder:       record.NewFakeRecorder(10),
+					esClientProvider: func(_ context.Context, _ k8s.Client, _ net.Dialer, _ escommon.ElasticsearchCluster) (esclient.Client, error) {
+						return fakeESClient, nil
+					},
+					keystoreProvider: keystore.NewProvider(k8sClient),
 				},
-				keystoreProvider: keystore.NewProvider(k8sClient),
 			}
 			fakeCtx := context.Background()
 			got, err := r.Reconcile(fakeCtx, tt.args.request)

@@ -804,7 +804,7 @@ func (r *ReconcileStackConfigPolicy) getClusterStateFileSettings(ctx context.Con
 	span, _ := apm.StartSpan(ctx, "get_cluster_state", tracing.SpanTypeApp)
 	defer span.End()
 
-	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, es)
+	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, &es)
 	if err != nil {
 		return esclient.FileSettings{}, err
 	}

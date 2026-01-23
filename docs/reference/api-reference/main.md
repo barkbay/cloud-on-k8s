@@ -593,6 +593,8 @@ KeyToPath defines how to map a key in a Secret object to a filesystem path.
 | *`path`* __string__ | Path is the relative file path to map the key to.<br>Path must not be an absolute file path and must not contain any ".." components. |
 
 
+
+
 ### LocalElasticsearchRef  [#localelasticsearchref]
 
 LocalElasticsearchRef is a reference to an Elasticsearch cluster within the same Kubernetes cluster

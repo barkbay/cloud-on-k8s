@@ -20,15 +20,32 @@ const (
 	RemoteClusterNamespaceLabelName = "elasticsearch.k8s.elastic.co/remote-cluster-namespace"
 	// RemoteClusterNameLabelName used to represent the name of the RemoteCluster in a TrustRelationship.
 	RemoteClusterNameLabelName = "elasticsearch.k8s.elastic.co/remote-cluster-name"
+	// RemoteClusterKindLabelName used to represent the kind of the RemoteCluster in a TrustRelationship.
+	RemoteClusterKindLabelName = "elasticsearch.k8s.elastic.co/remote-cluster-kind"
+	// ClusterKindLabelName used to represent the kind of the local cluster in a TrustRelationship.
+	ClusterKindLabelName = "elasticsearch.k8s.elastic.co/cluster-kind"
 	// remoteCASecretSuffix is the suffix added to the aforementioned Secret.
 	remoteCASecretSuffix = "remote-ca"
+
+	// Kind label values
+	kindStateful  = "stateful"
+	kindStateless = "stateless"
 )
 
 func remoteCAObjectMeta(
 	name string,
 	owner escommon.ElasticsearchCluster,
 	remote types.NamespacedName,
+	remoteIsStateless bool,
 ) metav1.ObjectMeta {
+	ownerKind := kindStateful
+	if owner.IsStateless() {
+		ownerKind = kindStateless
+	}
+	remoteKind := kindStateful
+	if remoteIsStateless {
+		remoteKind = kindStateless
+	}
 	return metav1.ObjectMeta{
 		Name:      name,
 		Namespace: owner.GetNamespace(),
@@ -36,22 +53,30 @@ func remoteCAObjectMeta(
 			map[string]string{
 				RemoteClusterNamespaceLabelName: remote.Namespace,
 				RemoteClusterNameLabelName:      remote.Name,
+				RemoteClusterKindLabelName:      remoteKind,
+				ClusterKindLabelName:            ownerKind,
 			},
-			remoteca.Labels(owner.GetName()),
+			remoteca.Labels(owner.GetName(), owner.IsStateless()),
 		),
 	}
 }
 
 // remoteCASecretName returns the name of the Secret that contains the transport CA of a remote cluster.
-// The secret is named using the local cluster's namer since it's stored in the local cluster's namespace.
+// It uses the appropriate namer based on whether the local cluster is stateless.
+// For backward compatibility, the kind indicator is only added for stateless remote clusters.
 func remoteCASecretName(
-	localClusterName string,
+	localCluster escommon.ElasticsearchCluster,
 	remoteCluster types.NamespacedName,
+	remoteIsStateless bool,
 ) string {
-	// Use StatefulNamer as the default for backward compatibility.
-	// The secret name format is consistent regardless of cluster type.
-	return escommon.StatefulNamer.Suffix(
-		fmt.Sprintf("%s-%s-%s", localClusterName, remoteCluster.Namespace, remoteCluster.Name),
-		remoteCASecretSuffix,
-	)
+	namer := escommon.StatefulNamer
+	if localCluster.IsStateless() {
+		namer = escommon.StatelessNamer
+	}
+	// Only add kind indicator for stateless remotes to maintain backward compatibility
+	baseName := fmt.Sprintf("%s-%s-%s", localCluster.GetName(), remoteCluster.Namespace, remoteCluster.Name)
+	if remoteIsStateless {
+		baseName = fmt.Sprintf("%s-ess", baseName)
+	}
+	return namer.Suffix(baseName, remoteCASecretSuffix)
 }

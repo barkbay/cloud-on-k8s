@@ -1,0 +1,85 @@
+# This sample demonstrates remote cluster connections between stateful and stateless Elasticsearch clusters.
+# It creates:
+# - A stateful Elasticsearch cluster (es1) in namespace ns1
+# - A stateless Elasticsearch cluster (es1) in namespace ns2
+# - Cross-cluster search configured from stateful to stateless using the Kind field
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns2
+---
+# Stateful Elasticsearch cluster in ns1
+# This cluster references the stateless cluster in ns2 as a remote cluster
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: es1
+  namespace: ns1
+spec:
+  version: 9.2.2
+  remoteClusters:
+    - name: stateless-remote
+      elasticsearchRef:
+        name: es1
+        namespace: ns2
+        # Kind must be specified to reference a stateless cluster
+        kind: ElasticsearchStateless
+      apiKey:
+        access:
+          search:
+            names:
+              - "*"
+  nodeSets:
+    - name: default
+      config:
+        node.store.allow_mmap: false
+      count: 3
+---
+# Stateless Elasticsearch cluster in ns2
+# This cluster is configured as a remote cluster server to accept connections
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: ElasticsearchStateless
+metadata:
+  name: es1
+  namespace: ns2
+spec:
+  version: 9.2.2
+  # Required for this cluster to be accessed using remote cluster API keys
+  remoteClusterServer:
+    enabled: true
+  objectStore:
+    secretName: gcs-creds
+  tiers:
+    index:
+      replicas: 1
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 4Gi
+                requests:
+                  cpu: "1"
+                  memory: 4Gi
+    search:
+      replicas: 1
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+    ml:
+      replicas: 0
