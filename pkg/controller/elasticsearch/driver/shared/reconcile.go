@@ -280,7 +280,7 @@ func ReconcileSharedResources(
 
 	// Reconcile remote clusters
 	if esReachable {
-		requeue, err := remotecluster.UpdateSettings(ctx, client, esClient, params.Recorder, params.LicenseChecker, es)
+		requeue, err := remotecluster.UpdateSettings(ctx, client, esClient, params.Recorder, params.LicenseChecker, &es)
 		msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 		if err != nil {
 			log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)

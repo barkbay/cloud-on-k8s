@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	autoopsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoops/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	commonesclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/esclient"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
@@ -46,7 +47,7 @@ func newFakeESClientProviderWithClient(client *fakeESClient) *fakeESClientProvid
 	}
 }
 
-func (f *fakeESClientProvider) Provider(ctx context.Context, c k8s.Client, dialer netutil.Dialer, es esv1.Elasticsearch) (esclient.Client, error) {
+func (f *fakeESClientProvider) Provider(ctx context.Context, c k8s.Client, dialer netutil.Dialer, es escommon.ElasticsearchCluster) (esclient.Client, error) {
 	return f.client, nil
 }
 

@@ -69,7 +69,7 @@ func Test_getCurrentRemoteClusters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getRemoteClustersInAnnotation(tt.args.es)
+			got := getRemoteClustersInAnnotation(&tt.args.es)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getRemoteClustersInAnnotation() = %v, want %v", got, tt.want)
 			}
@@ -499,7 +499,7 @@ func TestUpdateSettings(t *testing.T) {
 				tt.args.esClient,
 				record.NewFakeRecorder(100),
 				tt.args.licenseChecker,
-				*tt.args.es,
+				tt.args.es,
 			)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UpdateRemoteClusterSettings() error = %v, wantErr %v", err, tt.wantErr)

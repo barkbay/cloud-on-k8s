@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/license"
 	stackmon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/stackmon/validations"
@@ -158,7 +159,7 @@ func supportsRemoteClusterUsingAPIKey(es esv1.Elasticsearch) field.ErrorList {
 			),
 		))
 	}
-	if es.HasRemoteClusterAPIKey() && ver.LE(esv1.RemoteClusterAPIKeysMinVersion) {
+	if escommon.HasRemoteClusterAPIKey(&es) && ver.LE(esv1.RemoteClusterAPIKeysMinVersion) {
 		errs = append(errs, field.Invalid(
 			field.NewPath("spec").Child("remoteClusters").Child("*").Key("apiKey"),
 			es.Spec.Version,

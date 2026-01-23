@@ -23,6 +23,7 @@ import (
 
 	autoscalingv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoscaling/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/status"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/validation"
@@ -40,7 +41,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/net"
 )
 
-type EsClientProvider func(ctx context.Context, c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
+type EsClientProvider func(ctx context.Context, c k8s.Client, dialer net.Dialer, es escommon.ElasticsearchCluster) (esclient.Client, error)
 
 const (
 	// ControllerName is the name of the autoscaling controller based on the dedicated Elasticsearch autoscaling resource. It supersedes the legacy

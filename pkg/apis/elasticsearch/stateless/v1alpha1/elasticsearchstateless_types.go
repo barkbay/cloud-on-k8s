@@ -13,7 +13,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
 
@@ -243,7 +242,8 @@ func (ess ElasticsearchStateless) GetRemoteClusters() []escommon.RemoteCluster {
 	return ess.Spec.RemoteClusters
 }
 
-// SupportsRemoteClusterAPIKeys returns true for stateless Elasticsearch clusters as they always support API keys.
+// SupportsRemoteClusterAPIKeys returns true if this cluster supports connecting to a remote cluster using API keys.
+// Stateless clusters always support API keys.
 func (ess ElasticsearchStateless) SupportsRemoteClusterAPIKeys() (*optional.Bool, error) {
 	return optional.NewBool(true), nil
 }

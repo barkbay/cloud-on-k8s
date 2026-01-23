@@ -11,6 +11,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 )
@@ -431,4 +432,37 @@ func (r LocalElasticsearchRef) WithDefaultNamespace(defaultNamespace string) Loc
 // Validate validates the LocalElasticsearchRef.
 func (r LocalElasticsearchRef) Validate() error {
 	return ValidateElasticsearchKind(r.Kind)
+}
+
+// KindNamespacedName extends types.NamespacedName with a Kind field to track
+// whether the resource is a stateful Elasticsearch or stateless ElasticsearchStateless.
+// +kubebuilder:object:generate=false
+type KindNamespacedName struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+// NamespacedName returns the standard types.NamespacedName from this KindNamespacedName.
+func (k KindNamespacedName) NamespacedName() types.NamespacedName {
+	return types.NamespacedName{Namespace: k.Namespace, Name: k.Name}
+}
+
+// IsStateless returns true if the Kind indicates an ElasticsearchStateless resource.
+func (k KindNamespacedName) IsStateless() bool {
+	return k.Kind == ElasticsearchStatelessKind
+}
+
+// String returns a string representation of KindNamespacedName.
+func (k KindNamespacedName) String() string {
+	return fmt.Sprintf("%s/%s/%s", k.Kind, k.Namespace, k.Name)
+}
+
+// KindNamespacedNameFromRef creates a KindNamespacedName from a LocalElasticsearchRef.
+func KindNamespacedNameFromRef(ref LocalElasticsearchRef) KindNamespacedName {
+	return KindNamespacedName{
+		Kind:      ref.GetKindOrDefault(ElasticsearchKind),
+		Namespace: ref.Namespace,
+		Name:      ref.Name,
+	}
 }

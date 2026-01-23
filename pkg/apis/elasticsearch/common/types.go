@@ -295,3 +295,31 @@ type ElasticsearchCluster interface {
 	// GetAssociations returns the list of associations for this Elasticsearch cluster.
 	GetAssociations() []commonv1.Association
 }
+
+// HasRemoteClusterAPIKey returns true if this cluster is connecting to a remote cluster using API keys.
+func HasRemoteClusterAPIKey(es ElasticsearchCluster) bool {
+	if es == nil {
+		return false
+	}
+	for _, remoteCluster := range es.GetRemoteClusters() {
+		if remoteCluster.APIKey != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// RemoteClustersCount returns the number of remote clusters using only certificates and API keys.
+func RemoteClustersCount(es ElasticsearchCluster) (withoutAPIKeys, withAPIKeys int32) {
+	if es == nil {
+		return 0, 0
+	}
+	for _, remoteCluster := range es.GetRemoteClusters() {
+		if remoteCluster.APIKey == nil {
+			withoutAPIKeys++
+			continue
+		}
+		withAPIKeys++
+	}
+	return withoutAPIKeys, withAPIKeys
+}
