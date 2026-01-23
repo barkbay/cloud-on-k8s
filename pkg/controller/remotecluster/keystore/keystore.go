@@ -231,7 +231,7 @@ func (aks *APIKeyStore) Save(ctx context.Context, c k8s.Client, owner *esv1.Elas
 	for k, v := range aks.encodedKeys {
 		data[fmt.Sprintf(credentialsKeyFormat, k)] = []byte(v)
 	}
-	expectedLabels := labels.AddCredentialsLabel(label.NewLabels(k8s.ExtractNamespacedName(owner)))
+	expectedLabels := labels.AddCredentialsLabel(label.NewLabels(k8s.ExtractNamespacedName(owner), owner.IsStateless()))
 	expectedLabels[commonv1.TypeLabelName] = RemoteClusterAPIKeysType
 	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

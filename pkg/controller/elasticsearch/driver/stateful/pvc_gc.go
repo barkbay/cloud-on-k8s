@@ -35,7 +35,7 @@ func GarbageCollectPVCs(
 	// PVCs are using the same labels as their corresponding StatefulSet, so we can filter on ES cluster name.
 	var pvcs corev1.PersistentVolumeClaimList
 	ns := client.InNamespace(es.Namespace)
-	matchLabels := label.NewLabelSelectorForElasticsearch(es)
+	matchLabels := label.NewLabelSelectorForElasticsearch(&es)
 	if err := k8sClient.List(ctx, &pvcs, ns, matchLabels); err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -19,6 +20,11 @@ import (
 const (
 	// ClusterNameLabelName used to represent a cluster in k8s resources
 	ClusterNameLabelName = "elasticsearch.k8s.elastic.co/cluster-name"
+	// StatelessClusterNameLabelName used to represent a stateless cluster in k8s resources
+	// We need a separate label for stateless clusters to be able to distinguish them from stateful ones in functions
+	// like DeleteOrphanedSecrets, NewResourcesStateFromAPI, or NewElasticsearchURLProvider,
+	// which only rely on that label to identify resources belonging to a cluster.
+	StatelessClusterNameLabelName = "elasticsearch.k8s.elastic.co/stateless-cluster-name"
 	// ClusterNamespaceLabelName used to represent a cluster in k8s resources
 	ClusterNamespaceLabelName = "elasticsearch.k8s.elastic.co/cluster-namespace"
 	// VersionLabelName used to store the Elasticsearch version of the resource
@@ -139,9 +145,13 @@ func ExtractVersion(labels map[string]string) (version.Version, error) {
 }
 
 // NewLabels constructs a new set of labels from an Elasticsearch definition.
-func NewLabels(es types.NamespacedName) map[string]string {
+func NewLabels(es types.NamespacedName, isStateless bool) map[string]string {
+	clusterNameLabelName := ClusterNameLabelName
+	if isStateless {
+		clusterNameLabelName = StatelessClusterNameLabelName
+	}
 	return map[string]string{
-		ClusterNameLabelName:   es.Name,
+		clusterNameLabelName:   es.Name,
 		commonv1.TypeLabelName: Type,
 	}
 }
@@ -149,13 +159,14 @@ func NewLabels(es types.NamespacedName) map[string]string {
 // NewPodLabels returns labels to apply for a new Elasticsearch pod.
 func NewPodLabels(
 	es types.NamespacedName,
+	isStateless bool,
 	ssetName string,
 	ver version.Version,
 	nodeRoles *esv1.Node,
 	scheme string,
 ) map[string]string {
 	// cluster name based labels
-	labels := NewLabels(es)
+	labels := NewLabels(es, isStateless)
 	// version label
 	labels[VersionLabelName] = ver.String()
 
@@ -201,14 +212,23 @@ func NewConfigLabels(es types.NamespacedName, ssetName string) map[string]string
 }
 
 func NewStatefulSetLabels(es types.NamespacedName, ssetName string) map[string]string {
-	lbls := NewLabels(es)
+	lbls := NewLabels(es, false)
 	lbls[StatefulSetNameLabelName] = ssetName
 	return lbls
 }
 
 // NewLabelSelectorForElasticsearch returns a labels.Selector that matches the labels as constructed by NewLabels
-func NewLabelSelectorForElasticsearch(es esv1.Elasticsearch) client.MatchingLabels {
-	return NewLabelSelectorForElasticsearchClusterName(es.Name)
+func NewLabelSelectorForElasticsearch(es common.ElasticsearchCluster) client.MatchingLabels {
+	if es.IsStateless() {
+		return NewLabelSelectorForElasticsearchStatelessClusterName(es.GetName())
+	}
+	return NewLabelSelectorForElasticsearchClusterName(es.GetName())
+}
+
+// NewLabelSelectorForElasticsearchStatelessClusterName returns a labels.Selector that matches the labels as constructed by
+// NewLabels for the provided cluster name.
+func NewLabelSelectorForElasticsearchStatelessClusterName(clusterName string) client.MatchingLabels {
+	return client.MatchingLabels(map[string]string{StatelessClusterNameLabelName: clusterName})
 }
 
 // NewLabelSelectorForElasticsearchClusterName returns a labels.Selector that matches the labels as constructed by

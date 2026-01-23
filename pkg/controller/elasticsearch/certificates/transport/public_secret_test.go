@@ -47,7 +47,7 @@ func TestReconcileTransportCertsPublicSecret(t *testing.T) {
 	mkWantedSecret := func(t *testing.T) *corev1.Secret {
 		t.Helper()
 		meta := k8s.ToObjectMeta(namespacedSecretName)
-		labels := label.NewLabels(k8s.ExtractNamespacedName(owner))
+		labels := label.NewLabels(k8s.ExtractNamespacedName(owner), owner.IsStateless())
 		labels[reconciler.SoftOwnerKindLabel] = owner.Kind
 		labels[reconciler.SoftOwnerNameLabel] = owner.Name
 		labels[reconciler.SoftOwnerNamespaceLabel] = owner.Namespace

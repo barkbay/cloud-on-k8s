@@ -54,7 +54,7 @@ func newElasticsearchConfigSecret(esConfig policyv1alpha1.ElasticsearchConfigPol
 		data[ElasticSearchConfigKey] = configDataJSONBytes
 	}
 	meta := metadata.Propagate(&es, metadata.Metadata{
-		Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es)),
+		Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless()),
 		Annotations: map[string]string{
 			commonannotation.ElasticsearchConfigAndSecretMountsHashAnnotation: elasticsearchAndMountsConfigHash,
 		},

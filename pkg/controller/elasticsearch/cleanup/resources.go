@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"go.elastic.co/apm/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -36,12 +36,12 @@ func IsTooYoungForGC(object metav1.Object) bool {
 }
 
 // DeleteOrphanedSecrets cleans up secrets that are not needed anymore for the given es cluster.
-func DeleteOrphanedSecrets(ctx context.Context, c k8s.Client, es esv1.Elasticsearch) error {
+func DeleteOrphanedSecrets(ctx context.Context, c k8s.Client, es common.ElasticsearchCluster) error {
 	span, ctx := apm.StartSpan(ctx, "delete_orphaned_secrets", tracing.SpanTypeApp)
 	defer span.End()
 
 	var secrets corev1.SecretList
-	ns := client.InNamespace(es.Namespace)
+	ns := client.InNamespace(es.GetNamespace())
 	matchLabels := label.NewLabelSelectorForElasticsearch(es)
 	if err := c.List(ctx, &secrets, ns, matchLabels); err != nil {
 		return err
@@ -50,7 +50,7 @@ func DeleteOrphanedSecrets(ctx context.Context, c k8s.Client, es esv1.Elasticsea
 	for i := range secrets.Items {
 		resources[i] = &secrets.Items[i]
 	}
-	return cleanupFromPodReference(ctx, c, es.Namespace, resources)
+	return cleanupFromPodReference(ctx, c, es.GetNamespace(), resources)
 }
 
 // cleanupFromPodReference deletes objects having a reference to

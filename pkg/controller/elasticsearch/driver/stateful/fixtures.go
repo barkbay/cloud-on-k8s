@@ -301,6 +301,7 @@ func (t testPod) toPod() corev1.Pod {
 			Namespace: TestEsNamespace,
 			Name:      TestEsName,
 		},
+		false, /* IsStateless */
 		t.ssetName,
 		version.MustParse(t.version),
 		&esv1.Node{
