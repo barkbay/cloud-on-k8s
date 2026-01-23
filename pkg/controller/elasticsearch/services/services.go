@@ -49,7 +49,7 @@ func NewTransportService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.
 		// We set ClusterIP to None in order to let the ES nodes discover all other node IPs at once.
 		svc.Spec.ClusterIP = "None"
 	}
-	selector := label.NewLabels(nsn)
+	selector := label.NewLabels(nsn, es.IsStateless())
 	ports := []corev1.ServicePort{
 		{
 			Name:     "tls-transport", // prefix with protocol for Istio compatibility
@@ -121,7 +121,7 @@ func NewExternalService(es escommon.ElasticsearchCluster, meta metadata.Metadata
 	if svc.Spec.Type == "" {
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 	}
-	selector := label.NewLabels(nsn)
+	selector := label.NewLabels(nsn, es.IsStateless())
 	ports := []corev1.ServicePort{
 		{
 			Name:     es.GetHTTP().Protocol(),
@@ -154,7 +154,7 @@ func NewInternalService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.S
 					Port:     network.HTTPPort,
 				},
 			},
-			Selector:                 label.NewLabels(k8s.ExtractNamespacedName(&es)),
+			Selector:                 label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless()),
 			PublishNotReadyAddresses: false,
 		},
 	}
@@ -177,7 +177,7 @@ func NewRemoteClusterService(es esv1.Elasticsearch, meta metadata.Metadata) *cor
 		// ClusterIP None creates a headless service, allowing direct access to all pods for remote cluster connections
 		svc.Spec.ClusterIP = "None"
 	}
-	selector := label.NewLabels(nsn)
+	selector := label.NewLabels(nsn, es.IsStateless())
 	ports := []corev1.ServicePort{
 		{
 			Name:     RemoteClusterServicePortName,
@@ -239,7 +239,7 @@ func (u *urlProvider) HasEndpoints() bool {
 func NewElasticsearchURLProvider(es esv1.Elasticsearch, client k8s.Client) client.URLProvider {
 	return &urlProvider{
 		pods: func() ([]corev1.Pod, error) {
-			return k8s.PodsMatchingLabels(client, es.Namespace, label.NewLabelSelectorForElasticsearch(es))
+			return k8s.PodsMatchingLabels(client, es.Namespace, label.NewLabelSelectorForElasticsearch(&es))
 		},
 		svcURL: InternalServiceURL(es),
 	}

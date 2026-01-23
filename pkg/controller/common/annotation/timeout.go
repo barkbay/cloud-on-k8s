@@ -8,18 +8,16 @@ import (
 	"context"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	ulog "github.com/elastic/cloud-on-k8s/v3/pkg/utils/log"
 )
 
 // ExtractTimeout extracts a timeout value specified as an annotation on a resource.
-func ExtractTimeout(ctx context.Context, objMeta metav1.ObjectMeta, annotation string, defaultVal time.Duration) time.Duration {
-	if len(objMeta.Annotations) == 0 {
+func ExtractTimeout(ctx context.Context, annotations map[string]string, annotation string, defaultVal time.Duration) time.Duration {
+	if len(annotations) == 0 {
 		return defaultVal
 	}
 
-	t, ok := objMeta.Annotations[annotation]
+	t, ok := annotations[annotation]
 	if !ok {
 		return defaultVal
 	}

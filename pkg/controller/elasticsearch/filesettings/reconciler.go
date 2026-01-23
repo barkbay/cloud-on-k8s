@@ -52,7 +52,7 @@ func ReconcileEmptyFileSettingsSecret(
 	}
 
 	// extract the metadata that should be propagated to children
-	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es))})
+	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
 	// no secret, reconcile a new empty file settings
 	expectedSecret, _, err := NewSettingsSecretWithVersion(&es, nil, nil, nil, meta)
 	if err != nil {

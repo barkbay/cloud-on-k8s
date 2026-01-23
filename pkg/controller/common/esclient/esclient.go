@@ -79,7 +79,7 @@ func NewClient(
 		},
 		v,
 		caCerts,
-		esclient.Timeout(ctx, es),
+		esclient.Timeout(ctx, &es),
 		dev.Enabled,
 	), nil
 }

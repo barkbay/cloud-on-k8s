@@ -238,7 +238,7 @@ func TestReconcileTransportCertificatesSecrets(t *testing.T) {
 			require.Equal(t, tt.wantErr, got.HasError(), "expected err")
 			// Check Secrets
 			var secrets corev1.SecretList
-			matchLabels := label.NewLabelSelectorForElasticsearch(*tt.args.es)
+			matchLabels := label.NewLabelSelectorForElasticsearch(tt.args.es)
 			ns := client.InNamespace(tt.args.es.Namespace)
 			assert.NoError(t, k8sClient.List(context.Background(), &secrets, matchLabels, ns))
 			tt.assertSecrets(t, secrets)

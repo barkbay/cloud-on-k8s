@@ -108,7 +108,7 @@ func (m *Manager) Observe(ctx context.Context, cluster esv1.Elasticsearch, esCli
 // extractObserverSettings extracts observer settings from the annotations on the Elasticsearch resource.
 func (m *Manager) extractObserverSettings(ctx context.Context, cluster esv1.Elasticsearch) Settings {
 	return Settings{
-		ObservationInterval: annotation.ExtractTimeout(ctx, cluster.ObjectMeta, ObserverIntervalAnnotation, m.defaultInterval),
+		ObservationInterval: annotation.ExtractTimeout(ctx, cluster.GetAnnotations(), ObserverIntervalAnnotation, m.defaultInterval),
 		Tracer:              m.tracer,
 	}
 }

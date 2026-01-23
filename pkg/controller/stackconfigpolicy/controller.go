@@ -342,7 +342,7 @@ func (r *ReconcileStackConfigPolicy) reconcileElasticsearchResources(ctx context
 		}
 
 		// extract the metadata that should be propagated to children
-		meta := metadata.Propagate(&es, metadata.Metadata{Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es))})
+		meta := metadata.Propagate(&es, metadata.Metadata{Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
 		// create the expected Settings Secret
 		expectedSecret, expectedVersion, err := filesettings.NewSettingsSecretWithVersion(&es, &actualSettingsSecret, &esConfigPolicyFinal.Spec, esConfigPolicyFinal.SecretSources, meta)
 		if err != nil {

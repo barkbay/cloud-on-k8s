@@ -369,7 +369,7 @@ func TestClient_Equal(t *testing.T) {
 	dummyCACerts := []*x509.Certificate{createCert()}
 	v7 := version.MustParse("7.17.0")
 	v8 := version.MustParse("8.0.0")
-	timeout := Timeout(context.Background(), esv1.Elasticsearch{})
+	timeout := Timeout(context.Background(), &esv1.Elasticsearch{})
 	x509.NewCertPool()
 	tests := []struct {
 		name string
@@ -634,7 +634,7 @@ func TestClient_ClusterBootstrappedForZen2(t *testing.T) {
 
 func TestTimeout(t *testing.T) {
 	es := esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "test", Annotations: map[string]string{ESClientTimeoutAnnotation: "1m"}}}
-	have := Timeout(context.Background(), es)
+	have := Timeout(context.Background(), &es)
 	require.Equal(t, 1*time.Minute, have)
 }
 
@@ -797,7 +797,7 @@ func Test_HasProperties(t *testing.T) {
 		defaultUser,
 		defaultVersion,
 		defaultCaCerts,
-		Timeout(context.Background(), esv1.Elasticsearch{}),
+		Timeout(context.Background(), &esv1.Elasticsearch{}),
 		false,
 	)
 	tests := []struct {

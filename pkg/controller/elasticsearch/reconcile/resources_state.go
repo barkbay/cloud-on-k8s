@@ -31,7 +31,7 @@ type ResourcesState struct {
 
 // NewResourcesStateFromAPI reflects the current ResourcesState from the API
 func NewResourcesStateFromAPI(c k8s.Client, es esv1.Elasticsearch) (*ResourcesState, error) {
-	allPods, err := k8s.PodsMatchingLabels(c, es.Namespace, label.NewLabelSelectorForElasticsearch(es))
+	allPods, err := k8s.PodsMatchingLabels(c, es.Namespace, label.NewLabelSelectorForElasticsearch(&es))
 	if err != nil {
 		return nil, err
 	}

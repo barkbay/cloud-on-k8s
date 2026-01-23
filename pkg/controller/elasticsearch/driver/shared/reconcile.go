@@ -70,12 +70,12 @@ func ReconcileSharedResources(
 	client := params.Client
 
 	// Garbage collect secrets attached to this cluster that we don't need anymore.
-	if err := cleanup.DeleteOrphanedSecrets(ctx, client, es); err != nil {
+	if err := cleanup.DeleteOrphanedSecrets(ctx, client, &es); err != nil {
 		return nil, results.WithError(err)
 	}
 
 	// Extract the metadata that should be propagated to children.
-	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es))})
+	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
 
 	// Reconcile the scripts ConfigMap.
 	if err := configmap.ReconcileScriptsConfigMap(ctx, client, es, meta); err != nil {

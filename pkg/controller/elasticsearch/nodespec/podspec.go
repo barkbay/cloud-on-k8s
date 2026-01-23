@@ -189,6 +189,7 @@ func buildLabels(
 	node := unpackedCfg.Node
 	podLabels := label.NewPodLabels(
 		k8s.ExtractNamespacedName(&es),
+		es.IsStateless(),
 		esv1.StatefulSet(es.Name, nodeSet.Name),
 		ver, node, es.Spec.HTTP.Protocol(),
 	)
