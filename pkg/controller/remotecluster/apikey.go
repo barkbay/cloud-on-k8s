@@ -11,7 +11,7 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
@@ -26,19 +26,26 @@ func reconcileAPIKeys(
 	ctx context.Context,
 	c k8s.Client,
 	activeAPIKeys esclient.CrossClusterAPIKeyList, // all the API Keys in the reconciled/local cluster
-	remoteServerES *esv1.Elasticsearch, // the Elasticsearch cluster being reconciled, where the API keys must be created/invalidated
-	remoteClientES *esv1.Elasticsearch, // the remote Elasticsearch cluster which is going to act as the client, where the API keys are going to be stored in the keystore Secret
-	remoteClusterRefs []esv1.RemoteCluster, // the expected API keys for that client cluster
+	remoteServerES escommon.ElasticsearchCluster, // the Elasticsearch cluster being reconciled, where the API keys must be created/invalidated
+	remoteClientES escommon.ElasticsearchCluster, // the remote Elasticsearch cluster which is going to act as the client, where the API keys are going to be stored in the keystore Secret
+	remoteClusterRefs []escommon.RemoteCluster, // the expected API keys for that client cluster
 	esClient esclient.Client, // ES client for the reconciled cluster which is going to act as the server
 	keystoreProvider *keystore.Provider,
 ) *reconciler.Results {
-	log := ulog.FromContext(ctx).WithValues(
-		"remote_server_namespace", remoteServerES.Namespace,
-		"remote_server_name", remoteServerES.Name,
-		"remote_client_namespace", remoteClientES.Namespace,
-		"remote_client_name", remoteClientES.Name,
-	)
 	results := &reconciler.Results{}
+
+	// Handle case where remoteClientES is nil (cluster was deleted)
+	if remoteClientES == nil {
+		return results
+	}
+
+	log := ulog.FromContext(ctx).WithValues(
+		"remote_server_namespace", remoteServerES.GetNamespace(),
+		"remote_server_name", remoteServerES.GetName(),
+		"remote_client_namespace", remoteClientES.GetNamespace(),
+		"remote_client_name", remoteClientES.GetName(),
+	)
+
 	// clientClusterAPIKeyStore is used to reconcile encoded API keys in the client cluster, to inject new API keys
 	// or to delete the ones which are no longer needed.
 	clientClusterAPIKeyStore, err := keystoreProvider.ForCluster(ctx, log, remoteClientES)
@@ -52,7 +59,7 @@ func reconcileAPIKeys(
 	expectedAliases := sets.New[string]()
 	activeAPIKeysNames := activeAPIKeys.KeyNames()
 	for _, remoteClusterRef := range remoteClusterRefs {
-		apiKeyName := fmt.Sprintf("eck-%s-%s-%s", remoteClientES.Namespace, remoteClientES.Name, remoteClusterRef.Name)
+		apiKeyName := apiKeyNameFor(remoteClientES, remoteClusterRef.Name)
 		expectedKeysInRemoteServerES.Insert(apiKeyName)
 		expectedAliases.Insert(remoteClusterRef.Name)
 		if remoteClusterRef.APIKey == nil {
@@ -83,7 +90,7 @@ func reconcileAPIKeys(
 	}
 
 	// Get all the active API keys which have been created for that client cluster.
-	activeAPIKeysForClientCluster, err := activeAPIKeys.ForCluster(remoteClientES.Namespace, remoteClientES.Name)
+	activeAPIKeysForClientCluster, err := activeAPIKeys.ForCluster(remoteClientES.GetNamespace(), remoteClientES.GetName())
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -99,7 +106,7 @@ func reconcileAPIKeys(
 	}
 
 	// Delete all the keys in the keystore which are not expected.
-	aliases := clientClusterAPIKeyStore.ForCluster(remoteServerES.Namespace, remoteServerES.Name)
+	aliases := clientClusterAPIKeyStore.ForCluster(remoteServerES.GetNamespace(), remoteServerES.GetName())
 	for existingAlias := range aliases {
 		if expectedAliases.Has(existingAlias) {
 			continue
@@ -117,13 +124,13 @@ func reconcileAPIKeys(
 func createAPIKey(
 	ctx context.Context,
 	log logr.Logger,
-	remoteCluster esv1.RemoteCluster,
+	remoteCluster escommon.RemoteCluster,
 	apiKeyName string,
 	esClient esclient.Client,
-	clientES *esv1.Elasticsearch,
+	clientES escommon.ElasticsearchCluster,
 	expectedHash string,
 	clientClusterAPIKeyStore *keystore.APIKeyStore,
-	reconciledES *esv1.Elasticsearch,
+	reconciledES escommon.ElasticsearchCluster,
 ) error {
 	// Active API key not found, let's create a new one.
 	log.Info("Creating API key", "alias", remoteCluster.Name, "key", apiKeyName)
@@ -137,7 +144,7 @@ func createAPIKey(
 	if err != nil {
 		return err
 	}
-	clientClusterAPIKeyStore.Update(reconciledES.Name, reconciledES.Namespace, remoteCluster.Name, apiKey.ID, apiKey.Encoded)
+	clientClusterAPIKeyStore.Update(reconciledES.GetName(), reconciledES.GetNamespace(), remoteCluster.Name, apiKey.ID, apiKey.Encoded)
 	return nil
 }
 
@@ -146,10 +153,10 @@ func maybeUpdateAPIKey(
 	log logr.Logger,
 	esClient esclient.Client,
 	clientClusterAPIKeyStore *keystore.APIKeyStore,
-	remoteCluster esv1.RemoteCluster,
+	remoteCluster escommon.RemoteCluster,
 	activeAPIKey *esclient.CrossClusterAPIKey,
 	apiKeyName string,
-	clientES *esv1.Elasticsearch,
+	clientES escommon.ElasticsearchCluster,
 	expectedHash string,
 ) error {
 	// Ensure that the API key is in the keystore
@@ -162,7 +169,7 @@ func maybeUpdateAPIKey(
 		}
 		return fmt.Errorf(
 			"cluster key id for alias %s %s (%s), does not match the one stored in the keystore of %s/%s",
-			remoteCluster.Name, activeAPIKey.Name, activeAPIKey.ID, clientES.Namespace, clientES.Name,
+			remoteCluster.Name, activeAPIKey.Name, activeAPIKey.ID, clientES.GetNamespace(), clientES.GetName(),
 		)
 	}
 	currentHash := activeAPIKey.Metadata["elasticsearch.k8s.elastic.co/config-hash"]
@@ -180,14 +187,24 @@ func maybeUpdateAPIKey(
 	return nil
 }
 
+// apiKeyNameFor returns the API key name for a given client cluster and remote cluster alias.
+// Uses "eck-ess" prefix for stateless clusters, "eck" prefix for stateful clusters.
+func apiKeyNameFor(clientES escommon.ElasticsearchCluster, alias string) string {
+	prefix := "eck"
+	if clientES.IsStateless() {
+		prefix = "eck-ess"
+	}
+	return fmt.Sprintf("%s-%s-%s-%s", prefix, clientES.GetNamespace(), clientES.GetName(), alias)
+}
+
 // newMetadataFor returns the metadata to be set in the Elasticsearch API keys metadata in the Elasticsearch cluster
 // state, not on a Kubernetes object.
-func newMetadataFor(clientES *esv1.Elasticsearch, expectedHash string) map[string]interface{} {
+func newMetadataFor(clientES escommon.ElasticsearchCluster, expectedHash string) map[string]interface{} {
 	return map[string]interface{}{
 		"elasticsearch.k8s.elastic.co/config-hash": expectedHash,
-		"elasticsearch.k8s.elastic.co/name":        clientES.Name,
-		"elasticsearch.k8s.elastic.co/namespace":   clientES.Namespace,
-		"elasticsearch.k8s.elastic.co/uid":         clientES.UID,
+		"elasticsearch.k8s.elastic.co/name":        clientES.GetName(),
+		"elasticsearch.k8s.elastic.co/namespace":   clientES.GetNamespace(),
+		"elasticsearch.k8s.elastic.co/uid":         clientES.GetUID(),
 		"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 	}
 }

@@ -22,6 +22,7 @@ import (
 	autoopsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoops/v1alpha1"
 	esav1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoscaling/v1alpha1"
 	beatv1beta1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/beat/v1beta1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	entv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/enterprisesearch/v1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
@@ -251,7 +252,7 @@ func esStats(k8sClient k8s.Client, managedNamespaces []string) (string, interfac
 			stats.ResourceCount++
 			stats.PodCount += es.Status.AvailableNodes
 
-			rcWithoutAPIKeys, rcWithAPIKeys := es.RemoteClustersCount()
+			rcWithoutAPIKeys, rcWithAPIKeys := escommon.RemoteClustersCount(&es)
 			stats.RemoteClustersCount += rcWithoutAPIKeys
 			stats.RemoteClustersAPIKeysCount += rcWithAPIKeys
 

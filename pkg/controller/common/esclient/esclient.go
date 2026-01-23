@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -24,24 +23,24 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/net"
 )
 
-type Provider func(ctx context.Context, c k8s.Client, dialer net.Dialer, es esv1.Elasticsearch) (esclient.Client, error)
+type Provider func(ctx context.Context, c k8s.Client, dialer net.Dialer, es escommon.ElasticsearchCluster) (esclient.Client, error)
 
 func NewClient(
 	ctx context.Context,
 	c k8s.Client,
 	dialer net.Dialer,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 ) (esclient.Client, error) {
 	defer tracing.Span(&ctx)()
-	v, err := version.Parse(es.Spec.Version)
+	v, err := version.Parse(es.GetVersion())
 	if err != nil {
 		return nil, err
 	}
 	// Get user Secret
 	var controllerUserSecret corev1.Secret
 	key := types.NamespacedName{
-		Namespace: es.Namespace,
-		Name:      escommon.InternalUsersSecret(&es),
+		Namespace: es.GetNamespace(),
+		Name:      escommon.InternalUsersSecret(es),
 	}
 	if err := c.Get(ctx, key, &controllerUserSecret); err != nil {
 		return nil, err
@@ -51,11 +50,15 @@ func NewClient(
 		return nil, fmt.Errorf("controller user %s not found in Secret %s/%s", user.ControllerUserName, key.Namespace, key.Name)
 	}
 
-	// Get public certs
+	// Get public certs - use the appropriate namer based on cluster type
+	namer := escommon.StatefulNamer
+	if es.IsStateless() {
+		namer = escommon.StatelessNamer
+	}
 	var caSecret corev1.Secret
 	key = types.NamespacedName{
-		Namespace: es.Namespace,
-		Name:      certificates.PublicCertsSecretName(esv1.ESNamer, es.Name),
+		Namespace: es.GetNamespace(),
+		Name:      certificates.PublicCertsSecretName(namer, es.GetName()),
 	}
 	if err := c.Get(ctx, key, &caSecret); err != nil {
 		return nil, err
@@ -71,15 +74,46 @@ func NewClient(
 
 	return esclient.NewElasticsearchClient(
 		dialer,
-		k8s.ExtractNamespacedName(&es),
-		services.NewElasticsearchURLProvider(&es, c),
+		k8s.ExtractNamespacedName(es),
+		newURLProvider(es, c),
 		esclient.BasicAuth{
 			Name:     user.ControllerUserName,
 			Password: string(password),
 		},
 		v,
 		caCerts,
-		esclient.Timeout(ctx, &es),
+		esclient.Timeout(ctx, es),
 		dev.Enabled,
 	), nil
+}
+
+// newURLProvider creates a URLProvider for the given Elasticsearch cluster.
+func newURLProvider(es escommon.ElasticsearchCluster, c k8s.Client) esclient.URLProvider {
+	// For stateful clusters, use the existing URL provider
+	if !es.IsStateless() {
+		return services.NewElasticsearchURLProvider(es, c)
+	}
+	// For stateless clusters, return a service-based URL provider
+	return &simpleURLProvider{url: services.ExternalTransportServiceHost(es)}
+}
+
+// simpleURLProvider is a basic URL provider that returns a fixed URL.
+type simpleURLProvider struct {
+	url string
+}
+
+func (s *simpleURLProvider) URL() (string, error) {
+	return s.url, nil
+}
+
+func (s *simpleURLProvider) HasEndpoints() bool {
+	return true
+}
+
+func (s *simpleURLProvider) Equals(other esclient.URLProvider) bool {
+	otherSimple, ok := other.(*simpleURLProvider)
+	if !ok {
+		return false
+	}
+	return s.url == otherSimple.url
 }

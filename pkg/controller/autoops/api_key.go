@@ -62,7 +62,7 @@ func (r *AgentPolicyReconciler) reconcileAutoOpsESAPIKey(
 	)
 	log.V(1).Info("Reconciling AutoOps ES API key")
 
-	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, es)
+	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, &es)
 	if err != nil {
 		return nil, fmt.Errorf("while creating Elasticsearch client for %s/%s: %w", es.Namespace, es.Name, err)
 	}
@@ -181,7 +181,7 @@ func (r *AgentPolicyReconciler) invalidateAndCreateAPIKey(
 	policy autoopsv1alpha1.AutoOpsAgentPolicy,
 	es esv1.Elasticsearch,
 ) (*corev1.Secret, error) {
-	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, es)
+	esClient, err := r.esClientProvider(ctx, r.Client, r.params.Dialer, &es)
 	if err != nil {
 		return nil, fmt.Errorf("while creating Elasticsearch client for %s/%s: %w", es.Namespace, es.Name, err)
 	}
@@ -331,7 +331,7 @@ func cleanupAutoOpsESAPIKey(
 	}
 
 	// Get Elasticsearch client
-	esClient, err := esClientProvider(ctx, c, dialer, es)
+	esClient, err := esClientProvider(ctx, c, dialer, &es)
 	if err != nil {
 		return fmt.Errorf("while creating Elasticsearch client for %s/%s: %w", es.Namespace, es.Name, err)
 	}

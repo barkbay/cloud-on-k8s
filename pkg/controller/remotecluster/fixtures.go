@@ -174,7 +174,7 @@ func fakePublicCa(namespace, name string) *corev1.Secret {
 	}
 }
 
-// remoteCa builds an expected remote Ca
+// remoteCa builds an expected remote Ca for stateful clusters
 func remoteCa(localNamespace, localName, remoteNamespace, remoteName string) *corev1.Secret {
 	remoteNamespacedName := types.NamespacedName{
 		Name:      remoteName,
@@ -183,12 +183,14 @@ func remoteCa(localNamespace, localName, remoteNamespace, remoteName string) *co
 	return &corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: localNamespace,
-			Name:      remoteCASecretName(localName, remoteNamespacedName),
+			Name:      remoteCASecretNameString(localName, remoteNamespacedName, false, false),
 			Labels: map[string]string{
 				"common.k8s.elastic.co/type":                            "remote-ca",
 				"elasticsearch.k8s.elastic.co/cluster-name":             localName,
+				"elasticsearch.k8s.elastic.co/cluster-kind":             kindStateful,
 				"elasticsearch.k8s.elastic.co/remote-cluster-name":      remoteName,
 				"elasticsearch.k8s.elastic.co/remote-cluster-namespace": remoteNamespace,
+				"elasticsearch.k8s.elastic.co/remote-cluster-kind":      kindStateful,
 			},
 		},
 		Data: map[string][]byte{

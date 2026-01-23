@@ -28,10 +28,16 @@ const (
 	TypeLabelValue = "remote-ca"
 )
 
-func Labels(esName string) client.MatchingLabels {
+// Labels returns the labels used to identify remote CA secrets for an Elasticsearch cluster.
+// The isStateless parameter determines whether to use the stateless cluster label name.
+func Labels(esName string, isStateless bool) client.MatchingLabels {
+	clusterNameLabel := label.ClusterNameLabelName
+	if isStateless {
+		clusterNameLabel = label.StatelessClusterNameLabelName
+	}
 	return map[string]string{
-		label.ClusterNameLabelName: esName,
-		commonv1.TypeLabelName:     TypeLabelValue,
+		clusterNameLabel:       esName,
+		commonv1.TypeLabelName: TypeLabelValue,
 	}
 }
 
@@ -48,7 +54,7 @@ func Reconcile(
 	if err := c.List(ctx,
 		&remoteCAList,
 		client.InNamespace(es.GetNamespace()),
-		Labels(es.GetName()),
+		Labels(es.GetName(), es.IsStateless()),
 	); err != nil {
 		return err
 	}

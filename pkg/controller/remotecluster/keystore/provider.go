@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
@@ -44,13 +44,13 @@ func (p *Provider) ForgetCluster(name types.NamespacedName) {
 	delete(p.pendingChangesPerCluster.pendingChangesPerCluster, name)
 }
 
-func (p *Provider) ForCluster(ctx context.Context, log logr.Logger, owner *esv1.Elasticsearch) (*APIKeyStore, error) {
+func (p *Provider) ForCluster(ctx context.Context, log logr.Logger, owner escommon.ElasticsearchCluster) (*APIKeyStore, error) {
 	if p == nil {
 		return nil, nil
 	}
 	name := types.NamespacedName{
-		Namespace: owner.Namespace,
-		Name:      owner.Name,
+		Namespace: owner.GetNamespace(),
+		Name:      owner.GetName(),
 	}
 	pendingChanges := p.forCluster(name)
 	if pendingChanges != nil {
