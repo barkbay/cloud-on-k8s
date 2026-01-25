@@ -28,7 +28,7 @@ func NewChangeBudgetWatcher(from esv1.ElasticsearchSpec, to esv1.Elasticsearch) 
 		"pod count for change budget: expect to stay within the change budget",
 		1*time.Second,
 		func(k *test.K8sClient, t *testing.T) {
-			pods, err := sset.GetActualPodsForCluster(k.Client, to)
+			pods, err := sset.GetActualPodsForCluster(k.Client, &to)
 			if err != nil {
 				t.Logf("got error listing pods: %v", err)
 				return

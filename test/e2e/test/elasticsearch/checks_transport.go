@@ -21,14 +21,13 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/dev/portforward"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/v3/test/e2e/test"
 )
 
 // CheckTransportCACertificate attempts a TLS handshake to inspect the peer certificates presented by the Elasticsearch
 // node to verify the expected CA certificate is among them.
 func CheckTransportCACertificate(es common.ElasticsearchCluster, ca *x509.Certificate) error {
-	host := services.ExternalTransportServiceHost(k8s.ExtractNamespacedName(es))
+	host := services.ExternalTransportServiceHost(es)
 	var conn net.Conn
 	var err error
 
@@ -98,7 +97,7 @@ func (e *esClusterChecks) CheckTransportCertificatesStep() test.Step {
 					certificates.CAFileName, secretName, len(caCerts),
 				)
 			}
-			return CheckTransportCACertificate(e.Elasticsearch, caCerts[0])
+			return CheckTransportCACertificate(&e.Elasticsearch, caCerts[0])
 		}),
 	}
 }

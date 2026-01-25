@@ -44,7 +44,7 @@ func annotatePodsWithNodeLabels(ctx context.Context, c k8s.Client, es esv1.Elast
 	if !es.HasDownwardNodeLabels() {
 		return results
 	}
-	actualPods, err := sset.GetActualPodsForCluster(c, es)
+	actualPods, err := sset.GetActualPodsForCluster(c, &es)
 	if err != nil {
 		return results.WithError(err)
 	}

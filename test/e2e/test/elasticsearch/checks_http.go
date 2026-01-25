@@ -28,7 +28,7 @@ func CheckHTTPConnectivityWithCA(es esv1.Elasticsearch, k *test.K8sClient, caCer
 	}
 	user := client.BasicAuth{Name: esuser.ElasticUserName, Password: password}
 
-	pods, err := sset.GetActualPodsForCluster(k.Client, es)
+	pods, err := sset.GetActualPodsForCluster(k.Client, &es)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func CheckHTTPConnectivityWithCA(es esv1.Elasticsearch, k *test.K8sClient, caCer
 			user,
 			v,
 			caCert,
-			client.Timeout(context.Background(), es),
+			client.Timeout(context.Background(), &es),
 			true,
 		)
 		_, err := esClient.GetClusterInfo(context.Background())

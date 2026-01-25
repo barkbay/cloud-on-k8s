@@ -41,7 +41,7 @@ func HandleDownscale(
 
 	// Retrieve the current list of Pods for this cluster. This list is used to compute the nodes that should be eventually removed,
 	// and the ones that will be removed in this reconciliation attempt.
-	actualPods, err := es_sset.GetActualPodsForCluster(downscaleCtx.k8sClient, downscaleCtx.es)
+	actualPods, err := es_sset.GetActualPodsForCluster(downscaleCtx.k8sClient, &downscaleCtx.es)
 	if err != nil {
 		return results.WithError(err)
 	}
