@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -28,13 +29,12 @@ func GetActualPodsForStatefulSet(c k8s.Client, sset types.NamespacedName) ([]cor
 }
 
 // GetActualPodsForCluster return the existing pods associated to this cluster.
-func GetActualPodsForCluster(c k8s.Client, es esv1.Elasticsearch) ([]corev1.Pod, error) {
+// Works with both stateful Elasticsearch and stateless ElasticsearchStateless clusters.
+func GetActualPodsForCluster(c k8s.Client, cluster escommon.ElasticsearchCluster) ([]corev1.Pod, error) {
 	var pods corev1.PodList
 
-	ns := client.InNamespace(es.Namespace)
-	matchLabels := client.MatchingLabels(map[string]string{
-		label.ClusterNameLabelName: es.Name,
-	})
+	ns := client.InNamespace(cluster.GetNamespace())
+	matchLabels := label.NewLabelSelectorForElasticsearch(cluster)
 	if err := c.List(context.Background(), &pods, ns, matchLabels); err != nil {
 		return nil, err
 	}

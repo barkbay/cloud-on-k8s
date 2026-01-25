@@ -133,7 +133,7 @@ func (e *esClusterChecks) CheckDesiredNodesAPI(k *test.K8sClient) test.Step {
 			if latestDesiredNodes.HistoryID != string(es.UID) {
 				return fmt.Errorf("expected desired nodes history ID %s, but got %s from the API", string(es.UID), latestDesiredNodes.HistoryID)
 			}
-			orchestrationsHints, err := hints.NewFrom(es)
+			orchestrationsHints, err := hints.NewFrom(&es)
 			if err != nil {
 				return err
 			}

@@ -29,20 +29,22 @@ var _ ElasticsearchCluster = &mockCluster{}
 func (m *mockCluster) GetObjectKind() schema.ObjectKind { return nil }
 func (m *mockCluster) DeepCopyObject() runtime.Object  { return nil }
 
-func (m *mockCluster) GetVersion() string                                  { return "8.0.0" }
-func (m *mockCluster) GetImage() string                                    { return "" }
-func (m *mockCluster) GetHTTP() commonv1.HTTPConfig                        { return commonv1.HTTPConfig{} }
-func (m *mockCluster) GetTransport() TransportConfig                       { return TransportConfig{} }
-func (m *mockCluster) GetAuth() Auth                                       { return Auth{} }
-func (m *mockCluster) GetSecureSettings() []commonv1.SecretSource          { return nil }
-func (m *mockCluster) GetServiceAccountName() string                       { return "" }
-func (m *mockCluster) GetRemoteClusterServer() RemoteClusterServer         { return RemoteClusterServer{} }
-func (m *mockCluster) GetRemoteClusters() []RemoteCluster                  { return nil }
+func (m *mockCluster) GetVersion() string                                    { return "8.0.0" }
+func (m *mockCluster) GetImage() string                                      { return "" }
+func (m *mockCluster) GetHTTP() commonv1.HTTPConfig                          { return commonv1.HTTPConfig{} }
+func (m *mockCluster) GetTransport() TransportConfig                         { return TransportConfig{} }
+func (m *mockCluster) GetAuth() Auth                                         { return Auth{} }
+func (m *mockCluster) GetSecureSettings() []commonv1.SecretSource            { return nil }
+func (m *mockCluster) SecureSettings() []commonv1.SecretSource               { return nil }
+func (m *mockCluster) GetServiceAccountName() string                         { return "" }
+func (m *mockCluster) GetRemoteClusterServer() RemoteClusterServer           { return RemoteClusterServer{} }
+func (m *mockCluster) GetRemoteClusters() []RemoteCluster                    { return nil }
 func (m *mockCluster) SupportsRemoteClusterAPIKeys() (*optional.Bool, error) { return optional.NewBool(true), nil }
-func (m *mockCluster) IsStateless() bool                                   { return m.stateless }
-func (m *mockCluster) DownwardNodeLabels() []string                        { return nil }
-func (m *mockCluster) HasDownwardNodeLabels() bool                         { return false }
-func (m *mockCluster) IsConfiguredToAllowDowngrades() bool                 { return false }
+func (m *mockCluster) IsStateless() bool                                     { return m.stateless }
+func (m *mockCluster) DownwardNodeLabels() []string                          { return nil }
+func (m *mockCluster) HasDownwardNodeLabels() bool                           { return false }
+func (m *mockCluster) IsConfiguredToAllowDowngrades() bool                   { return false }
+func (m *mockCluster) GetAssociations() []commonv1.Association               { return nil }
 
 func newMockStatefulCluster(name string) *mockCluster {
 	return &mockCluster{
