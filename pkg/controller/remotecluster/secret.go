@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -30,7 +30,7 @@ import (
 func createOrUpdateCertificateAuthorities(
 	ctx context.Context,
 	r *ReconcileRemoteClusters,
-	local, remote *esv1.Elasticsearch,
+	local, remote escommon.ElasticsearchCluster,
 ) *reconciler.Results {
 	span, _ := apm.StartSpan(ctx, "create_or_update_remote_ca", tracing.SpanTypeApp)
 	defer span.End()
@@ -40,12 +40,12 @@ func createOrUpdateCertificateAuthorities(
 	remoteClusterKey := k8s.ExtractNamespacedName(remote)
 
 	// Add watches on the CA secret of the local cluster.
-	if err := addCertificatesAuthorityWatches(r, localClusterKey, remoteClusterKey); err != nil {
+	if err := addCertificatesAuthorityWatches(r, localClusterKey, remoteClusterKey, escommon.NamerFor(remote)); err != nil {
 		return results.WithError(err)
 	}
 
 	// Add watches on the CA secret of the remote cluster.
-	if err := addCertificatesAuthorityWatches(r, remoteClusterKey, localClusterKey); err != nil {
+	if err := addCertificatesAuthorityWatches(r, remoteClusterKey, localClusterKey, escommon.NamerFor(local)); err != nil {
 		return results.WithError(err)
 	}
 
@@ -53,8 +53,8 @@ func createOrUpdateCertificateAuthorities(
 		"Setting up remote CA",
 		"local_namespace", localClusterKey.Namespace,
 		"local_name", localClusterKey.Namespace,
-		"remote_namespace", remote.Namespace,
-		"remote_name", remote.Name,
+		"remote_namespace", remote.GetNamespace(),
+		"remote_name", remote.GetName(),
 	)
 
 	//  Copy CA from remote (source) to local (target) cluster
@@ -80,20 +80,20 @@ func createOrUpdateCertificateAuthorities(
 func copyCertificateAuthority(
 	ctx context.Context,
 	r *ReconcileRemoteClusters,
-	source, target *esv1.Elasticsearch,
+	source, target escommon.ElasticsearchCluster,
 ) error {
 	sourceKey := k8s.ExtractNamespacedName(source)
 	// Check if CA of the source cluster exists
 	sourceCA := &corev1.Secret{}
-	if err := r.Client.Get(ctx, transport.PublicCertsSecretRef(sourceKey), sourceCA); err != nil {
+	if err := r.Client.Get(ctx, transport.PublicCertsSecretRef(sourceKey, escommon.NamerFor(source)), sourceCA); err != nil {
 		return err
 	}
 
 	if len(sourceCA.Data[certificates.CAFileName]) == 0 {
 		ulog.FromContext(ctx).Info(
 			"Cannot find CA cert",
-			"local_namespace", source.Namespace,
-			"local_name", source.Namespace,
+			"local_namespace", source.GetNamespace(),
+			"local_name", source.GetName(),
 		)
 		r.recorder.Event(source, corev1.EventTypeWarning, EventReasonClusterCaCertNotFound, caCertMissingError(sourceKey))
 		// CA secrets are watched, we don't need to requeue.
@@ -146,7 +146,7 @@ func deleteCertificateAuthorities(
 func reconcileRemoteCA(
 	ctx context.Context,
 	c k8s.Client,
-	target *esv1.Elasticsearch,
+	target escommon.ElasticsearchCluster,
 	source types.NamespacedName,
 	sourceCA []byte,
 ) error {
@@ -155,7 +155,7 @@ func reconcileRemoteCA(
 
 	// Define the expected source CA object, it lives in the target namespace with the content of the source cluster CA
 	expected := corev1.Secret{
-		ObjectMeta: remoteCAObjectMeta(remoteCASecretName(target.Name, source), target, source),
+		ObjectMeta: remoteCAObjectMeta(remoteCASecretName(target.GetName(), source), target, source),
 		Data: map[string][]byte{
 			certificates.CAFileName: sourceCA,
 		},

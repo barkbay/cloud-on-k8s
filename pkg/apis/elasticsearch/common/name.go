@@ -147,3 +147,12 @@ func PodDisruptionBudgetNameForRole(cluster ElasticsearchCluster, role string) s
 	}
 	return NamerFor(cluster).Suffix(cluster.GetName(), DefaultPodDisruptionBudget, role)
 }
+
+// Namer type alias for use by other packages.
+type Namer = common_name.Namer
+
+// DeploymentTransportCertificatesSecret returns the name of the Secret containing transport certificates
+// for a given Deployment in a stateless cluster.
+func DeploymentTransportCertificatesSecret(clusterName, deploymentName string) string {
+	return StatelessNamer.Suffix(clusterName, deploymentName, "transport-certs")
+}

@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates/remoteca"
@@ -127,11 +128,13 @@ func watchName(local types.NamespacedName, remote types.NamespacedName) string {
 // The remote CAs are watched to update the trusted certificates of the local cluster.
 func addCertificatesAuthorityWatches(
 	reconcileClusterAssociation *ReconcileRemoteClusters,
-	local, remote types.NamespacedName) error {
+	local, remote types.NamespacedName,
+	remoteNamer escommon.Namer,
+) error {
 	// Watch the CA secret of Elasticsearch clusters which are involved in a association.
 	err := reconcileClusterAssociation.watches.Secrets.AddHandler(watches.NamedWatch[*corev1.Secret]{
 		Name:    watchName(local, remote),
-		Watched: []types.NamespacedName{transport.PublicCertsSecretRef(remote)},
+		Watched: []types.NamespacedName{transport.PublicCertsSecretRef(remote, remoteNamer)},
 		Watcher: types.NamespacedName{
 			Namespace: local.Namespace,
 			Name:      local.Name,

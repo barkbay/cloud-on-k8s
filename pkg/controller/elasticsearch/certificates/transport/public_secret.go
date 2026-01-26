@@ -13,7 +13,7 @@ import (
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -24,13 +24,20 @@ import (
 func ReconcileTransportCertsPublicSecret(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	ca *certificates.CA,
 	additionalCAs []byte,
 	meta metadata.Metadata,
 ) error {
-	esNSN := k8s.ExtractNamespacedName(&es)
-	secretMetadata := k8s.ToObjectMeta(PublicCertsSecretRef(esNSN))
+	esNSN := k8s.ExtractNamespacedName(es)
+
+	// Get the appropriate namer for this cluster type
+	namer := escommon.StatefulNamer
+	if es.IsStateless() {
+		namer = escommon.StatelessNamer
+	}
+
+	secretMetadata := k8s.ToObjectMeta(PublicCertsSecretRef(esNSN, namer))
 
 	secretMetadata.Labels = meta.Labels
 	secretMetadata.Annotations = meta.Annotations
@@ -44,14 +51,14 @@ func ReconcileTransportCertsPublicSecret(
 
 	// Don't set an ownerRef for public transport certs secrets, likely to be copied into different namespaces.
 	// See https://github.com/elastic/cloud-on-k8s/issues/3986.
-	_, err := reconciler.ReconcileSecretNoOwnerRef(ctx, c, expected, &es)
+	_, err := reconciler.ReconcileSecretNoOwnerRef(ctx, c, expected, es)
 	return err
 }
 
 // PublicCertsSecretRef returns the NamespacedName for the Secret containing the publicly available transport CA.
-func PublicCertsSecretRef(es types.NamespacedName) types.NamespacedName {
+func PublicCertsSecretRef(es types.NamespacedName, namer escommon.Namer) types.NamespacedName {
 	return types.NamespacedName{
-		Name:      certificates.PublicTransportCertsSecretName(esv1.ESNamer, es.Name),
+		Name:      certificates.PublicTransportCertsSecretName(namer, es.Name),
 		Namespace: es.Namespace,
 	}
 }

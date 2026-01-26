@@ -33,6 +33,8 @@ const (
 	PodNameLabelName = "elasticsearch.k8s.elastic.co/pod-name"
 	// StatefulSetNameLabelName used to store the name of the statefulset.
 	StatefulSetNameLabelName = "elasticsearch.k8s.elastic.co/statefulset-name"
+	// DeploymentNameLabelName used to store the name of the deployment (for stateless clusters).
+	DeploymentNameLabelName = "elasticsearch.k8s.elastic.co/deployment-name"
 	// NodeTypesMasterLabelName is a label set to true on nodes with the master role
 	NodeTypesMasterLabelName labels.TrueFalseLabel = "elasticsearch.k8s.elastic.co/node-master"
 	// NodeTypesDataLabelName is a label set to true on nodes with the data role
@@ -243,5 +245,14 @@ func NewLabelSelectorForStatefulSetName(clusterName, ssetName string) client.Mat
 	return client.MatchingLabels(map[string]string{
 		ClusterNameLabelName:     clusterName,
 		StatefulSetNameLabelName: ssetName,
+	})
+}
+
+// NewLabelSelectorForDeploymentName returns a labels.Selector that matches the labels set on resources managed for
+// a given Deployment in a stateless cluster.
+func NewLabelSelectorForDeploymentName(clusterName, deploymentName string) client.MatchingLabels {
+	return client.MatchingLabels(map[string]string{
+		StatelessClusterNameLabelName: clusterName,
+		DeploymentNameLabelName:       deploymentName,
 	})
 }

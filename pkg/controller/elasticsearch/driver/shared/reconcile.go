@@ -145,7 +145,7 @@ func ReconcileSharedResources(
 	trustedHTTPCertificates, res := certificates.ReconcileHTTP(
 		ctx,
 		d,
-		es,
+		&es,
 		[]corev1.Service{*externalService, *internalService},
 		params.OperatorParameters.GlobalCA,
 		params.OperatorParameters.CACertRotation,
@@ -193,7 +193,7 @@ func ReconcileSharedResources(
 	res = certificates.ReconcileTransport(
 		ctx,
 		d,
-		es,
+		&es,
 		params.OperatorParameters.GlobalCA,
 		params.OperatorParameters.CACertRotation,
 		params.OperatorParameters.CertRotation,

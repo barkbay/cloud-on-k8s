@@ -17,7 +17,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -40,7 +39,7 @@ func Labels(esName string) client.MatchingLabels {
 func Reconcile(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	transportCA certificates.CA,
 	meta metadata.Metadata,
 ) error {
@@ -48,8 +47,8 @@ func Reconcile(
 	var remoteCAList v1.SecretList
 	if err := c.List(ctx,
 		&remoteCAList,
-		client.InNamespace(es.Namespace),
-		Labels(es.Name),
+		client.InNamespace(es.GetNamespace()),
+		Labels(es.GetName()),
 	); err != nil {
 		return err
 	}
@@ -72,8 +71,8 @@ func Reconcile(
 
 	expected := v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        escommon.RemoteCaSecretName(&es),
-			Namespace:   es.Namespace,
+			Name:        escommon.RemoteCaSecretName(es),
+			Namespace:   es.GetNamespace(),
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,
 		},
@@ -81,6 +80,6 @@ func Reconcile(
 			certificates.CAFileName: bytes.Join(remoteCertificateAuthorities, nil),
 		},
 	}
-	_, err := reconciler.ReconcileSecret(ctx, c, expected, &es)
+	_, err := reconciler.ReconcileSecret(ctx, c, expected, es)
 	return err
 }

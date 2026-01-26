@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
@@ -25,7 +24,7 @@ import (
 // createValidatedCertificateTemplate validates a CSR and creates a certificate template.
 func createValidatedCertificateTemplate(
 	pod corev1.Pod,
-	cluster esv1.Elasticsearch,
+	cluster escommon.ElasticsearchCluster,
 	csr *x509.CertificateRequest,
 	certValidity time.Duration,
 ) (*certificates.ValidatedCertificateTemplate, error) {
@@ -46,7 +45,7 @@ func createValidatedCertificateTemplate(
 	certificateTemplate := certificates.ValidatedCertificateTemplate(x509.Certificate{
 		Subject: pkix.Name{
 			CommonName:         buildCertificateCommonName(pod, cluster),
-			OrganizationalUnit: []string{cluster.Name},
+			OrganizationalUnit: []string{cluster.GetName()},
 		},
 
 		ExtraExtensions: []pkix.Extension{
@@ -69,16 +68,13 @@ func createValidatedCertificateTemplate(
 }
 
 func buildGeneralNames(
-	cluster esv1.Elasticsearch,
+	cluster escommon.ElasticsearchCluster,
 	pod corev1.Pod,
 ) ([]certificates.GeneralName, error) {
 	podIP := net.ParseIP(pod.Status.PodIP)
 	if podIP == nil {
 		return nil, errors.Errorf("pod currently has no valid IP, found: [%s]", pod.Status.PodIP)
 	}
-
-	ssetName := pod.Labels[label.StatefulSetNameLabelName]
-	svcName := nodespec.HeadlessServiceName(ssetName)
 
 	commonName := buildCertificateCommonName(pod, cluster)
 
@@ -98,26 +94,33 @@ func buildGeneralNames(
 		{DNSName: commonName},
 		// add the transport service name for remote cluster connections initially connecting through the service
 		// the DNS name has to match the seed hosts configured in the remote cluster settings
-		{DNSName: fmt.Sprintf("%s.%s.svc", escommon.TransportService(&cluster), cluster.Namespace)},
-		// add the resolvable DNS name of the Pod as published by Elasticsearch
-		{DNSName: fmt.Sprintf("%s.%s", pod.Name, svcName)},
+		{DNSName: fmt.Sprintf("%s.%s.svc", escommon.TransportService(cluster), cluster.GetNamespace())},
 		{IPAddress: netutil.IPToRFCForm(podIP)},
 		{IPAddress: netutil.IPToRFCForm(netutil.LoopbackFor(netutil.ToIPFamily(podIP.String())))},
 	}
 
-	if cluster.Spec.RemoteClusterServer.Enabled {
-		// Remote cluster server is enabled. Ensure that the remote cluster service name is included in the transport certificates
-		// since these are the ones also used in the context of remote clusters access using API keys.
-		generalNames = append(
-			generalNames,
-			// Remote cluster headless service
-			certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.svc", escommon.RemoteClusterService(&cluster), cluster.Namespace)},
-			// Individual remote_cluster.publish_host is set to <pod name>.<statefulset headless service>.<namespace>.svc
-			certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.%s.svc", pod.Name, svcName, cluster.Namespace)},
-		)
+	// For stateful clusters, add headless service-based DNS names.
+	// These don't make sense for stateless clusters (Deployments) where pod names are unpredictable.
+	if !cluster.IsStateless() {
+		ssetName := pod.Labels[label.StatefulSetNameLabelName]
+		svcName := nodespec.HeadlessServiceName(ssetName)
+		// add the resolvable DNS name of the Pod as published by Elasticsearch
+		generalNames = append(generalNames, certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s", pod.Name, svcName)})
+
+		if cluster.GetRemoteClusterServer().Enabled {
+			// Remote cluster server is enabled. Ensure that the remote cluster service name is included in the transport certificates
+			// since these are the ones also used in the context of remote clusters access using API keys.
+			generalNames = append(
+				generalNames,
+				// Remote cluster headless service
+				certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.svc", escommon.RemoteClusterService(cluster), cluster.GetNamespace())},
+				// Individual remote_cluster.publish_host is set to <pod name>.<statefulset headless service>.<namespace>.svc
+				certificates.GeneralName{DNSName: fmt.Sprintf("%s.%s.%s.svc", pod.Name, svcName, cluster.GetNamespace())},
+			)
+		}
 	}
 
-	for _, san := range cluster.Spec.Transport.TLS.SubjectAlternativeNames {
+	for _, san := range cluster.GetTransport().TLS.SubjectAlternativeNames {
 		if san.DNS != "" {
 			generalNames = append(generalNames, certificates.GeneralName{DNSName: san.DNS})
 		}
@@ -131,10 +134,10 @@ func buildGeneralNames(
 // buildCertificateCommonName returns the CN (and ES otherName) entry for a given Elasticsearch Pod.
 // If the user provided an otherName suffix in the spec, it prepends the pod name to it (<pod_name>.<user-suffix).
 // Otherwise, it defaults to <pod_name>.node.<es_name>.es.local.
-func buildCertificateCommonName(pod corev1.Pod, es esv1.Elasticsearch) string {
-	userConfiguredSuffix := es.Spec.Transport.TLS.OtherNameSuffix
+func buildCertificateCommonName(pod corev1.Pod, es escommon.ElasticsearchCluster) string {
+	userConfiguredSuffix := es.GetTransport().TLS.OtherNameSuffix
 	if userConfiguredSuffix == "" {
-		return fmt.Sprintf("%s.node.%s.%s.es.local", pod.Name, es.Name, es.Namespace)
+		return fmt.Sprintf("%s.node.%s.%s.es.local", pod.Name, es.GetName(), es.GetNamespace())
 	}
 	return fmt.Sprintf("%s.%s", pod.Name, userConfiguredSuffix)
 }

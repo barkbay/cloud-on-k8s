@@ -94,7 +94,7 @@ func Test_shouldIssueNewCertificate(t *testing.T) {
 
 			if got := shouldIssueNewCertificate(
 				context.Background(),
-				testES,
+				&testES,
 				tt.args.secret,
 				*tt.args.pod,
 				testRSAPrivateKey,
@@ -228,7 +228,7 @@ func Test_ensureTransportCertificatesSecretContentsForPod(t *testing.T) {
 
 			err := ensureTransportCertificatesSecretContentsForPod(
 				context.Background(),
-				testES,
+				&testES,
 				tt.secret,
 				*tt.pod,
 				testRSACA,

@@ -233,7 +233,7 @@ func TestReconcileTransportCertificatesSecrets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			k8sClient := k8s.NewFakeClient(tt.args.initialObjects...)
 			md := metadata.Propagate(tt.args.es, metadata.Metadata{Labels: tt.args.es.GetIdentityLabels()})
-			got := ReconcileTransportCertificatesSecrets(context.Background(), k8sClient, tt.args.ca, tt.args.extraCA, *tt.args.es, tt.args.rotationParams, md)
+			got := ReconcileTransportCertificatesSecrets(context.Background(), k8sClient, tt.args.ca, tt.args.extraCA, tt.args.es, tt.args.rotationParams, md)
 			require.Equal(t, tt.wantRequeue, got.HasRequeue(), "expected requeue")
 			require.Equal(t, tt.wantErr, got.HasError(), "expected err")
 			// Check Secrets
@@ -299,7 +299,7 @@ func TestDeleteStatefulSetTransportCertificate(t *testing.T) {
 func TestDeleteLegacyTransportCertificate(t *testing.T) {
 	type args struct {
 		client k8s.Client
-		es     esv1.Elasticsearch
+		es     *esv1.Elasticsearch
 	}
 	tests := []struct {
 		name       string
@@ -316,7 +316,7 @@ func TestDeleteLegacyTransportCertificate(t *testing.T) {
 						Namespace: testNamespace,
 					},
 				}),
-				es: testES,
+				es: &testES,
 			},
 			wantDelete: true,
 			wantErr:    false,
@@ -325,7 +325,7 @@ func TestDeleteLegacyTransportCertificate(t *testing.T) {
 			name: "Former cluster transport Secret does not exist",
 			args: args{
 				client: k8s.NewFakeClient(),
-				es:     testES,
+				es:     &testES,
 			},
 			wantDelete: false,
 			wantErr:    false,
@@ -357,7 +357,7 @@ func (t *trackingK8sClient) Delete(ctx context.Context, obj client.Object, opts 
 	return t.Client.Delete(ctx, obj, opts...)
 }
 
-func Test_ensureTransportCertificateSecretExists(t *testing.T) {
+func Test_ensureStatefulSetTransportCertificateSecretExists(t *testing.T) {
 	defaultSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      esv1.StatefulSetTransportCertificatesSecret(esv1.StatefulSet(testES.Name, "sset1")),
@@ -379,7 +379,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 
 	type args struct {
 		c     k8s.Client
-		owner esv1.Elasticsearch
+		owner *esv1.Elasticsearch
 	}
 	tests := []struct {
 		name    string
@@ -391,7 +391,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 			name: "should create a secret if it does not already exist",
 			args: args{
 				c:     k8s.NewFakeClient(),
-				owner: testES,
+				owner: &testES,
 			},
 			want: func(t *testing.T, secret *corev1.Secret) {
 				t.Helper()
@@ -408,7 +408,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 				c: k8s.NewFakeClient(defaultSecretWith(func(secret *corev1.Secret) {
 					secret.ObjectMeta.UID = types.UID("42")
 				})),
-				owner: testES,
+				owner: &testES,
 			},
 			want: func(t *testing.T, secret *corev1.Secret) {
 				t.Helper()
@@ -427,7 +427,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 						"existing": []byte("data"),
 					}
 				})),
-				owner: testES,
+				owner: &testES,
 			},
 			want: func(t *testing.T, secret *corev1.Secret) {
 				t.Helper()
@@ -446,7 +446,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 				c: k8s.NewFakeClient(defaultSecretWith(func(secret *corev1.Secret) {
 					secret.ObjectMeta.Labels["foo"] = "bar"
 				})),
-				owner: testES,
+				owner: &testES,
 			},
 			want: func(t *testing.T, secret *corev1.Secret) {
 				t.Helper()
@@ -459,7 +459,7 @@ func Test_ensureTransportCertificateSecretExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			md := metadata.Propagate(&testES, metadata.Metadata{Labels: testES.GetIdentityLabels()})
-			got, err := ensureTransportCertificatesSecretExists(context.Background(), tt.args.c, tt.args.owner, esv1.StatefulSet(testES.Name, "sset1"), md)
+			got, err := ensureStatefulSetTransportCertificatesSecretExists(context.Background(), tt.args.c, tt.args.owner, esv1.StatefulSet(testES.Name, "sset1"), md)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EnsureTransportCertificateSecretExists() error = %v, wantErr %v", err, tt.wantErr)
 				return
