@@ -37,7 +37,7 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 		return err
 	}
 
-	preStopScript, err := nodespec.RenderPreStopHookScript(services.InternalServiceURL(es))
+	preStopScript, err := nodespec.RenderPreStopHookScript(services.InternalServiceURL(&es))
 	if err != nil {
 		return err
 	}

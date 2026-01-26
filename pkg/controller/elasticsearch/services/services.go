@@ -11,7 +11,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/defaults"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/name"
@@ -32,15 +31,15 @@ const (
 
 // NewTransportService returns the transport service associated with the given cluster.
 // It is used by Elasticsearch nodes to talk to remote cluster nodes.
-func NewTransportService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.Service {
-	nsn := k8s.ExtractNamespacedName(&es)
+func NewTransportService(es escommon.ElasticsearchCluster, meta metadata.Metadata) *corev1.Service {
+	nsn := k8s.ExtractNamespacedName(es)
 	svc := corev1.Service{
-		ObjectMeta: es.Spec.Transport.Service.ObjectMeta,
-		Spec:       es.Spec.Transport.Service.Spec,
+		ObjectMeta: es.GetTransport().Service.ObjectMeta,
+		Spec:       es.GetTransport().Service.Spec,
 	}
 
-	svc.ObjectMeta.Namespace = es.Namespace
-	svc.ObjectMeta.Name = escommon.TransportService(&es)
+	svc.ObjectMeta.Namespace = es.GetNamespace()
+	svc.ObjectMeta.Name = escommon.TransportService(es)
 	// Nodes need to discover themselves before the pod is considered ready,
 	// otherwise minimum master nodes would never be reached
 	svc.Spec.PublishNotReadyAddresses = true
@@ -95,13 +94,13 @@ func namerForKind(kind string) name.Namer {
 }
 
 // ExternalServiceURL returns the URL used to reach Elasticsearch's external endpoint.
-func ExternalServiceURL(es esv1.Elasticsearch) string {
-	return stringsutil.Concat(es.Spec.HTTP.Protocol(), "://", escommon.HTTPService(&es), ".", es.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.HTTPPort))
+func ExternalServiceURL(es escommon.ElasticsearchCluster) string {
+	return stringsutil.Concat(es.GetHTTP().Protocol(), "://", escommon.HTTPService(es), ".", es.GetNamespace(), globalServiceSuffix, ":", strconv.Itoa(network.HTTPPort))
 }
 
 // InternalServiceURL returns the URL used to reach Elasticsearch's internally managed service
-func InternalServiceURL(es esv1.Elasticsearch) string {
-	return stringsutil.Concat(es.Spec.HTTP.Protocol(), "://", escommon.InternalHTTPService(&es), ".", es.Namespace, globalServiceSuffix, ":", strconv.Itoa(network.HTTPPort))
+func InternalServiceURL(es escommon.ElasticsearchCluster) string {
+	return stringsutil.Concat(es.GetHTTP().Protocol(), "://", escommon.InternalHTTPService(es), ".", es.GetNamespace(), globalServiceSuffix, ":", strconv.Itoa(network.HTTPPort))
 }
 
 // NewExternalService returns the external service associated to the given cluster.
@@ -137,11 +136,11 @@ func NewExternalService(es escommon.ElasticsearchCluster, meta metadata.Metadata
 // It is used by the operator to perform requests against the Elasticsearch cluster nodes,
 // and does not inherit the spec defined within the Elasticsearch custom resource,
 // to remove the possibility of the user misconfiguring access to the ES cluster.
-func NewInternalService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.Service {
+func NewInternalService(es escommon.ElasticsearchCluster, meta metadata.Metadata) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        escommon.InternalHTTPService(&es),
-			Namespace:   es.Namespace,
+			Name:        escommon.InternalHTTPService(es),
+			Namespace:   es.GetNamespace(),
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,
 		},
@@ -149,27 +148,27 @@ func NewInternalService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.S
 			Type: corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
 				{
-					Name:     es.Spec.HTTP.Protocol(),
+					Name:     es.GetHTTP().Protocol(),
 					Protocol: corev1.ProtocolTCP,
 					Port:     network.HTTPPort,
 				},
 			},
-			Selector:                 label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless()),
+			Selector:                 label.NewLabels(k8s.ExtractNamespacedName(es), es.IsStateless()),
 			PublishNotReadyAddresses: false,
 		},
 	}
 }
 
 // NewRemoteClusterService returns the service associated to the remote cluster service for the given cluster.
-func NewRemoteClusterService(es esv1.Elasticsearch, meta metadata.Metadata) *corev1.Service {
-	nsn := k8s.ExtractNamespacedName(&es)
+func NewRemoteClusterService(es escommon.ElasticsearchCluster, meta metadata.Metadata) *corev1.Service {
+	nsn := k8s.ExtractNamespacedName(es)
 	svc := corev1.Service{
-		ObjectMeta: es.Spec.RemoteClusterServer.Service.ObjectMeta,
-		Spec:       es.Spec.RemoteClusterServer.Service.Spec,
+		ObjectMeta: es.GetRemoteClusterServer().Service.ObjectMeta,
+		Spec:       es.GetRemoteClusterServer().Service.Spec,
 	}
 
-	svc.ObjectMeta.Namespace = es.Namespace
-	svc.ObjectMeta.Name = escommon.RemoteClusterService(&es)
+	svc.ObjectMeta.Namespace = es.GetNamespace()
+	svc.ObjectMeta.Name = escommon.RemoteClusterService(es)
 	// Allow connections to pods that are not yet ready
 	svc.Spec.PublishNotReadyAddresses = true
 	if svc.Spec.Type == "" {
@@ -236,10 +235,10 @@ func (u *urlProvider) HasEndpoints() bool {
 
 // NewElasticsearchURLProvider returns a client.URLProvider that dynamically tries to find Pod URLs among the
 // currently running Pods. Preferring ready Pods over running ones.
-func NewElasticsearchURLProvider(es esv1.Elasticsearch, client k8s.Client) client.URLProvider {
+func NewElasticsearchURLProvider(es escommon.ElasticsearchCluster, client k8s.Client) client.URLProvider {
 	return &urlProvider{
 		pods: func() ([]corev1.Pod, error) {
-			return k8s.PodsMatchingLabels(client, es.Namespace, label.NewLabelSelectorForElasticsearch(&es))
+			return k8s.PodsMatchingLabels(client, es.GetNamespace(), label.NewLabelSelectorForElasticsearch(es))
 		},
 		svcURL: InternalServiceURL(es),
 	}

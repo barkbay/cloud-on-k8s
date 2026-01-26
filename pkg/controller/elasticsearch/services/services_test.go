@@ -57,7 +57,7 @@ func TestExternalServiceURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ExternalServiceURL(tt.args.es)
+			got := ExternalServiceURL(&tt.args.es)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -151,7 +151,7 @@ func TestNewInternalService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			es := mkElasticsearch(tc.httpConf)
-			haveSvc := NewInternalService(es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
+			haveSvc := NewInternalService(&es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
 			compare.JSONEqual(t, tc.wantSvc(), haveSvc)
 		})
 	}
@@ -278,7 +278,7 @@ func TestNewTransportService(t *testing.T) {
 				},
 			}
 			want := tt.want()
-			got := NewTransportService(es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
+			got := NewTransportService(&es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
 			require.Nil(t, deep.Equal(*got, want))
 		})
 	}
@@ -364,7 +364,7 @@ func TestNewRemoteClusterService(t *testing.T) {
 				},
 			}
 			want := tt.want()
-			got := NewRemoteClusterService(es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
+			got := NewRemoteClusterService(&es, metadata.Propagate(&es, metadata.Metadata{Labels: es.GetIdentityLabels()}))
 			require.Nil(t, deep.Equal(*got, want))
 		})
 	}
@@ -525,7 +525,7 @@ func TestNewElasticsearchURLProvider(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := NewElasticsearchURLProvider(tt.args.es, tt.args.client)
+			provider := NewElasticsearchURLProvider(&tt.args.es, tt.args.client)
 
 			providerImpl, ok := provider.(*urlProvider)
 			require.True(t, ok, "must be the urlProvider impl")

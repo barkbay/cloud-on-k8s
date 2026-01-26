@@ -99,7 +99,7 @@ func TestUpdateConfiguration(t *testing.T) {
 						return err
 					}
 
-					esHost := services.ExternalServiceURL(esBuilder.Elasticsearch)
+					esHost := services.ExternalServiceURL(&esBuilder.Elasticsearch)
 					if config.Output.Elasticsearch.Hosts[0] != esHost {
 						return fmt.Errorf("expected es host %s but got %s", esHost, config.Output.Elasticsearch.Hosts[0])
 					}
