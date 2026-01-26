@@ -74,7 +74,7 @@ func Test_ReconcileRolesFileRealmSecret(t *testing.T) {
 			FullyQualifiedServiceAccountName: "fqsa1",
 			HashedSecret:                     "hash1",
 		})
-	err := reconcileRolesFileRealmSecret(context.Background(), c, es, roles, realm, saTokens, metadata.Metadata{})
+	err := reconcileRolesFileRealmSecret(context.Background(), c, &es, roles, realm, saTokens, metadata.Metadata{})
 	require.NoError(t, err)
 	// retrieve reconciled secret
 	var secret corev1.Secret
@@ -92,9 +92,9 @@ func Test_aggregateFileRealm(t *testing.T) {
 	sampleEsWithAuthAndElasticUserDisabled.Spec.Auth.DisableElasticUser = true
 	tests := []struct {
 		name       string
-		es         esv1.Elasticsearch
+		es         *esv1.Elasticsearch
 		expected   []string
-		assertions func(t *testing.T, c k8s.Client, es esv1.Elasticsearch)
+		assertions func(t *testing.T, c k8s.Client, es *esv1.Elasticsearch)
 	}{
 		{
 			name:     "file realm users with elastic user enabled",
@@ -103,12 +103,12 @@ func Test_aggregateFileRealm(t *testing.T) {
 		},
 		{
 			name:     "file realm users with elastic user disabled",
-			es:       *sampleEsWithAuthAndElasticUserDisabled,
+			es:       sampleEsWithAuthAndElasticUserDisabled,
 			expected: []string{"elastic-internal", "elastic-internal-pre-stop", "elastic-internal-probe", "elastic-internal-diagnostics", "elastic-internal-monitoring", "user1", "user2", "user3"},
-			assertions: func(t *testing.T, c k8s.Client, es esv1.Elasticsearch) {
+			assertions: func(t *testing.T, c k8s.Client, es *esv1.Elasticsearch) {
 				t.Helper()
 				var secret corev1.Secret
-				err := c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(&es)}, &secret)
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ElasticUserSecret(es)}, &secret)
 				require.True(t, apierrors.IsNotFound(err))
 			},
 		},

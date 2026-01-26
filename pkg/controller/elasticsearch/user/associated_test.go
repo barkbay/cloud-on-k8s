@@ -18,7 +18,7 @@ import (
 )
 
 func Test_retrieveAssociatedUsers(t *testing.T) {
-	es := esv1.Elasticsearch{
+	es := &esv1.Elasticsearch{
 		ObjectMeta: metav1.ObjectMeta{Name: "es", Namespace: "ns"},
 	}
 	tests := []struct {
@@ -38,7 +38,7 @@ func Test_retrieveAssociatedUsers(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: es.Namespace,
 						Name:      "user1",
-						Labels:    AssociatedUserLabels(&es),
+						Labels:    AssociatedUserLabels(es),
 					},
 					Data: map[string][]byte{
 						UserNameField:     []byte("user1"),
@@ -50,7 +50,7 @@ func Test_retrieveAssociatedUsers(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: es.Namespace,
 						Name:      "user2",
-						Labels:    AssociatedUserLabels(&es),
+						Labels:    AssociatedUserLabels(es),
 					},
 					Data: map[string][]byte{
 						UserNameField:     []byte("user2"),

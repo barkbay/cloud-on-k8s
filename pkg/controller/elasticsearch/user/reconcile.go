@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	commonpassword "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -42,7 +41,7 @@ import (
 func ReconcileUsersAndRoles(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
 	passwordHasher cryptutil.PasswordHasher,
@@ -77,7 +76,7 @@ func ReconcileUsersAndRoles(
 	return controllerUser, nil
 }
 
-func getExistingFileRealm(c k8s.Client, es esv1.Elasticsearch) (filerealm.Realm, error) {
+func getExistingFileRealm(c k8s.Client, es escommon.ElasticsearchCluster) (filerealm.Realm, error) {
 	var secret corev1.Secret
 	if err := c.Get(context.Background(), RolesFileRealmSecretKey(es), &secret); err != nil {
 		return filerealm.Realm{}, err
@@ -89,7 +88,7 @@ func getExistingFileRealm(c k8s.Client, es esv1.Elasticsearch) (filerealm.Realm,
 func aggregateFileRealm(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
 	passwordHasher cryptutil.PasswordHasher,
@@ -146,7 +145,7 @@ func aggregateFileRealm(
 func aggregateRoles(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
 ) (RolesFileContent, error) {
@@ -159,15 +158,15 @@ func aggregateRoles(
 }
 
 // RolesFileRealmSecretKey returns a reference to the K8s secret holding the roles and file realm data.
-func RolesFileRealmSecretKey(es esv1.Elasticsearch) types.NamespacedName {
-	return types.NamespacedName{Namespace: es.Namespace, Name: escommon.RolesAndFileRealmSecret(&es)}
+func RolesFileRealmSecretKey(es escommon.ElasticsearchCluster) types.NamespacedName {
+	return types.NamespacedName{Namespace: es.GetNamespace(), Name: escommon.RolesAndFileRealmSecret(es)}
 }
 
 // reconcileRolesFileRealmSecret creates or updates the single secret holding the file realm and the file-based roles.
 func reconcileRolesFileRealmSecret(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	roles RolesFileContent,
 	fileRealm filerealm.Realm,
 	saTokens ServiceAccountTokens,
@@ -195,7 +194,7 @@ func reconcileRolesFileRealmSecret(
 	return reconciler.ReconcileResource(reconciler.Params{
 		Context:    ctx,
 		Client:     c,
-		Owner:      &es,
+		Owner:      es,
 		Expected:   &expected,
 		Reconciled: &reconciled,
 		NeedsUpdate: func() bool {

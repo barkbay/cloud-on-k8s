@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	commonpassword "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password"
@@ -46,21 +45,21 @@ const (
 func reconcileElasticUser(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	existingFileRealm,
 	userProvidedFileRealm filerealm.Realm,
 	passwordHasher cryptutil.PasswordHasher,
 	generator commonpassword.RandomGenerator,
 	meta metadata.Metadata,
 ) (users, error) {
-	if es.Spec.Auth.DisableElasticUser {
+	if es.GetAuth().DisableElasticUser {
 		return nil, nil
 	}
-	secretName := escommon.ElasticUserSecret(&es)
+	secretName := escommon.ElasticUserSecret(es)
 	// if user has set up the elastic user via the file realm do not create the operator managed secret to avoid confusion
 	if userProvidedFileRealm.PasswordHashForUser(ElasticUserName) != nil {
 		return nil, k8s.DeleteSecretIfExists(ctx, c, types.NamespacedName{
-			Namespace: es.Namespace,
+			Namespace: es.GetNamespace(),
 			Name:      secretName,
 		})
 	}
@@ -87,7 +86,7 @@ func reconcileElasticUser(
 func reconcileInternalUsers(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	existingFileRealm filerealm.Realm,
 	passwordHasher cryptutil.PasswordHasher,
 	generator commonpassword.RandomGenerator,
@@ -100,9 +99,9 @@ func reconcileInternalUsers(
 		{Name: MonitoringUserName, Roles: []string{RemoteMonitoringCollectorBuiltinRole}},
 		{Name: DiagnosticsUserName, Roles: []string{DiagnosticsUserRoleV85}},
 	}
-	ver, err := version.Parse(es.Spec.Version)
+	ver, err := version.Parse(es.GetVersion())
 	if err != nil {
-		return nil, fmt.Errorf("while parsing Elasticsearch version (%s): %w", es.Spec.Version, err)
+		return nil, fmt.Errorf("while parsing Elasticsearch version (%s): %w", es.GetVersion(), err)
 	}
 	if ver.LT(version.From(8, 5, 0)) {
 		// Diagnostics user needs Superuser role in 7.x.
@@ -122,7 +121,7 @@ func reconcileInternalUsers(
 		es,
 		existingFileRealm,
 		users,
-		escommon.InternalUsersSecret(&es),
+		escommon.InternalUsersSecret(es),
 		true,
 		passwordHasher,
 		generator,
@@ -147,7 +146,7 @@ func setRolesForUser(userName string, users []user, roles []string) error {
 func reconcilePredefinedUsers(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	existingFileRealm filerealm.Realm,
 	users users,
 	secretName string,
@@ -156,7 +155,7 @@ func reconcilePredefinedUsers(
 	generator commonpassword.RandomGenerator,
 	meta metadata.Metadata,
 ) (users, error) {
-	secretNsn := types.NamespacedName{Namespace: es.Namespace, Name: secretName}
+	secretNsn := types.NamespacedName{Namespace: es.GetNamespace(), Name: secretName}
 
 	// build users, reusing existing passwords and bcrypt hashes if possible
 	var err error
@@ -186,9 +185,9 @@ func reconcilePredefinedUsers(
 	}
 
 	if setOwnerRef {
-		_, err = reconciler.ReconcileSecret(ctx, c, expected, &es)
+		_, err = reconciler.ReconcileSecret(ctx, c, expected, es)
 	} else {
-		_, err = reconciler.ReconcileSecretNoOwnerRef(ctx, c, expected, &es)
+		_, err = reconciler.ReconcileSecretNoOwnerRef(ctx, c, expected, es)
 	}
 	return users, err
 }

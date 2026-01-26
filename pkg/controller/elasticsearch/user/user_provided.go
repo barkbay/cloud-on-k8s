@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user/filerealm"
@@ -44,15 +44,15 @@ func UserProvidedRolesWatchName(es types.NamespacedName) string { //nolint:reviv
 func reconcileUserProvidedFileRealm(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	existing filerealm.Realm,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
 	passwordHasher cryptutil.PasswordHasher,
 ) (filerealm.Realm, error) {
-	esKey := k8s.ExtractNamespacedName(&es)
-	secretNames := make([]string, 0, len(es.Spec.Auth.FileRealm))
-	for _, secretRef := range es.Spec.Auth.FileRealm {
+	esKey := k8s.ExtractNamespacedName(es)
+	secretNames := make([]string, 0, len(es.GetAuth().FileRealm))
+	for _, secretRef := range es.GetAuth().FileRealm {
 		if secretRef.SecretName == "" {
 			continue
 		}
@@ -74,13 +74,13 @@ func reconcileUserProvidedFileRealm(
 func reconcileUserProvidedRoles(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	watched watches.DynamicWatches,
 	recorder record.EventRecorder,
 ) (RolesFileContent, error) {
-	esKey := k8s.ExtractNamespacedName(&es)
-	secretNames := make([]string, 0, len(es.Spec.Auth.Roles))
-	for _, secretRef := range es.Spec.Auth.Roles {
+	esKey := k8s.ExtractNamespacedName(es)
+	secretNames := make([]string, 0, len(es.GetAuth().Roles))
+	for _, secretRef := range es.GetAuth().Roles {
 		if secretRef.SecretName == "" {
 			continue
 		}
@@ -101,17 +101,17 @@ func reconcileUserProvidedRoles(
 func retrieveUserProvidedRoles(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	recorder record.EventRecorder,
 ) (RolesFileContent, error) {
 	log := ulog.FromContext(ctx)
 	roles := make(RolesFileContent)
-	for _, roleSource := range es.Spec.Auth.Roles {
+	for _, roleSource := range es.GetAuth().Roles {
 		if roleSource.SecretName == "" {
 			continue
 		}
 		var secret corev1.Secret
-		secretRef := types.NamespacedName{Namespace: es.Namespace, Name: roleSource.SecretName}
+		secretRef := types.NamespacedName{Namespace: es.GetNamespace(), Name: roleSource.SecretName}
 		err := c.Get(context.Background(), secretRef, &secret)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -135,19 +135,19 @@ func retrieveUserProvidedRoles(
 func retrieveUserProvidedFileRealm(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	existing filerealm.Realm,
 	recorder record.EventRecorder,
 	passwordHasher cryptutil.PasswordHasher,
 ) (filerealm.Realm, error) {
 	log := ulog.FromContext(ctx)
 	aggregated := filerealm.New()
-	for _, fileRealmSource := range es.Spec.Auth.FileRealm {
+	for _, fileRealmSource := range es.GetAuth().FileRealm {
 		if fileRealmSource.SecretName == "" {
 			continue
 		}
 		var secret corev1.Secret
-		if err := c.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: fileRealmSource.SecretName}, &secret); err != nil {
+		if err := c.Get(context.Background(), types.NamespacedName{Namespace: es.GetNamespace(), Name: fileRealmSource.SecretName}, &secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				handleSecretNotFound(log, recorder, es, fileRealmSource.SecretName)
 				continue
@@ -213,25 +213,25 @@ func realmFromBasicAuthSecret(secret corev1.Secret, existing filerealm.Realm, pa
 	return user.fileRealm(), nil
 }
 
-func handleSecretNotFound(log logr.Logger, recorder record.EventRecorder, es esv1.Elasticsearch, secretName string) {
+func handleSecretNotFound(log logr.Logger, recorder record.EventRecorder, es escommon.ElasticsearchCluster, secretName string) {
 	msg := "referenced secret not found"
 	// logging with info level since this may be expected if the secret is not in the cache yet
-	log.Info(msg, "namespace", es.Namespace, "es_name", es.Name, "secret_name", secretName)
-	recorder.Event(&es, corev1.EventTypeWarning, events.EventReasonUnexpected, msg+": "+secretName)
+	log.Info(msg, "namespace", es.GetNamespace(), "es_name", es.GetName(), "secret_name", secretName)
+	recorder.Event(es, corev1.EventTypeWarning, events.EventReasonUnexpected, msg+": "+secretName)
 }
 
-func handleInvalidSecretData(log logr.Logger, recorder record.EventRecorder, es esv1.Elasticsearch, secretName string, err error) {
+func handleInvalidSecretData(log logr.Logger, recorder record.EventRecorder, es escommon.ElasticsearchCluster, secretName string, err error) {
 	msg := "invalid data in secret"
-	log.Error(err, msg, "namespace", es.Namespace, "es_name", es.Name, "secret_name", secretName)
-	recorder.Event(&es, corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s %s/%s: %s", msg, es.Namespace, secretName, err.Error()))
+	log.Error(err, msg, "namespace", es.GetNamespace(), "es_name", es.GetName(), "secret_name", secretName)
+	recorder.Event(es, corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s %s/%s: %s", msg, es.GetNamespace(), secretName, err.Error()))
 }
-func handlePotentialMisconfiguration(log logr.Logger, recorder record.EventRecorder, es esv1.Elasticsearch, secret corev1.Secret) {
+func handlePotentialMisconfiguration(log logr.Logger, recorder record.EventRecorder, es escommon.ElasticsearchCluster, secret corev1.Secret) {
 	keys := make([]string, 0, len(secret.Data))
 	for k := range secret.Data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	msg := fmt.Sprintf("potential misconfigured custom user in secret %s/%s: found keys %s expected keys %s", secret.Namespace, secret.Name, keys, basicAuthSecretKeys)
-	log.Info(msg, "namespace", es.Namespace, "es_name", es.Name)
-	recorder.Event(&es, corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
+	log.Info(msg, "namespace", es.GetNamespace(), "es_name", es.GetName())
+	recorder.Event(es, corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
 }
