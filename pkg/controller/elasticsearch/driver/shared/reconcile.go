@@ -131,7 +131,7 @@ func ReconcileSharedResources(
 	controllerUser, err := user.ReconcileUsersAndRoles(
 		ctx,
 		client,
-		es,
+		&es,
 		params.DynamicWatches,
 		params.Recorder,
 		params.OperatorParameters.PasswordHasher,

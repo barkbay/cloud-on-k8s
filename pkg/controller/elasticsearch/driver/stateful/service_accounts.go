@@ -72,7 +72,7 @@ func (d *Driver) maybeSetServiceAccountsOrchestrationHint(
 	allPods := names(resourcesState.AllPods)
 	log := ulog.FromContext(ctx)
 	// Detect if some service tokens are expected
-	saTokens, err := user.GetServiceAccountTokens(d.Client, d.ES)
+	saTokens, err := user.GetServiceAccountTokens(d.Client, &d.ES)
 	if err != nil {
 		log.Info("Could not detect if service accounts are expected", "err", err, "namespace", d.ES.Namespace, "es_name", d.ES.Name)
 		return err

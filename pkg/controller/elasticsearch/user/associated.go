@@ -14,7 +14,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
@@ -52,13 +51,13 @@ func AssociatedUserLabels(es escommon.ElasticsearchCluster) map[string]string {
 
 // retrieveAssociatedUsers fetches users resulting from an association (eg. Kibana or APMServer users).
 // Those users are created by an association controller.
-func retrieveAssociatedUsers(c k8s.Client, es esv1.Elasticsearch) (users, error) {
+func retrieveAssociatedUsers(c k8s.Client, es escommon.ElasticsearchCluster) (users, error) {
 	// list all associated user secrets
 	var associatedUserSecrets corev1.SecretList
 	if err := c.List(context.Background(),
 		&associatedUserSecrets,
-		client.InNamespace(es.Namespace),
-		client.MatchingLabels(AssociatedUserLabels(&es)),
+		client.InNamespace(es.GetNamespace()),
+		client.MatchingLabels(AssociatedUserLabels(es)),
 	); err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/set"
@@ -49,15 +49,15 @@ func (s ServiceAccountTokens) NamespacedServices() set.StringSet {
 	return result
 }
 
-func GetServiceAccountTokens(c k8s.Client, es esv1.Elasticsearch) (ServiceAccountTokens, error) {
+func GetServiceAccountTokens(c k8s.Client, es escommon.ElasticsearchCluster) (ServiceAccountTokens, error) {
 	// list all associated user secrets
 	var serviceAccountSecrets corev1.SecretList
 	if err := c.List(context.Background(),
 		&serviceAccountSecrets,
-		client.InNamespace(es.Namespace),
+		client.InNamespace(es.GetNamespace()),
 		client.MatchingLabels(
 			map[string]string{
-				label.ClusterNameLabelName: es.Name,
+				label.ClusterNameLabelName: es.GetName(),
 				commonv1.TypeLabelName:     ServiceAccountTokenType,
 			},
 		),

@@ -36,7 +36,7 @@ func initDynamicWatches(watchNames ...string) watches.DynamicWatches {
 	return w
 }
 
-var sampleEsWithAuth = esv1.Elasticsearch{
+var sampleEsWithAuth = &esv1.Elasticsearch{
 	ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 	Spec: esv1.ElasticsearchSpec{
 		Auth: esv1.Auth{
@@ -89,7 +89,7 @@ var sampleUserProvidedRolesSecret = []client.Object{
 func TestReconcileUserProvidedFileRealm(t *testing.T) {
 	tests := []struct {
 		name          string
-		es            esv1.Elasticsearch
+		es            *esv1.Elasticsearch
 		secrets       []client.Object
 		existingRealm filerealm.Realm
 		watched       watches.DynamicWatches
@@ -99,7 +99,7 @@ func TestReconcileUserProvidedFileRealm(t *testing.T) {
 	}{
 		{
 			name:          "no auth provided",
-			es:            esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"}},
+			es:            &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"}},
 			secrets:       nil,
 			watched:       initDynamicWatches(),
 			wantWatched:   []string{},
@@ -122,7 +122,7 @@ func TestReconcileUserProvidedFileRealm(t *testing.T) {
 		},
 		{
 			name: "unknown secret referenced: emit an event but don't error out",
-			es: esv1.Elasticsearch{
+			es: &esv1.Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 				Spec: esv1.ElasticsearchSpec{Auth: esv1.Auth{FileRealm: []esv1.FileRealmSource{
 					{SecretRef: v1.SecretRef{SecretName: "unknown-secret"}},
@@ -137,7 +137,7 @@ func TestReconcileUserProvidedFileRealm(t *testing.T) {
 		},
 		{
 			name: "invalid secret data: emit an event but don't error out",
-			es: esv1.Elasticsearch{
+			es: &esv1.Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 				Spec: esv1.ElasticsearchSpec{Auth: esv1.Auth{FileRealm: []esv1.FileRealmSource{
 					{SecretRef: v1.SecretRef{SecretName: "invalid-secret"}},
@@ -173,7 +173,7 @@ func TestReconcileUserProvidedFileRealm(t *testing.T) {
 func TestReconcileUserProvidedRoles(t *testing.T) {
 	tests := []struct {
 		name        string
-		es          esv1.Elasticsearch
+		es          *esv1.Elasticsearch
 		secrets     []client.Object
 		watched     watches.DynamicWatches
 		wantWatched []string
@@ -182,7 +182,7 @@ func TestReconcileUserProvidedRoles(t *testing.T) {
 	}{
 		{
 			name:        "no auth provided",
-			es:          esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"}},
+			es:          &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"}},
 			secrets:     nil,
 			watched:     initDynamicWatches(),
 			wantWatched: []string{},
@@ -201,7 +201,7 @@ func TestReconcileUserProvidedRoles(t *testing.T) {
 		},
 		{
 			name: "unknown secret referenced: emit an event but don't error out",
-			es: esv1.Elasticsearch{
+			es: &esv1.Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 				Spec: esv1.ElasticsearchSpec{Auth: esv1.Auth{Roles: []esv1.RoleSource{
 					{SecretRef: v1.SecretRef{SecretName: "unknown-secret"}},
@@ -216,7 +216,7 @@ func TestReconcileUserProvidedRoles(t *testing.T) {
 		},
 		{
 			name: "invalid secret data: emit an event but don't error out",
-			es: esv1.Elasticsearch{
+			es: &esv1.Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 				Spec: esv1.ElasticsearchSpec{Auth: esv1.Auth{Roles: []esv1.RoleSource{
 					{SecretRef: v1.SecretRef{SecretName: "invalid-secret"}},
