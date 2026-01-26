@@ -61,7 +61,7 @@ func SetupInitialMasterNodes(ctx context.Context, es esv1.Elasticsearch, k8sClie
 
 func shouldSetInitialMasterNodes(es esv1.Elasticsearch) bool {
 	// Set cluster.initial_master_nodes only when a new cluster is getting created (not already bootstrapped)
-	return !bootstrap.AnnotatedForBootstrap(es)
+	return !bootstrap.AnnotatedForBootstrap(&es)
 }
 
 // RemoveZen2BootstrapAnnotation removes the initialMasterNodesAnnotation (if set) once zen2 is bootstrapped

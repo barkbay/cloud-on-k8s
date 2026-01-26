@@ -34,7 +34,7 @@ func (d *Driver) maybeSetServiceAccountsOrchestrationHint(
 	}
 
 	// Case 1: New cluster, we can immediately set the orchestration hint.
-	if !bootstrap.AnnotatedForBootstrap(d.ES) {
+	if !bootstrap.AnnotatedForBootstrap(&d.ES) {
 		allNodesRunningServiceAccounts, err := esv1.AreServiceAccountsSupported(d.ES.Spec.Version)
 		if err != nil {
 			return err
