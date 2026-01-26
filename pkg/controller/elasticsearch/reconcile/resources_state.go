@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -26,12 +26,13 @@ type ResourcesState struct {
 	// DeletingPods are all deleted Elasticsearch pods.
 	DeletingPods []corev1.Pod
 	// StatefulSets are all existing StatefulSets for the cluster.
+	// This field is not initialized if Elasticsearch is stateless.
 	StatefulSets sset.StatefulSetList
 }
 
 // NewResourcesStateFromAPI reflects the current ResourcesState from the API
-func NewResourcesStateFromAPI(c k8s.Client, es esv1.Elasticsearch) (*ResourcesState, error) {
-	allPods, err := k8s.PodsMatchingLabels(c, es.Namespace, label.NewLabelSelectorForElasticsearch(&es))
+func NewResourcesStateFromAPI(c k8s.Client, es escommon.ElasticsearchCluster) (*ResourcesState, error) {
+	allPods, err := k8s.PodsMatchingLabels(c, es.GetNamespace(), label.NewLabelSelectorForElasticsearch(es))
 	if err != nil {
 		return nil, err
 	}
@@ -57,17 +58,20 @@ func NewResourcesStateFromAPI(c k8s.Client, es esv1.Elasticsearch) (*ResourcesSt
 		currentPodsByPhase[p.Status.Phase] = podsInPhase
 	}
 
-	ssets, err := sset.RetrieveActualStatefulSets(c, types.NamespacedName{Namespace: es.Namespace, Name: es.Name})
-	if err != nil {
-		return nil, err
-	}
-
 	state := ResourcesState{
 		AllPods:            allPods,
 		CurrentPods:        currentPods,
 		CurrentPodsByPhase: currentPodsByPhase,
 		DeletingPods:       deletingPods,
-		StatefulSets:       ssets,
+	}
+
+	// Only retrieve StatefulSets for stateful clusters
+	if !es.IsStateless() {
+		ssets, err := sset.RetrieveActualStatefulSets(c, types.NamespacedName{Namespace: es.GetNamespace(), Name: es.GetName()})
+		if err != nil {
+			return nil, err
+		}
+		state.StatefulSets = ssets
 	}
 
 	return &state, nil
