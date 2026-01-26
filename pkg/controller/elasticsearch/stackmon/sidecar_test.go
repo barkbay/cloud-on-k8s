@@ -128,7 +128,7 @@ func TestWithMonitoring(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			es := tc.es()
 			builder := defaults.NewPodTemplateBuilder(corev1.PodTemplateSpec{}, esv1.ElasticsearchContainerName)
-			_, err := WithMonitoring(context.Background(), fakeClient, builder, es, metadata.Metadata{})
+			_, err := WithMonitoring(context.Background(), fakeClient, builder, &es, metadata.Metadata{})
 			assert.NoError(t, err)
 
 			actual, err := json.MarshalIndent(builder.PodTemplate, " ", "")

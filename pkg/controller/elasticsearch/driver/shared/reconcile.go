@@ -349,7 +349,7 @@ func ReconcileSharedResources(
 	}
 
 	// Stack monitoring
-	err = stackmon.ReconcileConfigSecrets(ctx, client, es, meta)
+	err = stackmon.ReconcileConfigSecrets(ctx, client, &es, meta)
 	if err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
