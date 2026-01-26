@@ -12,7 +12,7 @@ import (
 	"go.elastic.co/apm/v2"
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
@@ -47,12 +47,12 @@ func NewManager(defaultInterval time.Duration, tracer *apm.Tracer) *Manager {
 // as expected by the main reconciliation driver
 func (m *Manager) ObservedStateResolver(
 	ctx context.Context,
-	cluster esv1.Elasticsearch,
+	cluster escommon.ElasticsearchCluster,
 	esClientProvider func(client.Client) client.Client,
 	isServiceReady bool,
-) func() esv1.ElasticsearchHealth {
+) func() escommon.ElasticsearchHealth {
 	observer := m.Observe(ctx, cluster, esClientProvider, isServiceReady)
-	return func() esv1.ElasticsearchHealth {
+	return func() escommon.ElasticsearchHealth {
 		return observer.LastHealth()
 	}
 }
@@ -67,9 +67,9 @@ func (m *Manager) getObserver(key types.NamespacedName) (*Observer, bool) {
 
 // Observe gets or create a cluster state observer for the given cluster
 // In case something has changed in the given esClient (eg. different caCert), the observer is recreated accordingly
-func (m *Manager) Observe(ctx context.Context, cluster esv1.Elasticsearch, esClientProvider func(client.Client) client.Client, isServiceReady bool) *Observer {
+func (m *Manager) Observe(ctx context.Context, cluster escommon.ElasticsearchCluster, esClientProvider func(client.Client) client.Client, isServiceReady bool) *Observer {
 	defer tracing.Span(&ctx)()
-	nsName := k8s.ExtractNamespacedName(&cluster)
+	nsName := k8s.ExtractNamespacedName(cluster)
 	settings := m.extractObserverSettings(ctx, cluster)
 
 	observer, exists := m.getObserver(nsName)
@@ -106,7 +106,7 @@ func (m *Manager) Observe(ctx context.Context, cluster esv1.Elasticsearch, esCli
 }
 
 // extractObserverSettings extracts observer settings from the annotations on the Elasticsearch resource.
-func (m *Manager) extractObserverSettings(ctx context.Context, cluster esv1.Elasticsearch) Settings {
+func (m *Manager) extractObserverSettings(ctx context.Context, cluster escommon.ElasticsearchCluster) Settings {
 	return Settings{
 		ObservationInterval: annotation.ExtractTimeout(ctx, cluster.GetAnnotations(), ObserverIntervalAnnotation, m.defaultInterval),
 		Tracer:              m.tracer,
@@ -167,7 +167,7 @@ func (m *Manager) AddObservationListener(listener OnObservation) {
 }
 
 // notifyListeners notifies all listeners that an observation occurred.
-func (m *Manager) notifyListeners(cluster types.NamespacedName, previousState, newState esv1.ElasticsearchHealth) {
+func (m *Manager) notifyListeners(cluster types.NamespacedName, previousState, newState escommon.ElasticsearchHealth) {
 	m.listenerLock.RLock()
 	switch len(m.listeners) {
 	case 0:

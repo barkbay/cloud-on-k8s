@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
@@ -113,7 +114,7 @@ func TestManager_Observe(t *testing.T) {
 				initialCreationTime = initial.creationTime
 			}
 			esClientProvider := func(existingClient client.Client) client.Client { return tt.clusterToObserveClient }
-			observer := m.Observe(context.Background(), esObject(tt.clusterToObserve), esClientProvider, true)
+			observer := m.Observe(context.Background(), esObjectPtr(tt.clusterToObserve), esClientProvider, true)
 			// returned observer should be the correct one
 			require.Equal(t, tt.clusterToObserve, observer.cluster)
 			// list of observers should have been updated
@@ -155,24 +156,24 @@ func TestManager_ObserveSync(t *testing.T) {
 	tests := []struct {
 		name           string
 		manager        *Manager
-		expectedHealth []esv1.ElasticsearchHealth
+		expectedHealth []escommon.ElasticsearchHealth
 	}{
 		{
 			name:    "Async observation disabled make sync requests every time",
 			manager: NewManager(-1*time.Second, nil),
-			expectedHealth: []esv1.ElasticsearchHealth{
-				esv1.ElasticsearchGreenHealth,
+			expectedHealth: []escommon.ElasticsearchHealth{
+				escommon.ElasticsearchGreenHealth,
 				// the flapping client returns an error on the second request
-				esv1.ElasticsearchUnknownHealth,
+				escommon.ElasticsearchUnknownHealth,
 			},
 		},
 		{
 			name:    "Async observation enabled, only the first request is synchronous",
 			manager: NewManager(1*time.Hour, nil),
-			expectedHealth: []esv1.ElasticsearchHealth{
-				esv1.ElasticsearchGreenHealth,
+			expectedHealth: []escommon.ElasticsearchHealth{
+				escommon.ElasticsearchGreenHealth,
 				// the async observer returns the old observation while the observation interval has not expired
-				esv1.ElasticsearchGreenHealth,
+				escommon.ElasticsearchGreenHealth,
 			},
 		},
 	}
@@ -182,9 +183,9 @@ func TestManager_ObserveSync(t *testing.T) {
 			name := cluster("es1")
 			cluster := esObject(name)
 			esClientProvider := func(existingClient client.Client) client.Client { return esClient }
-			results := []esv1.ElasticsearchHealth{
-				tt.manager.ObservedStateResolver(context.Background(), cluster, esClientProvider, true)(),
-				tt.manager.ObservedStateResolver(context.Background(), cluster, esClientProvider, true)(),
+			results := []escommon.ElasticsearchHealth{
+				tt.manager.ObservedStateResolver(context.Background(), &cluster, esClientProvider, true)(),
+				tt.manager.ObservedStateResolver(context.Background(), &cluster, esClientProvider, true)(),
 			}
 			require.Equal(t, tt.expectedHealth, results)
 			tt.manager.StopObserving(name) // let's clean up the go-routines
@@ -256,7 +257,7 @@ func TestManager_AddObservationListener(_ *testing.T) {
 
 	// add a listener that is only interested in cluster1
 	eventsCluster1 := make(chan types.NamespacedName)
-	m.AddObservationListener(func(cluster types.NamespacedName, previousHealth, newHealth esv1.ElasticsearchHealth) {
+	m.AddObservationListener(func(cluster types.NamespacedName, previousHealth, newHealth escommon.ElasticsearchHealth) {
 		if cluster.Name == "cluster1" {
 			eventsCluster1 <- cluster
 		}
@@ -264,7 +265,7 @@ func TestManager_AddObservationListener(_ *testing.T) {
 
 	// add a 2nd listener that is only interested in cluster2
 	eventsCluster2 := make(chan types.NamespacedName)
-	m.AddObservationListener(func(cluster types.NamespacedName, previousHealth, newHealth esv1.ElasticsearchHealth) {
+	m.AddObservationListener(func(cluster types.NamespacedName, previousHealth, newHealth escommon.ElasticsearchHealth) {
 		if cluster.Name == "cluster2" {
 			eventsCluster2 <- cluster
 		}
@@ -280,9 +281,9 @@ func TestManager_AddObservationListener(_ *testing.T) {
 	}()
 	esClientProvider := func(existingClient client.Client) client.Client { return fakeEsClient200(client.BasicAuth{}) }
 	// observe 2 clusters
-	obs1 := m.Observe(ctx, cluster1, esClientProvider, true)
+	obs1 := m.Observe(ctx, &cluster1, esClientProvider, true)
 	defer obs1.Stop()
-	obs2 := m.Observe(ctx, cluster2, esClientProvider, true)
+	obs2 := m.Observe(ctx, &cluster2, esClientProvider, true)
 	defer obs2.Stop()
 	<-doneCh
 }
@@ -294,6 +295,11 @@ func esObject(n types.NamespacedName) esv1.Elasticsearch {
 			Name:      n.Name,
 		},
 	}
+}
+
+func esObjectPtr(n types.NamespacedName) *esv1.Elasticsearch {
+	es := esObject(n)
+	return &es
 }
 
 func TestExtractSettings(t *testing.T) {
@@ -318,7 +324,7 @@ func TestExtractSettings(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			es := esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "test", Annotations: tc.annotations}}
+			es := &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "test", Annotations: tc.annotations}}
 			m := NewManager(tc.globalInterval, nil)
 			have := m.extractObserverSettings(context.Background(), es)
 			require.Equal(t, tc.want, have)

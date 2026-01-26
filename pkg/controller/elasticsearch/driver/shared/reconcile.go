@@ -171,7 +171,7 @@ func ReconcileSharedResources(
 
 	observedState := params.Observers.ObservedStateResolver(
 		ctx,
-		es,
+		&es,
 		elasticsearchClientProvider(
 			ctx,
 			params,

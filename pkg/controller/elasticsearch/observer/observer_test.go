@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	fixtures "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client/test_fixtures"
@@ -47,7 +47,7 @@ func createAndRunTestObserver(onObs OnObservation) *Observer {
 
 func TestObserver_observe(t *testing.T) {
 	counter := int32(0)
-	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth esv1.ElasticsearchHealth) {
+	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth escommon.ElasticsearchHealth) {
 		atomic.AddInt32(&counter, 1)
 	}
 	fakeEsClient := fakeEsClient200(client.BasicAuth{})
@@ -74,7 +74,7 @@ func TestObserver_observe_nilFunction(_ *testing.T) {
 
 func TestNewObserver(t *testing.T) {
 	events := make(chan types.NamespacedName)
-	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth esv1.ElasticsearchHealth) {
+	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth escommon.ElasticsearchHealth) {
 		events <- cluster
 	}
 	doneCh := make(chan struct{})
@@ -92,7 +92,7 @@ func TestNewObserver(t *testing.T) {
 
 func TestObserver_Stop(t *testing.T) {
 	counter := int32(0)
-	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth esv1.ElasticsearchHealth) {
+	onObservation := func(cluster types.NamespacedName, previousHealth, newHealth escommon.ElasticsearchHealth) {
 		atomic.AddInt32(&counter, 1)
 	}
 	observer := createAndRunTestObserver(onObservation)
@@ -139,17 +139,17 @@ func TestRetrieveHealth(t *testing.T) {
 	tests := []struct {
 		name          string
 		healthRespErr bool
-		expected      esv1.ElasticsearchHealth
+		expected      escommon.ElasticsearchHealth
 	}{
 		{
 			name:          "health ok",
 			healthRespErr: false,
-			expected:      esv1.ElasticsearchGreenHealth,
+			expected:      escommon.ElasticsearchGreenHealth,
 		},
 		{
 			name:          "unknown health",
 			healthRespErr: true,
-			expected:      esv1.ElasticsearchUnknownHealth,
+			expected:      escommon.ElasticsearchUnknownHealth,
 		},
 	}
 
