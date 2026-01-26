@@ -28,7 +28,7 @@ import (
 
 // ReconcileScriptsConfigMap reconciles a configmap containing scripts and related configuration used by
 // init containers and readiness probe.
-func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasticsearch, meta metadata.Metadata) error {
+func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es escommon.ElasticsearchCluster, meta metadata.Metadata) error {
 	span, ctx := apm.StartSpan(ctx, "reconcile_scripts", tracing.SpanTypeApp)
 	defer span.End()
 
@@ -37,12 +37,12 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 		return err
 	}
 
-	preStopScript, err := nodespec.RenderPreStopHookScript(services.InternalServiceURL(&es))
+	preStopScript, err := nodespec.RenderPreStopHookScript(services.InternalServiceURL(es))
 	if err != nil {
 		return err
 	}
 
-	nsn := types.NamespacedName{Name: escommon.ScriptsConfigMap(&es), Namespace: es.Namespace}
+	nsn := types.NamespacedName{Name: escommon.ScriptsConfigMap(es), Namespace: es.GetNamespace()}
 	scriptsConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        nsn.Name,
@@ -55,10 +55,17 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 			nodespec.ReadinessPortProbeScriptConfigKey:   nodespec.ReadinessPortProbeScript,
 			nodespec.PreStopHookScriptConfigKey:          preStopScript,
 			initcontainer.PrepareFsScriptConfigKey:       fsScript,
-			initcontainer.SuspendScriptConfigKey:         initcontainer.SuspendScript,
-			initcontainer.SuspendedHostsFile:             initcontainer.RenderSuspendConfiguration(es),
 		},
 	}
+
+	// Suspend script and configuration are only applicable to stateful Elasticsearch clusters.
+	if !es.IsStateless() {
+		if statefulES, ok := es.(*esv1.Elasticsearch); ok {
+			scriptsConfigMap.Data[initcontainer.SuspendScriptConfigKey] = initcontainer.SuspendScript
+			scriptsConfigMap.Data[initcontainer.SuspendedHostsFile] = initcontainer.RenderSuspendConfiguration(*statefulES)
+		}
+	}
+
 	return reconcileConfigMap(ctx, c, es, scriptsConfigMap)
 }
 
@@ -66,7 +73,7 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 func reconcileConfigMap(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	expected corev1.ConfigMap,
 ) error {
 	reconciled := &corev1.ConfigMap{}
@@ -74,7 +81,7 @@ func reconcileConfigMap(
 		reconciler.Params{
 			Context:    ctx,
 			Client:     c,
-			Owner:      &es,
+			Owner:      es,
 			Expected:   &expected,
 			Reconciled: reconciled,
 			NeedsUpdate: func() bool {
