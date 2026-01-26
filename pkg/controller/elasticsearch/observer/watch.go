@@ -11,15 +11,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 )
 
-// WatchClusterHealthChange returns a Source fed with generic events targeting clusters
+// WatchClusterHealthChange returns a Source fed with generic events targeting stateful Elasticsearch clusters
 // whose health has changed between 2 observations.
 // Aimed to be used for triggering a reconciliation.
 func WatchClusterHealthChange(m *Manager) source.Source {
 	evtChan := make(chan event.TypedGenericEvent[*esv1.Elasticsearch])
-	m.AddObservationListener(healthChangeListener(evtChan))
+	m.AddObservationListener(healthChangeListenerStateful(evtChan))
 	// Each event in Source will be consumed and turned into
 	// a reconciliation request.
 	//
@@ -29,10 +30,10 @@ func WatchClusterHealthChange(m *Manager) source.Source {
 	return source.Channel(evtChan, &handler.TypedEnqueueRequestForObject[*esv1.Elasticsearch]{})
 }
 
-// healthChangeListener returns an OnObservation listener that feeds a generic
-// event when a cluster's observed health has changed.
-func healthChangeListener(reconciliation chan event.TypedGenericEvent[*esv1.Elasticsearch]) OnObservation {
-	return func(cluster types.NamespacedName, previous, current esv1.ElasticsearchHealth) {
+// healthChangeListenerStateful returns an OnObservation listener that feeds a generic
+// event when a cluster's observed health has changed, for stateful Elasticsearch clusters.
+func healthChangeListenerStateful(reconciliation chan event.TypedGenericEvent[*esv1.Elasticsearch]) OnObservation {
+	return func(cluster types.NamespacedName, previous, current escommon.ElasticsearchHealth) {
 		// no-op if health hasn't change
 		if previous == current {
 			return
