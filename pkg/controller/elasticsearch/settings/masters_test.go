@@ -150,7 +150,7 @@ func TestUpdateSeedHostsConfigMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := UpdateSeedHostsConfigMap(context.Background(), tt.args.c, tt.args.es, tt.args.pods, metadata.Metadata{})
+			err := UpdateSeedHostsConfigMap(context.Background(), tt.args.c, &tt.args.es, tt.args.pods, metadata.Metadata{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UpdateSeedHostsConfigMap() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -161,7 +161,7 @@ func TestUpdateSeedHostsConfigMap(t *testing.T) {
 			if err := tt.args.c.Get(context.Background(),
 				types.NamespacedName{
 					Namespace: "ns1",
-					Name:      escommon.UnicastHostsConfigMap(&es),
+					Name:      escommon.UnicastHostsConfigMap(&tt.args.es),
 				}, file); err != nil {
 				t.Errorf("Error while getting the seed hosts configmap: %v", err)
 			}

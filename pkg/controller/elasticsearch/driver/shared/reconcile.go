@@ -293,7 +293,7 @@ func ReconcileSharedResources(
 	}
 
 	// Compute seed hosts based on current masters with a podIP
-	if err := settings.UpdateSeedHostsConfigMap(ctx, client, es, resourcesState.AllPods, meta); err != nil {
+	if err := settings.UpdateSeedHostsConfigMap(ctx, client, &es, resourcesState.AllPods, meta); err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
 	}

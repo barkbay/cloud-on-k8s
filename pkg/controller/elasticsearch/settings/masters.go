@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -45,7 +44,7 @@ func Quorum(nMasters int) int {
 func UpdateSeedHostsConfigMap(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	pods []corev1.Pod,
 	meta metadata.Metadata,
 ) error {
@@ -80,8 +79,8 @@ func UpdateSeedHostsConfigMap(
 	}
 	expected := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        escommon.UnicastHostsConfigMap(&es),
-			Namespace:   es.Namespace,
+			Name:        escommon.UnicastHostsConfigMap(es),
+			Namespace:   es.GetNamespace(),
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,
 		},
@@ -95,7 +94,7 @@ func UpdateSeedHostsConfigMap(
 		reconciler.Params{
 			Context:    ctx,
 			Client:     c,
-			Owner:      &es,
+			Owner:      es,
 			Expected:   &expected,
 			Reconciled: reconciled,
 			NeedsUpdate: func() bool {
@@ -111,14 +110,14 @@ func UpdateSeedHostsConfigMap(
 				reconciled.Data = expected.Data
 			},
 			PreCreate: func() error {
-				log.Info("Creating seed hosts", "namespace", es.Namespace, "es_name", es.Name, "hosts", seedHosts)
+				log.Info("Creating seed hosts", "namespace", es.GetNamespace(), "es_name", es.GetName(), "hosts", seedHosts)
 				return nil
 			},
 			PostUpdate: func() {
-				log.Info("Seed hosts updated", "namespace", es.Namespace, "es_name", es.Name, "hosts", seedHosts)
+				log.Info("Seed hosts updated", "namespace", es.GetNamespace(), "es_name", es.GetName(), "hosts", seedHosts)
 				annotation.MarkPodsAsUpdated(ctx, c,
-					client.InNamespace(es.Namespace),
-					label.NewLabelSelectorForElasticsearch(&es))
+					client.InNamespace(es.GetNamespace()),
+					label.NewLabelSelectorForElasticsearch(es))
 			},
 		})
 }
