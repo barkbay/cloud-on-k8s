@@ -116,7 +116,7 @@ func TestReconcileScriptsConfigMap(t *testing.T) {
 			mockClient := k8s.NewFakeClient(tt.initialObjects...)
 
 			// Run the function
-			err := ReconcileScriptsConfigMap(context.Background(), mockClient, es, tt.meta)
+			err := ReconcileScriptsConfigMap(context.Background(), mockClient, &es, tt.meta)
 
 			// Check error
 			if tt.wantErr {

@@ -78,7 +78,7 @@ func ReconcileSharedResources(
 	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
 
 	// Reconcile the scripts ConfigMap.
-	if err := configmap.ReconcileScriptsConfigMap(ctx, client, es, meta); err != nil {
+	if err := configmap.ReconcileScriptsConfigMap(ctx, client, &es, meta); err != nil {
 		return nil, results.WithError(err)
 	}
 

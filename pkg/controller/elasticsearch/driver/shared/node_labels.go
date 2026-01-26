@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
@@ -49,12 +50,12 @@ func annotatePodsWithNodeLabels(ctx context.Context, c k8s.Client, es esv1.Elast
 		return results.WithError(err)
 	}
 	for _, pod := range actualPods {
-		results.WithError(annotatePodWithNodeLabels(ctx, c, pod, es))
+		results.WithError(annotatePodWithNodeLabels(ctx, c, pod, &es))
 	}
 	return results
 }
 
-func annotatePodWithNodeLabels(ctx context.Context, c k8s.Client, pod corev1.Pod, es esv1.Elasticsearch) error {
+func annotatePodWithNodeLabels(ctx context.Context, c k8s.Client, pod corev1.Pod, es escommon.ElasticsearchCluster) error {
 	scheduled, nodeName := isPodScheduled(&pod)
 	if !scheduled {
 		return nil
@@ -72,7 +73,7 @@ func annotatePodWithNodeLabels(ctx context.Context, c k8s.Client, pod corev1.Pod
 	if len(podAnnotations) == 0 {
 		return nil
 	}
-	ulog.FromContext(ctx).Info("Setting Pod annotations from node labels", "err", err, "namespace", es.Namespace, "es_name", es.Name, "pod", pod.Name, "annotations", podAnnotations)
+	ulog.FromContext(ctx).Info("Setting Pod annotations from node labels", "err", err, "namespace", es.GetNamespace(), "es_name", es.GetName(), "pod", pod.Name, "annotations", podAnnotations)
 	mergePatch, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"annotations": podAnnotations,
