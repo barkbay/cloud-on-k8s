@@ -120,7 +120,7 @@ func ReconcileSharedResources(
 	}
 
 	// Get resources state
-	resourcesState, err := reconcile.NewResourcesStateFromAPI(client, es)
+	resourcesState, err := reconcile.NewResourcesStateFromAPI(client, &es)
 	if err != nil {
 		return nil, results.WithError(err)
 	}
