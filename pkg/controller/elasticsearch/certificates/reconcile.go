@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/driver"
@@ -30,7 +31,7 @@ import (
 func ReconcileHTTP(
 	ctx context.Context,
 	driver driver.Interface,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	services []corev1.Service,
 	globalCA *certificates.CA,
 	caRotation certificates.RotationParams,
@@ -43,10 +44,12 @@ func ReconcileHTTP(
 	var results *reconciler.Results
 
 	// Create some additional SANs, mostly to be used in the context of client autodiscovery (a.k.a. sniffing).
-	extraHTTPSANs := make([]commonv1.SubjectAlternativeName, len(es.Spec.NodeSets))
-	for i, nodeSet := range es.Spec.NodeSets {
-		extraHTTPSANs[i] =
-			commonv1.SubjectAlternativeName{DNS: "*." + nodespec.HeadlessServiceName(esv1.StatefulSet(es.Name, nodeSet.Name)) + "." + es.Namespace + ".svc"}
+	extraHTTPSANs := buildExtraHTTPSANs(es)
+
+	// Get the appropriate namer for this cluster type
+	namer := escommon.StatefulNamer
+	if es.IsStateless() {
+		namer = escommon.StatelessNamer
 	}
 
 	// reconcile HTTP CA and cert
@@ -54,10 +57,10 @@ func ReconcileHTTP(
 	httpCerts, results = certificates.Reconciler{
 		K8sClient:      driver.K8sClient(),
 		DynamicWatches: driver.DynamicWatches(),
-		Owner:          &es,
-		TLSOptions:     es.Spec.HTTP.TLS,
+		Owner:          es,
+		TLSOptions:     es.GetHTTP().TLS,
 		ExtraHTTPSANs:  extraHTTPSANs,
-		Namer:          esv1.ESNamer,
+		Namer:          namer,
 		Metadata:       meta,
 		Services:       services,
 		GlobalCA:       globalCA,
@@ -69,7 +72,7 @@ func ReconcileHTTP(
 	}.ReconcileCAAndHTTPCerts(ctx)
 	if results.HasError() {
 		_, err := results.Aggregate()
-		k8s.MaybeEmitErrorEvent(driver.Recorder(), err, &es, events.EventReconciliationError, "Certificate reconciliation error: %v", err)
+		k8s.MaybeEmitErrorEvent(driver.Recorder(), err, es, events.EventReconciliationError, "Certificate reconciliation error: %v", err)
 		return nil, results
 	}
 
@@ -81,11 +84,33 @@ func ReconcileHTTP(
 	return trustedHTTPCertificates, nil
 }
 
+// buildExtraHTTPSANs creates additional SANs for the HTTP certificates based on cluster type.
+func buildExtraHTTPSANs(es escommon.ElasticsearchCluster) []commonv1.SubjectAlternativeName {
+	if es.IsStateless() {
+		// For stateless clusters, we don't have predictable headless service names per tier.
+		return nil
+	}
+
+	// For stateful clusters, get NodeSets via type assertion
+	statefulES, ok := es.(*esv1.Elasticsearch)
+	if !ok {
+		return nil
+	}
+
+	extraHTTPSANs := make([]commonv1.SubjectAlternativeName, len(statefulES.Spec.NodeSets))
+	for i, nodeSet := range statefulES.Spec.NodeSets {
+		extraHTTPSANs[i] = commonv1.SubjectAlternativeName{
+			DNS: "*." + nodespec.HeadlessServiceName(esv1.StatefulSet(statefulES.Name, nodeSet.Name)) + "." + statefulES.Namespace + ".svc",
+		}
+	}
+	return extraHTTPSANs
+}
+
 // ReconcileTransport reconciles the transport layer certificates of a cluster.
 func ReconcileTransport(
 	ctx context.Context,
 	driver driver.Interface,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	globalCA *certificates.CA,
 	caRotation certificates.RotationParams,
 	certRotation certificates.RotationParams,
@@ -100,7 +125,7 @@ func ReconcileTransport(
 	// They will be concatenated with the ECK issued CA and distributed through the same transport secrets.
 	additionalCAs, err := transport.ReconcileAdditionalCAs(ctx, driver.K8sClient(), es, driver.DynamicWatches())
 	if err != nil {
-		driver.Recorder().Eventf(&es, corev1.EventTypeWarning, events.EventReasonUnexpected, err.Error())
+		driver.Recorder().Eventf(es, corev1.EventTypeWarning, events.EventReasonUnexpected, err.Error())
 		return results.WithError(err)
 	}
 

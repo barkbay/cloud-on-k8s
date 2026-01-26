@@ -118,7 +118,7 @@ func init() {
 		panic("Failed to parse CSR:" + err.Error())
 	}
 
-	validatedRSACertificateTemplate, err := createValidatedCertificateTemplate(testPod, testES, testRSACSR, certificates.DefaultCertValidity)
+	validatedRSACertificateTemplate, err := createValidatedCertificateTemplate(testPod, &testES, testRSACSR, certificates.DefaultCertValidity)
 	if err != nil {
 		panic("Failed to create validated cert template:" + err.Error())
 	}

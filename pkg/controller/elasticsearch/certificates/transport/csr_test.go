@@ -37,7 +37,7 @@ func Test_createValidatedCertificateTemplate(t *testing.T) {
 	// we expect this name to be used for both the common name as well as the es othername
 	cn := "test-pod-name.node.test-es-name.test-namespace.es.local"
 
-	validatedCert, err := createValidatedCertificateTemplate(testPod, testES, testRSACSR, certificates.DefaultCertValidity)
+	validatedCert, err := createValidatedCertificateTemplate(testPod, &testES, testRSACSR, certificates.DefaultCertValidity)
 	require.NoError(t, err)
 
 	// roundtrip the certificate
@@ -78,16 +78,17 @@ func Test_buildGeneralNames(t *testing.T) {
 	}
 
 	type args struct {
-		cluster esv1.Elasticsearch
+		cluster *esv1.Elasticsearch
 		pod     corev1.Pod
 	}
 	expectedGeneralNames := []certificates.GeneralName{
 		{OtherName: mkOtherName(expectedCommonName)},
 		{DNSName: expectedCommonName},
 		{DNSName: expectedTransportSvcName},
-		{DNSName: "test-pod-name.test-sset"},
 		{IPAddress: net.ParseIP(testIP).To4()},
 		{IPAddress: net.ParseIP("127.0.0.1").To4()},
+		// Headless service DNS name is added at the end for stateful clusters
+		{DNSName: "test-pod-name.test-sset"},
 	}
 	tests := []struct {
 		name string
@@ -97,7 +98,7 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "no svcs and user-provided SANs by default",
 			args: args{
-				cluster: testES,
+				cluster: &testES,
 				pod:     testPod,
 			},
 			want: expectedGeneralNames,
@@ -105,8 +106,8 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "optional user provided SANs",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.SubjectAlternativeNames = []commonv1.SubjectAlternativeName{
 						{
 							DNS: "my-custom-domain",
@@ -125,8 +126,8 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "optional user provided SANs",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.SubjectAlternativeNames = []commonv1.SubjectAlternativeName{
 						{
 							DNS: "my-custom-domain",
@@ -147,8 +148,8 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "optional user provided SANs",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.SubjectAlternativeNames = []commonv1.SubjectAlternativeName{
 						{
 							IP: "1.2.3.4",
@@ -165,8 +166,8 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "optional user provided SANs",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.SubjectAlternativeNames = []commonv1.SubjectAlternativeName{
 						{
 							DNS: "my-custom-domain",
@@ -183,8 +184,8 @@ func Test_buildGeneralNames(t *testing.T) {
 		{
 			name: "custom name suffix",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.OtherNameSuffix = "user.provided.suffix"
 					return es
 				}(),
@@ -196,17 +197,18 @@ func Test_buildGeneralNames(t *testing.T) {
 					{OtherName: mkOtherName(expectedCommonName)},
 					{DNSName: expectedCommonName},
 					{DNSName: expectedTransportSvcName},
-					{DNSName: "test-pod-name.test-sset"},
 					{IPAddress: net.ParseIP(testIP).To4()},
 					{IPAddress: net.ParseIP("127.0.0.1").To4()},
+					// Headless service DNS name is added after IPs for stateful clusters
+					{DNSName: "test-pod-name.test-sset"},
 				}
 			}(),
 		},
 		{
 			name: "custom name suffix with additional SANs",
 			args: args{
-				cluster: func() esv1.Elasticsearch {
-					es := testES
+				cluster: func() *esv1.Elasticsearch {
+					es := testES.DeepCopy()
 					es.Spec.Transport.TLS.OtherNameSuffix = "user.provided.suffix"
 					es.Spec.Transport.TLS.SubjectAlternativeNames = []commonv1.SubjectAlternativeName{
 						{
@@ -223,9 +225,11 @@ func Test_buildGeneralNames(t *testing.T) {
 					{OtherName: mkOtherName(expectedCommonName)},
 					{DNSName: expectedCommonName},
 					{DNSName: expectedTransportSvcName},
-					{DNSName: "test-pod-name.test-sset"},
 					{IPAddress: net.ParseIP(testIP).To4()},
 					{IPAddress: net.ParseIP("127.0.0.1").To4()},
+					// Headless service DNS name is added after IPs for stateful clusters
+					{DNSName: "test-pod-name.test-sset"},
+					// User-provided SANs come last
 					{DNSName: "my-custom-domain"},
 				}
 			}(),

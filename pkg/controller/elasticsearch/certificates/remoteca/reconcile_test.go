@@ -24,7 +24,7 @@ import (
 
 func TestReconcile(t *testing.T) {
 	type args struct {
-		es          esv1.Elasticsearch
+		es          *esv1.Elasticsearch
 		secrets     []client.Object
 		transportCA certificates.CA
 	}
@@ -38,7 +38,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Certificates should be sorted",
 			args: args{
-				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
+				es: &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
 				secrets: []client.Object{
 					&v1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
@@ -70,7 +70,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Only include Secrets with the right label",
 			args: args{
-				es: esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
+				es: &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
 				secrets: []client.Object{
 					&v1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
@@ -113,7 +113,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Use provided transport CA if remote CA list is empty",
 			args: args{
-				es:          esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
+				es:          &esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "es1", Namespace: "ns1"}},
 				transportCA: *testTransportCA,
 			},
 			want: certificates.EncodePEMCert(testTransportCA.Cert.Raw),

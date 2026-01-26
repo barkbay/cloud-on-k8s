@@ -28,7 +28,7 @@ func TestMaybeRetrieveAdditionalCAs(t *testing.T) {
 
 	type args struct {
 		client        k8s.Client
-		elasticsearch v1.Elasticsearch
+		elasticsearch *v1.Elasticsearch
 	}
 	tests := []struct {
 		name    string
@@ -40,7 +40,7 @@ func TestMaybeRetrieveAdditionalCAs(t *testing.T) {
 			name: "Noop if no extra CA defined",
 			args: args{
 				client:        k8s.NewFakeClient(),
-				elasticsearch: v1.Elasticsearch{},
+				elasticsearch: &v1.Elasticsearch{},
 			},
 			want:    nil,
 			wantErr: assert.NoError,
@@ -49,7 +49,7 @@ func TestMaybeRetrieveAdditionalCAs(t *testing.T) {
 			name: "NOK specified config map does not exist",
 			args: args{
 				client: k8s.NewFakeClient(),
-				elasticsearch: v1.Elasticsearch{
+				elasticsearch: &v1.Elasticsearch{
 					ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 					Spec:       v1.ElasticsearchSpec{Transport: v1.TransportConfig{TLS: v1.TransportTLSOptions{CertificateAuthorities: commonv1.ConfigMapRef{ConfigMapName: "my-trust"}}}},
 				},
@@ -62,7 +62,7 @@ func TestMaybeRetrieveAdditionalCAs(t *testing.T) {
 			name: "NOK ca.crt in configmap does not exist",
 			args: args{
 				client: k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "my-trust"}}),
-				elasticsearch: v1.Elasticsearch{
+				elasticsearch: &v1.Elasticsearch{
 					ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 					Spec:       v1.ElasticsearchSpec{Transport: v1.TransportConfig{TLS: v1.TransportTLSOptions{CertificateAuthorities: commonv1.ConfigMapRef{ConfigMapName: "my-trust"}}}},
 				},
@@ -74,7 +74,7 @@ func TestMaybeRetrieveAdditionalCAs(t *testing.T) {
 			name: "OK happy path",
 			args: args{
 				client: k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "my-trust"}, Data: map[string]string{"ca.crt": "CA bytes go here"}}),
-				elasticsearch: v1.Elasticsearch{
+				elasticsearch: &v1.Elasticsearch{
 					ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "es"},
 					Spec:       v1.ElasticsearchSpec{Transport: v1.TransportConfig{TLS: v1.TransportTLSOptions{CertificateAuthorities: commonv1.ConfigMapRef{ConfigMapName: "my-trust"}}}},
 				},

@@ -7,7 +7,7 @@ package remotecluster
 import (
 	"fmt"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates/remoteca"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 
@@ -26,28 +26,31 @@ const (
 
 func remoteCAObjectMeta(
 	name string,
-	owner *esv1.Elasticsearch,
+	owner escommon.ElasticsearchCluster,
 	remote types.NamespacedName,
 ) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
 		Name:      name,
-		Namespace: owner.Namespace,
+		Namespace: owner.GetNamespace(),
 		Labels: maps.Merge(
 			map[string]string{
 				RemoteClusterNamespaceLabelName: remote.Namespace,
 				RemoteClusterNameLabelName:      remote.Name,
 			},
-			remoteca.Labels(owner.Name),
+			remoteca.Labels(owner.GetName()),
 		),
 	}
 }
 
-// RemoteCASecretName returns the name of the Secret that contains the transport CA of a remote cluster
+// remoteCASecretName returns the name of the Secret that contains the transport CA of a remote cluster.
+// The secret is named using the local cluster's namer since it's stored in the local cluster's namespace.
 func remoteCASecretName(
 	localClusterName string,
 	remoteCluster types.NamespacedName,
 ) string {
-	return esv1.ESNamer.Suffix(
+	// Use StatefulNamer as the default for backward compatibility.
+	// The secret name format is consistent regardless of cluster type.
+	return escommon.StatefulNamer.Suffix(
 		fmt.Sprintf("%s-%s-%s", localClusterName, remoteCluster.Namespace, remoteCluster.Name),
 		remoteCASecretSuffix,
 	)

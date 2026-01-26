@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/comparison"
@@ -37,7 +38,7 @@ func TestReconcileTransportCertsPublicSecret(t *testing.T) {
 
 	ca := genCA(t)
 
-	namespacedSecretName := PublicCertsSecretRef(k8s.ExtractNamespacedName(owner))
+	namespacedSecretName := PublicCertsSecretRef(k8s.ExtractNamespacedName(owner), escommon.StatefulNamer)
 
 	mkClient := func(t *testing.T, objs ...client.Object) k8s.Client {
 		t.Helper()
@@ -147,7 +148,7 @@ func TestReconcileTransportCertsPublicSecret(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := tt.client(t)
 			md := metadata.Propagate(owner, metadata.Metadata{Labels: owner.GetIdentityLabels()})
-			err := ReconcileTransportCertsPublicSecret(context.Background(), client, *owner, ca, tt.extraCA, md)
+			err := ReconcileTransportCertsPublicSecret(context.Background(), client, owner, ca, tt.extraCA, md)
 			if tt.wantErr {
 				require.Error(t, err, "Failed to reconcile")
 				return

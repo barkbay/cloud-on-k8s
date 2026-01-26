@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates/transport"
@@ -160,7 +161,8 @@ func fakePublicCa(namespace, name string) *corev1.Secret {
 		Name:      name,
 		Namespace: namespace,
 	}
-	transportPublicCertKey := transport.PublicCertsSecretRef(namespacedName)
+	// Use stateful namer for test fixtures (default case)
+	transportPublicCertKey := transport.PublicCertsSecretRef(namespacedName, escommon.StatefulNamer)
 	return &corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: transportPublicCertKey.Namespace,

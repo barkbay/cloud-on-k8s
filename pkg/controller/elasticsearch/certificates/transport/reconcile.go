@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
@@ -37,26 +39,74 @@ func ReconcileTransportCertificatesSecrets(
 	c k8s.Client,
 	ca *certificates.CA,
 	additionalCAs []byte,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
+	rotationParams certificates.RotationParams,
+	meta metadata.Metadata,
+) *reconciler.Results {
+	if es.IsStateless() {
+		return reconcileStatelessTransportCertificates(ctx, c, ca, additionalCAs, es, rotationParams, meta)
+	}
+	return reconcileStatefulTransportCertificates(ctx, c, ca, additionalCAs, es, rotationParams, meta)
+}
+
+// reconcileStatelessTransportCertificates reconciles transport certificates for stateless clusters using Deployments.
+func reconcileStatelessTransportCertificates(
+	ctx context.Context,
+	c k8s.Client,
+	ca *certificates.CA,
+	additionalCAs []byte,
+	es escommon.ElasticsearchCluster,
 	rotationParams certificates.RotationParams,
 	meta metadata.Metadata,
 ) *reconciler.Results {
 	results := &reconciler.Results{}
 
+	// List all Deployments for this cluster
+	var deployments appsv1.DeploymentList
+	matchLabels := label.NewLabelSelectorForElasticsearch(es)
+	ns := client.InNamespace(es.GetNamespace())
+	if err := c.List(ctx, &deployments, matchLabels, ns); err != nil {
+		return results.WithError(errors.WithStack(err))
+	}
+
+	for _, deployment := range deployments.Items {
+		results.WithResults(reconcileDeploymentTransportCertificatesSecrets(ctx, c, ca, additionalCAs, es, deployment.Name, rotationParams, meta))
+	}
+	return results
+}
+
+// reconcileStatefulTransportCertificates reconciles transport certificates for stateful clusters using StatefulSets.
+func reconcileStatefulTransportCertificates(
+	ctx context.Context,
+	c k8s.Client,
+	ca *certificates.CA,
+	additionalCAs []byte,
+	es escommon.ElasticsearchCluster,
+	rotationParams certificates.RotationParams,
+	meta metadata.Metadata,
+) *reconciler.Results {
+	results := &reconciler.Results{}
+
+	// Type assert to get the stateful Elasticsearch for NodeSets
+	statefulES, ok := es.(*esv1.Elasticsearch)
+	if !ok {
+		return results.WithError(errors.New("expected stateful Elasticsearch for transport certificate reconciliation"))
+	}
+
 	// We must create transport certificates for the following StatefulSets:
 	// - the ones that still exist, even if they have been removed from the Spec
 	// - the ones that do not exist yet, but will be created in a later step of the reconciliation
-	actualStatefulSets, err := sset.RetrieveActualStatefulSets(c, k8s.ExtractNamespacedName(&es))
+	actualStatefulSets, err := sset.RetrieveActualStatefulSets(c, k8s.ExtractNamespacedName(es))
 	if err != nil {
 		return results.WithError(err)
 	}
 	ssets := actualStatefulSets.Names()
-	for _, nodeSet := range es.Spec.NodeSets {
-		ssets.Add(esv1.StatefulSet(es.Name, nodeSet.Name))
+	for _, nodeSet := range statefulES.Spec.NodeSets {
+		ssets.Add(esv1.StatefulSet(statefulES.Name, nodeSet.Name))
 	}
 
 	for ssetName := range ssets {
-		results.WithResults(reconcileNodeSetTransportCertificatesSecrets(ctx, c, ca, additionalCAs, es, ssetName, rotationParams, meta))
+		results.WithResults(reconcileStatefulSetTransportCertificatesSecrets(ctx, c, ca, additionalCAs, es, ssetName, rotationParams, meta))
 	}
 	return results
 }
@@ -72,22 +122,37 @@ func DeleteStatefulSetTransportCertificate(ctx context.Context, client k8s.Clien
 	return client.Delete(ctx, &secret)
 }
 
+// DeleteDeploymentTransportCertificate removes the Secret which contains the transport certificates of a given Deployment.
+func DeleteDeploymentTransportCertificate(ctx context.Context, client k8s.Client, clusterName, namespace, deploymentName string) error {
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      escommon.DeploymentTransportCertificatesSecret(clusterName, deploymentName),
+		},
+	}
+	return client.Delete(ctx, &secret)
+}
+
 // DeleteLegacyTransportCertificate ensures that the former Secret which used to contain the transport certificates is deleted.
-func DeleteLegacyTransportCertificate(ctx context.Context, client k8s.Client, es esv1.Elasticsearch) error {
-	nsn := types.NamespacedName{Namespace: es.Namespace, Name: esv1.LegacyTransportCertsSecretSuffix(es.Name)}
+func DeleteLegacyTransportCertificate(ctx context.Context, client k8s.Client, es escommon.ElasticsearchCluster) error {
+	// Legacy secrets only exist for stateful clusters
+	if es.IsStateless() {
+		return nil
+	}
+	nsn := types.NamespacedName{Namespace: es.GetNamespace(), Name: esv1.LegacyTransportCertsSecretSuffix(es.GetName())}
 	return k8s.DeleteSecretIfExists(ctx, client, nsn)
 }
 
 const disabledMarker = "transport.certs.disabled"
 
-// reconcileNodeSetTransportCertificatesSecrets reconciles the secret which contains the transport certificates for
+// reconcileStatefulSetTransportCertificatesSecrets reconciles the secret which contains the transport certificates for
 // a given StatefulSet.
-func reconcileNodeSetTransportCertificatesSecrets(
+func reconcileStatefulSetTransportCertificatesSecrets(
 	ctx context.Context,
 	c k8s.Client,
 	ca *certificates.CA,
 	additionalCAs []byte,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	ssetName string,
 	rotationParams certificates.RotationParams,
 	meta metadata.Metadata,
@@ -96,13 +161,13 @@ func reconcileNodeSetTransportCertificatesSecrets(
 	log := ulog.FromContext(ctx)
 	// List all the existing Pods in the nodeSet
 	var pods corev1.PodList
-	matchLabels := label.NewLabelSelectorForStatefulSetName(es.Name, ssetName)
-	ns := client.InNamespace(es.Namespace)
+	matchLabels := label.NewLabelSelectorForStatefulSetName(es.GetName(), ssetName)
+	ns := client.InNamespace(es.GetNamespace())
 	if err := c.List(ctx, &pods, matchLabels, ns); err != nil {
 		return results.WithError(errors.WithStack(err))
 	}
 
-	secret, err := ensureTransportCertificatesSecretExists(ctx, c, es, ssetName, meta)
+	secret, err := ensureStatefulSetTransportCertificatesSecretExists(ctx, c, es, ssetName, meta)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -156,14 +221,113 @@ func reconcileNodeSetTransportCertificatesSecrets(
 		}
 	}
 	if len(keysToPrune) > 0 {
-		log.Info("Pruning keys from certificates secret", "namespace", es.Namespace, "secret_name", secret.Name, "keys", keysToPrune)
+		log.Info("Pruning keys from certificates secret", "namespace", es.GetNamespace(), "secret_name", secret.Name, "keys", keysToPrune)
 
 		for _, keyToRemove := range keysToPrune {
 			delete(secret.Data, keyToRemove)
 		}
 	}
 
-	if es.Spec.Transport.TLS.SelfSignedEnabled() {
+	if es.GetTransport().TLS.SelfSignedEnabled() {
+		delete(secret.Data, disabledMarker)
+	} else {
+		// add a marker but leave all the old certs that might exist in the secret in place to ease the transition
+		// to the disabled state.
+		secret.Data[disabledMarker] = []byte("true") // contents is irrelevant
+	}
+
+	mayBeUpdateCAFile(secret, ca, additionalCAs)
+
+	if !reflect.DeepEqual(secret, currentTransportCertificatesSecret) {
+		if err := c.Update(ctx, secret); err != nil {
+			return results.WithError(err)
+		}
+		for _, pod := range pods.Items {
+			annotation.MarkPodAsUpdated(ctx, c, pod)
+		}
+	}
+
+	return results
+}
+
+// reconcileDeploymentTransportCertificatesSecrets reconciles the secret which contains the transport certificates for
+// a given Deployment (stateless cluster).
+func reconcileDeploymentTransportCertificatesSecrets(
+	ctx context.Context,
+	c k8s.Client,
+	ca *certificates.CA,
+	additionalCAs []byte,
+	es escommon.ElasticsearchCluster,
+	deploymentName string,
+	rotationParams certificates.RotationParams,
+	meta metadata.Metadata,
+) *reconciler.Results {
+	results := &reconciler.Results{}
+	log := ulog.FromContext(ctx)
+	// List all the existing Pods in the Deployment
+	var pods corev1.PodList
+	matchLabels := label.NewLabelSelectorForDeploymentName(es.GetName(), deploymentName)
+	ns := client.InNamespace(es.GetNamespace())
+	if err := c.List(ctx, &pods, matchLabels, ns); err != nil {
+		return results.WithError(errors.WithStack(err))
+	}
+
+	secret, err := ensureDeploymentTransportCertificatesSecretExists(ctx, c, es, deploymentName, meta)
+	if err != nil {
+		return results.WithError(err)
+	}
+	// defensive copy of the current secret so we can check whether we need to update later on
+	currentTransportCertificatesSecret := secret.DeepCopy()
+	for _, pod := range pods.Items {
+		if pod.Status.PodIP == "" {
+			log.Info("Skipping pod because it has no IP yet", "namespace", pod.Namespace, "pod_name", pod.Name)
+			continue
+		}
+
+		if err := ensureTransportCertificatesSecretContentsForPod(
+			ctx, es, secret, pod, ca, rotationParams,
+		); err != nil {
+			return results.WithError(err)
+		}
+		certCommonName := buildCertificateCommonName(pod, es)
+		cert := extractTransportCert(ctx, *secret, pod, certCommonName)
+		if cert == nil {
+			return results.WithError(errors.New("no certificate found for pod"))
+		}
+		// handle cert expiry via requeue
+		results.WithReconciliationState(
+			reconciler.
+				RequeueAfter(certificates.ShouldRotateIn(time.Now(), cert.NotAfter, rotationParams.RotateBefore)).
+				ReconciliationComplete(),
+		)
+	}
+
+	// remove certificates and keys for deleted pods
+	podsByName := k8s.PodsByName(pods.Items)
+	keysToPrune := make([]string, 0)
+	for secretDataKey := range secret.Data {
+		if secretDataKey == certificates.CAFileName {
+			// never remove the CA file
+			continue
+		}
+
+		// get the pod name from the secret key name (the first segment before the ".")
+		podNameForKey := strings.SplitN(secretDataKey, ".", 2)[0]
+
+		if _, ok := podsByName[podNameForKey]; !ok {
+			// pod no longer exists, so the element is safe to delete.
+			keysToPrune = append(keysToPrune, secretDataKey)
+		}
+	}
+	if len(keysToPrune) > 0 {
+		log.Info("Pruning keys from certificates secret", "namespace", es.GetNamespace(), "secret_name", secret.Name, "keys", keysToPrune)
+
+		for _, keyToRemove := range keysToPrune {
+			delete(secret.Data, keyToRemove)
+		}
+	}
+
+	if es.GetTransport().TLS.SelfSignedEnabled() {
 		delete(secret.Data, disabledMarker)
 	} else {
 		// add a marker but leave all the old certs that might exist in the secret in place to ease the transition
@@ -212,12 +376,12 @@ func mayBeUpdateCAFile(secret *corev1.Secret, ca *certificates.CA, additionalCAs
 	}
 }
 
-// ensureTransportCertificatesSecretExists ensures the existence and labels of the Secret that at a later point
-// in time will contain the transport certificates for a nodeSet.
-func ensureTransportCertificatesSecretExists(
+// ensureStatefulSetTransportCertificatesSecretExists ensures the existence and labels of the Secret that at a later point
+// in time will contain the transport certificates for a StatefulSet.
+func ensureStatefulSetTransportCertificatesSecretExists(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	ssetName string,
 	meta metadata.Metadata,
 ) (*corev1.Secret, error) {
@@ -228,7 +392,7 @@ func ensureTransportCertificatesSecretExists(
 	})
 	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   es.Namespace,
+			Namespace:   es.GetNamespace(),
 			Name:        esv1.StatefulSetTransportCertificatesSecret(ssetName),
 			Labels:      meta.Labels,
 			Annotations: meta.Annotations,
@@ -242,7 +406,59 @@ func ensureTransportCertificatesSecretExists(
 	if err := reconciler.ReconcileResource(reconciler.Params{
 		Context:    ctx,
 		Client:     c,
-		Owner:      &es,
+		Owner:      es,
+		Expected:   &expected,
+		Reconciled: &reconciled,
+		NeedsUpdate: func() bool {
+			return !maps.IsSubset(expected.Labels, reconciled.Labels) ||
+				!maps.IsSubset(expected.Annotations, reconciled.Annotations)
+		},
+		UpdateReconciled: func() {
+			reconciled.Labels = maps.Merge(reconciled.Labels, expected.Labels)
+			reconciled.Annotations = maps.Merge(reconciled.Annotations, expected.Annotations)
+		},
+	}); err != nil {
+		return nil, err
+	}
+	// a placeholder secret may have nil entries, create them if needed
+	if reconciled.Data == nil {
+		reconciled.Data = make(map[string][]byte)
+	}
+
+	return &reconciled, nil
+}
+
+// ensureDeploymentTransportCertificatesSecretExists ensures the existence and labels of the Secret that at a later point
+// in time will contain the transport certificates for a Deployment (stateless cluster).
+func ensureDeploymentTransportCertificatesSecretExists(
+	ctx context.Context,
+	c k8s.Client,
+	es escommon.ElasticsearchCluster,
+	deploymentName string,
+	meta metadata.Metadata,
+) (*corev1.Secret, error) {
+	meta = meta.Merge(metadata.Metadata{
+		Labels: map[string]string{
+			// label indicating to which Deployment these certificates belong
+			label.DeploymentNameLabelName: deploymentName},
+	})
+	expected := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   es.GetNamespace(),
+			Name:        escommon.DeploymentTransportCertificatesSecret(es.GetName(), deploymentName),
+			Labels:      meta.Labels,
+			Annotations: meta.Annotations,
+		},
+	}
+	// reconcile the secret resource:
+	// - create it if it doesn't exist
+	// - update labels & annotations if they don't match
+	// - do not touch the existing data as it probably already contains certificates - it will be reconciled later on
+	var reconciled corev1.Secret
+	if err := reconciler.ReconcileResource(reconciler.Params{
+		Context:    ctx,
+		Client:     c,
+		Owner:      es,
 		Expected:   &expected,
 		Reconciled: &reconciled,
 		NeedsUpdate: func() bool {
