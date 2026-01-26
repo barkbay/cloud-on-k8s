@@ -176,7 +176,7 @@ func doReconcile(
 	if remoteServerSupportsClusterAPIKeys.IsTrue() {
 		// Check if the ES API is available. We need it to create, update and invalidate
 		// API keys in this cluster.
-		if !services.NewElasticsearchURLProvider(*remoteServer, r.Client).HasEndpoints() {
+		if !services.NewElasticsearchURLProvider(remoteServer, r.Client).HasEndpoints() {
 			log.Info("Elasticsearch API is not available yet")
 			return results.WithRequeue().Aggregate()
 		}

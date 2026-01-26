@@ -202,7 +202,7 @@ func buildConfigHash(ctx context.Context, configMap corev1.ConfigMap, apiKeySecr
 // autoopsEnvVars returns the environment variables for the AutoOps deployment
 // that reference values from the autoops-secret and the ES elastic user secret.
 func autoopsEnvVars(policy autoopsv1alpha1.AutoOpsAgentPolicy, es esv1.Elasticsearch) []corev1.EnvVar {
-	esService := services.InternalServiceURL(es)
+	esService := services.InternalServiceURL(&es)
 	return []corev1.EnvVar{
 		{
 			Name: "AUTOOPS_TOKEN",

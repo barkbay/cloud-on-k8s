@@ -844,7 +844,7 @@ func TestReconciler_Reconcile_MultiRef(t *testing.T) {
 			if err := c.Get(context.Background(), esRef.NamespacedName(), &es); err != nil {
 				return "", err
 			}
-			return services.ExternalServiceURL(es), nil
+			return services.ExternalServiceURL(&es), nil
 		},
 		ReferencedResourceNamer: func(_ string) common_name.Namer { return esv1.ESNamer },
 		ReferencedKinds:         func() []string { return []string{commonv1.ElasticsearchKind} },

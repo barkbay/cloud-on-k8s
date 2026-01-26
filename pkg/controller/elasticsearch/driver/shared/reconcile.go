@@ -83,7 +83,7 @@ func ReconcileSharedResources(
 	}
 
 	// Reconcile transport service.
-	if _, err := common.ReconcileService(ctx, client, services.NewTransportService(es, meta), &es); err != nil {
+	if _, err := common.ReconcileService(ctx, client, services.NewTransportService(&es, meta), &es); err != nil {
 		return nil, results.WithError(err)
 	}
 
@@ -97,7 +97,7 @@ func ReconcileSharedResources(
 	}
 
 	// Reconcile internal service.
-	internalService, err := common.ReconcileService(ctx, client, services.NewInternalService(es, meta), &es)
+	internalService, err := common.ReconcileService(ctx, client, services.NewInternalService(&es, meta), &es)
 	if err != nil {
 		return nil, results.WithError(err)
 	}
@@ -105,7 +105,7 @@ func ReconcileSharedResources(
 	// Remote Cluster Server (RCS2) Kubernetes Service reconciliation.
 	if es.Spec.RemoteClusterServer.Enabled {
 		// Remote Cluster Server is enabled, ensure that the related Kubernetes Service does exist.
-		if _, err := common.ReconcileService(ctx, client, services.NewRemoteClusterService(es, meta), &es); err != nil {
+		if _, err := common.ReconcileService(ctx, client, services.NewRemoteClusterService(&es, meta), &es); err != nil {
 			results.WithError(err)
 		}
 	} else {
@@ -166,7 +166,7 @@ func ReconcileSharedResources(
 		minVersion = &params.Version
 	}
 
-	urlProvider := services.NewElasticsearchURLProvider(es, client)
+	urlProvider := services.NewElasticsearchURLProvider(&es, client)
 	hasEndpoints := urlProvider.HasEndpoints()
 
 	observedState := params.Observers.ObservedStateResolver(

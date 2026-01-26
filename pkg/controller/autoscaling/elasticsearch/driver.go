@@ -91,7 +91,7 @@ func newStatusBuilder(log logr.Logger, autoscalingPolicies v1alpha1.AutoscalingP
 // Check if the Service is available.
 func (r *baseReconcileAutoscaling) isElasticsearchReachable(ctx context.Context, es esv1.Elasticsearch) bool {
 	defer tracing.Span(&ctx)()
-	return services.NewElasticsearchURLProvider(es, r.Client).HasEndpoints()
+	return services.NewElasticsearchURLProvider(&es, r.Client).HasEndpoints()
 }
 
 // attemptOnlineReconciliation attempts an online autoscaling reconciliation with a call to the Elasticsearch autoscaling API.
