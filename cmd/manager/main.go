@@ -960,6 +960,7 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 		{name: "EMS-ES", registerFunc: associationctl.AddMapsES},
 		{name: "LOGSTASH-ES", registerFunc: associationctl.AddLogstashES},
 		{name: "ES-MONITORING", registerFunc: associationctl.AddEsMonitoring},
+		{name: "ESS-MONITORING", registerFunc: associationctl.AddEssMonitoring},
 		{name: "KB-MONITORING", registerFunc: associationctl.AddKbMonitoring},
 		{name: "BEAT-MONITORING", registerFunc: associationctl.AddBeatMonitoring},
 		{name: "LOGSTASH-MONITORING", registerFunc: associationctl.AddLogstashMonitoring},

@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -72,6 +73,13 @@ type ElasticsearchStatelessSpec struct {
 	// RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster.
 	// +optional
 	RemoteClusters []escommon.RemoteCluster `json:"remoteClusters,omitempty"`
+
+	// Monitoring enables you to collect and ship log and monitoring data of this Elasticsearch cluster.
+	// See https://www.elastic.co/guide/en/elasticsearch/reference/current/monitor-elasticsearch-cluster.html.
+	// Metricbeat and Filebeat are deployed in the same Pod as sidecars and each one sends data to one or two different
+	// Elasticsearch monitoring clusters running in the same Kubernetes cluster.
+	// +kubebuilder:validation:Optional
+	Monitoring commonv1.Monitoring `json:"monitoring,omitempty"`
 }
 
 // ObjectStoreConfig contains the configuration for the object store used for stateless data.
@@ -136,6 +144,9 @@ type ElasticsearchStatelessStatus struct {
 	// MLTierStatus contains the status of the ML tier.
 	// +kubebuilder:validation:Optional
 	MLTierStatus *TierStatus `json:"mlTierStatus,omitempty"`
+
+	// MonitoringAssociationStatus is the status of any auto-linking to monitoring Elasticsearch clusters.
+	MonitoringAssociationStatus commonv1.AssociationStatusMap `json:"monitoringAssociationStatus,omitempty"`
 }
 
 // TierStatus represents the status of a tier.
@@ -162,8 +173,9 @@ type ElasticsearchStateless struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ElasticsearchStatelessSpec   `json:"spec,omitempty"`
-	Status ElasticsearchStatelessStatus `json:"status,omitempty"`
+	Spec      ElasticsearchStatelessSpec                           `json:"spec,omitempty"`
+	Status    ElasticsearchStatelessStatus                         `json:"status,omitempty"`
+	AssocConfs map[commonv1.ObjectSelector]commonv1.AssociationConf `json:"-"`
 }
 
 // IsMarkedForDeletion returns true if the ElasticsearchStateless is going to be deleted.
@@ -261,14 +273,135 @@ func (ess ElasticsearchStateless) IsConfiguredToAllowDowngrades() bool {
 	return commonv1.IsConfiguredToAllowDowngrades(&ess)
 }
 
+// -- HasMonitoring methods
+
+// GetMonitoringMetricsRefs returns the list of Elasticsearch clusters to which monitoring metrics are sent.
+func (ess *ElasticsearchStateless) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef {
+	return ess.Spec.Monitoring.Metrics.ElasticsearchRefs
+}
+
+// GetMonitoringLogsRefs returns the list of Elasticsearch clusters to which monitoring logs are sent.
+func (ess *ElasticsearchStateless) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
+	return ess.Spec.Monitoring.Logs.ElasticsearchRefs
+}
+
+// MonitoringAssociation returns the Association for the given ObjectSelector.
+func (ess *ElasticsearchStateless) MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association {
+	return &EssMonitoringAssociation{
+		ElasticsearchStateless: ess,
+		ref:                    ref.WithDefaultNamespace(ess.Namespace),
+	}
+}
+
 // GetAssociations returns the list of associations for this ElasticsearchStateless cluster.
-// Currently returns an empty slice as ElasticsearchStateless does not support monitoring associations.
 func (ess *ElasticsearchStateless) GetAssociations() []commonv1.Association {
-	return []commonv1.Association{}
+	associations := make([]commonv1.Association, 0)
+	for _, ref := range ess.Spec.Monitoring.Metrics.ElasticsearchRefs {
+		if ref.IsDefined() {
+			associations = append(associations, &EssMonitoringAssociation{
+				ElasticsearchStateless: ess,
+				ref:                    ref.ObjectSelector.WithDefaultNamespace(ess.Namespace),
+			})
+		}
+	}
+	for _, ref := range ess.Spec.Monitoring.Logs.ElasticsearchRefs {
+		if ref.IsDefined() {
+			associations = append(associations, &EssMonitoringAssociation{
+				ElasticsearchStateless: ess,
+				ref:                    ref.ObjectSelector.WithDefaultNamespace(ess.Namespace),
+			})
+		}
+	}
+	return associations
+}
+
+// AssociationStatusMap returns the association status map for the given association type.
+func (ess *ElasticsearchStateless) AssociationStatusMap(typ commonv1.AssociationType) commonv1.AssociationStatusMap {
+	if typ != commonv1.EsMonitoringAssociationType {
+		return commonv1.AssociationStatusMap{}
+	}
+
+	return ess.Status.MonitoringAssociationStatus
+}
+
+// SetAssociationStatusMap sets the association status map for the given association type.
+func (ess *ElasticsearchStateless) SetAssociationStatusMap(typ commonv1.AssociationType, status commonv1.AssociationStatusMap) error {
+	if typ != commonv1.EsMonitoringAssociationType {
+		return fmt.Errorf("association type %s not known", typ)
+	}
+
+	ess.Status.MonitoringAssociationStatus = status
+	return nil
 }
 
 // Ensure ElasticsearchStateless implements escommon.ElasticsearchCluster interface.
 var _ escommon.ElasticsearchCluster = &ElasticsearchStateless{}
+
+// Ensure ElasticsearchStateless implements commonv1.Associated interface.
+var _ commonv1.Associated = &ElasticsearchStateless{}
+
+// -- association with monitoring Elasticsearch clusters
+
+// EssMonitoringAssociation helps to manage ElasticsearchStateless+Metricbeat+Filebeat <-> Elasticsearch(es) associations
+type EssMonitoringAssociation struct {
+	// The monitored ElasticsearchStateless cluster from where are collected logs and monitoring metrics
+	*ElasticsearchStateless
+	// ref is the object selector of the Elasticsearch referenced in the Association used to send and store monitoring data
+	ref commonv1.ObjectSelector
+}
+
+var _ commonv1.Association = &EssMonitoringAssociation{}
+
+func (ema *EssMonitoringAssociation) Associated() commonv1.Associated {
+	if ema == nil {
+		return nil
+	}
+	if ema.ElasticsearchStateless == nil {
+		ema.ElasticsearchStateless = &ElasticsearchStateless{}
+	}
+	return ema.ElasticsearchStateless
+}
+
+func (ema *EssMonitoringAssociation) AssociationConfAnnotationName() string {
+	return commonv1.ElasticsearchConfigAnnotationName(ema.ref)
+}
+
+func (ema *EssMonitoringAssociation) AssociationType() commonv1.AssociationType {
+	return commonv1.EsMonitoringAssociationType
+}
+
+func (ema *EssMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
+	return ema.ref
+}
+
+func (ema *EssMonitoringAssociation) AssociationRefKind() string {
+	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+}
+
+func (ema *EssMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
+	return commonv1.GetAndSetAssociationConfByRef(ema, ema.ref, ema.AssocConfs)
+}
+
+func (ema *EssMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
+	if ema.AssocConfs == nil {
+		ema.AssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
+	}
+	if assocConf != nil {
+		ema.AssocConfs[ema.ref] = *assocConf
+	}
+}
+
+func (ema *EssMonitoringAssociation) SupportsAuthAPIKey() bool {
+	return false
+}
+
+func (ema *EssMonitoringAssociation) AssociationID() string {
+	return ema.ref.ToID()
+}
+
+func (ema *EssMonitoringAssociation) ElasticServiceAccount() (commonv1.ServiceAccountName, error) {
+	return "", nil
+}
 
 // +kubebuilder:object:root=true
 

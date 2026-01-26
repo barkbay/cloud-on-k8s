@@ -665,6 +665,7 @@ configuring stack monitoring.
 :::{admonition} Appears In:
 * [BeatSpec](#beatspec)
 * [ElasticsearchSpec](#elasticsearchspec)
+* [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
 * [KibanaSpec](#kibanaspec)
 * [LogstashSpec](#logstashspec)
 
@@ -1435,6 +1436,7 @@ ElasticsearchStatelessSpec defines the desired state of an ElasticsearchStateles
 | *`secureSettings`* __[SecretSource](#secretsource) array__ | SecureSettings is a list of references to Kubernetes secrets containing sensitive configuration options for Elasticsearch. |
 | *`serviceAccountName`* __string__ | ServiceAccountName is used to check access from the current resource to a resource (for ex. a remote Elasticsearch cluster) in a different namespace.<br>Can only be used if ECK is enforcing RBAC on references. |
 | *`remoteClusters`* __RemoteCluster array__ | RemoteClusters enables you to establish uni-directional connections to a remote Elasticsearch cluster. |
+| *`monitoring`* __[Monitoring](#monitoring)__ | Monitoring enables you to collect and ship log and monitoring data of this Elasticsearch cluster.<br>See https://www.elastic.co/guide/en/elasticsearch/reference/current/monitor-elasticsearch-cluster.html.<br>Metricbeat and Filebeat are deployed in the same Pod as sidecars and each one sends data to one or two different<br>Elasticsearch monitoring clusters running in the same Kubernetes cluster. |
 
 
 ### ElasticsearchStatelessStatus  [#elasticsearchstatelessstatus]

@@ -142,7 +142,7 @@ func BuildPodTemplateSpec(
 		WithContainersSecurityContext(securitycontext.For(ver, enableReadOnlyRootFilesystem)).
 		WithPreStopHook(*NewPreStopHook())
 
-	builder, err = stackmon.WithMonitoring(ctx, client, builder, es, meta)
+	builder, err = stackmon.WithMonitoring(ctx, client, builder, &es, meta)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
