@@ -552,7 +552,7 @@ func Test_Driver_maybeCompleteNodeUpgrades(t *testing.T) {
 			}
 			esState := NewMemoizingESState(context.Background(), esClient)
 
-			reconcileState, err := reconcile.NewState(tt.es)
+			reconcileState, err := reconcile.NewState(&tt.es)
 			require.NoError(t, err)
 
 			d := &Driver{

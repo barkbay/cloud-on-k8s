@@ -516,7 +516,7 @@ func Test_Driver_updateDesiredNodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			es := tt.esBuilder.toEs()
-			reconcileState, err := reconcile.NewState(es)
+			reconcileState, err := reconcile.NewState(&es)
 			if err != nil {
 				assert.FailNow(t, "fatal: %s", err)
 			}

@@ -24,15 +24,12 @@ type Driver struct {
 }
 
 // NewDriver returns a new stateful driver implementation.
-func NewDriver(parameters driver.Parameters) driver.Driver {
-	// Type assert to get the concrete Elasticsearch type for stateful-specific operations
-	es, ok := parameters.ES.(*esv1.Elasticsearch)
-	if !ok {
-		panic("stateful driver requires *esv1.Elasticsearch")
-	}
+// The es parameter is the concrete Elasticsearch type for stateful-specific operations,
+// while parameters.ES holds the interface for shared reconciliation code.
+func NewDriver(parameters driver.Parameters, es esv1.Elasticsearch) driver.Driver {
 	return &Driver{
 		BaseDriver: driver.BaseDriver{Parameters: parameters},
-		ES:         *es,
+		ES:         es,
 	}
 }
 

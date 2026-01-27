@@ -560,3 +560,60 @@ func (es *Elasticsearch) MonitoringAssociation(ref commonv1.ObjectSelector) comm
 func (es Elasticsearch) DisabledPredicates() set.StringSet {
 	return setFromAnnotations(DisableUpgradePredicatesAnnotation, es.Annotations)
 }
+
+// -- Status methods for ElasticsearchCluster interface
+
+// GetStatusHealth returns the current health status.
+func (es *Elasticsearch) GetStatusHealth() escommon.ElasticsearchHealth {
+	return es.Status.Health
+}
+
+// SetStatusHealth sets the health status.
+func (es *Elasticsearch) SetStatusHealth(health escommon.ElasticsearchHealth) {
+	es.Status.Health = health
+}
+
+// GetStatusPhase returns the current orchestration phase.
+func (es *Elasticsearch) GetStatusPhase() escommon.ElasticsearchOrchestrationPhase {
+	return es.Status.Phase
+}
+
+// SetStatusPhase sets the orchestration phase.
+func (es *Elasticsearch) SetStatusPhase(phase escommon.ElasticsearchOrchestrationPhase) {
+	es.Status.Phase = phase
+}
+
+// GetStatusAvailableNodes returns the number of available nodes.
+func (es *Elasticsearch) GetStatusAvailableNodes() int32 {
+	return es.Status.AvailableNodes
+}
+
+// SetStatusAvailableNodes sets the number of available nodes.
+func (es *Elasticsearch) SetStatusAvailableNodes(nodes int32) {
+	es.Status.AvailableNodes = nodes
+}
+
+// GetStatusVersion returns the running version.
+func (es *Elasticsearch) GetStatusVersion() string {
+	return es.Status.Version
+}
+
+// SetStatusVersion sets the running version.
+func (es *Elasticsearch) SetStatusVersion(version string) {
+	es.Status.Version = version
+}
+
+// GetStatusObservedGeneration returns the observed generation.
+func (es *Elasticsearch) GetStatusObservedGeneration() int64 {
+	return es.Status.ObservedGeneration
+}
+
+// SetStatusObservedGeneration sets the observed generation.
+func (es *Elasticsearch) SetStatusObservedGeneration(generation int64) {
+	es.Status.ObservedGeneration = generation
+}
+
+// StatusIsDegraded returns true if the current status is worse than the given previous status.
+func (es *Elasticsearch) StatusIsDegraded(prevHealth escommon.ElasticsearchHealth) bool {
+	return es.Status.Health.Less(prevHealth)
+}

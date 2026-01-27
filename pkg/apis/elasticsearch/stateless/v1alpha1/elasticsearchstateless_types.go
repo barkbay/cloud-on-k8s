@@ -403,6 +403,63 @@ func (ema *EssMonitoringAssociation) ElasticServiceAccount() (commonv1.ServiceAc
 	return "", nil
 }
 
+// -- Status methods for ElasticsearchCluster interface
+
+// GetStatusHealth returns the current health status.
+func (ess *ElasticsearchStateless) GetStatusHealth() escommon.ElasticsearchHealth {
+	return ess.Status.Health
+}
+
+// SetStatusHealth sets the health status.
+func (ess *ElasticsearchStateless) SetStatusHealth(health escommon.ElasticsearchHealth) {
+	ess.Status.Health = health
+}
+
+// GetStatusPhase returns the current orchestration phase.
+func (ess *ElasticsearchStateless) GetStatusPhase() escommon.ElasticsearchOrchestrationPhase {
+	return ess.Status.Phase
+}
+
+// SetStatusPhase sets the orchestration phase.
+func (ess *ElasticsearchStateless) SetStatusPhase(phase escommon.ElasticsearchOrchestrationPhase) {
+	ess.Status.Phase = phase
+}
+
+// GetStatusAvailableNodes returns the number of available nodes.
+func (ess *ElasticsearchStateless) GetStatusAvailableNodes() int32 {
+	return ess.Status.AvailableNodes
+}
+
+// SetStatusAvailableNodes sets the number of available nodes.
+func (ess *ElasticsearchStateless) SetStatusAvailableNodes(nodes int32) {
+	ess.Status.AvailableNodes = nodes
+}
+
+// GetStatusVersion returns the running version.
+func (ess *ElasticsearchStateless) GetStatusVersion() string {
+	return ess.Status.Version
+}
+
+// SetStatusVersion sets the running version.
+func (ess *ElasticsearchStateless) SetStatusVersion(version string) {
+	ess.Status.Version = version
+}
+
+// GetStatusObservedGeneration returns the observed generation.
+func (ess *ElasticsearchStateless) GetStatusObservedGeneration() int64 {
+	return ess.Status.ObservedGeneration
+}
+
+// SetStatusObservedGeneration sets the observed generation.
+func (ess *ElasticsearchStateless) SetStatusObservedGeneration(generation int64) {
+	ess.Status.ObservedGeneration = generation
+}
+
+// StatusIsDegraded returns true if the current status is worse than the given previous status.
+func (ess *ElasticsearchStateless) StatusIsDegraded(prevHealth escommon.ElasticsearchHealth) bool {
+	return ess.Status.Health.Less(prevHealth)
+}
+
 // +kubebuilder:object:root=true
 
 // ElasticsearchStatelessList contains a list of ElasticsearchStateless clusters.

@@ -22,8 +22,13 @@ type Driver struct {
 }
 
 // NewDriver returns a new stateless driver implementation.
-func NewDriver(parameters driver.Parameters) driver.Driver {
-	return &Driver{BaseDriver: driver.BaseDriver{Parameters: parameters}}
+// The ess parameter is the concrete ElasticsearchStateless type for stateless-specific operations,
+// while parameters.ES holds the interface for shared reconciliation code.
+func NewDriver(parameters driver.Parameters, ess v1alpha1.ElasticsearchStateless) driver.Driver {
+	return &Driver{
+		BaseDriver: driver.BaseDriver{Parameters: parameters},
+		ES:         ess,
+	}
 }
 
 var _ commondriver.Interface = &Driver{}

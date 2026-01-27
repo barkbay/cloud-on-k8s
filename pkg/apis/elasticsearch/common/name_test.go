@@ -52,6 +52,19 @@ func (m *mockCluster) MonitoringAssociation(ref commonv1.ObjectSelector) commonv
 	return nil
 }
 
+// Status methods for ElasticsearchCluster interface
+func (m *mockCluster) GetStatusHealth() ElasticsearchHealth            { return "" }
+func (m *mockCluster) SetStatusHealth(health ElasticsearchHealth)      {}
+func (m *mockCluster) GetStatusPhase() ElasticsearchOrchestrationPhase { return "" }
+func (m *mockCluster) SetStatusPhase(phase ElasticsearchOrchestrationPhase) {}
+func (m *mockCluster) GetStatusAvailableNodes() int32                  { return 0 }
+func (m *mockCluster) SetStatusAvailableNodes(nodes int32)             {}
+func (m *mockCluster) GetStatusVersion() string                        { return "" }
+func (m *mockCluster) SetStatusVersion(version string)                 {}
+func (m *mockCluster) GetStatusObservedGeneration() int64              { return 0 }
+func (m *mockCluster) SetStatusObservedGeneration(generation int64)    {}
+func (m *mockCluster) StatusIsDegraded(prevHealth ElasticsearchHealth) bool { return false }
+
 func newMockStatefulCluster(name string) *mockCluster {
 	return &mockCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test"},

@@ -303,6 +303,31 @@ type ElasticsearchCluster interface {
 	GetMonitoringLogsRefs() []commonv1.ElasticsearchRef
 	// MonitoringAssociation returns the monitoring association for the given selector.
 	MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association
+
+	// Status-related methods for reconciliation state management
+
+	// GetStatusHealth returns the current health status.
+	GetStatusHealth() ElasticsearchHealth
+	// SetStatusHealth sets the health status.
+	SetStatusHealth(health ElasticsearchHealth)
+	// GetStatusPhase returns the current orchestration phase.
+	GetStatusPhase() ElasticsearchOrchestrationPhase
+	// SetStatusPhase sets the orchestration phase.
+	SetStatusPhase(phase ElasticsearchOrchestrationPhase)
+	// GetStatusAvailableNodes returns the number of available nodes.
+	GetStatusAvailableNodes() int32
+	// SetStatusAvailableNodes sets the number of available nodes.
+	SetStatusAvailableNodes(nodes int32)
+	// GetStatusVersion returns the running version.
+	GetStatusVersion() string
+	// SetStatusVersion sets the running version.
+	SetStatusVersion(version string)
+	// GetStatusObservedGeneration returns the observed generation.
+	GetStatusObservedGeneration() int64
+	// SetStatusObservedGeneration sets the observed generation.
+	SetStatusObservedGeneration(generation int64)
+	// StatusIsDegraded returns true if the current status is worse than the given previous status.
+	StatusIsDegraded(prevHealth ElasticsearchHealth) bool
 }
 
 // HasRemoteClusterAPIKey returns true if this cluster is connecting to a remote cluster using API keys.

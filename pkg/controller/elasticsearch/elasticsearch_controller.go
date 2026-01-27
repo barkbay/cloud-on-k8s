@@ -183,7 +183,7 @@ func (r *ReconcileElasticsearch) Reconcile(ctx context.Context, request reconcil
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	state, err := esreconcile.NewState(es)
+	state, err := esreconcile.NewState(&es)
 	if err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -303,7 +303,7 @@ func (r *ReconcileElasticsearch) internalReconcile(
 		DynamicWatches:     r.dynamicWatches,
 		SupportedVersions:  *supported,
 		LicenseChecker:     r.licenseChecker,
-	}).Reconcile(ctx)
+	}, es).Reconcile(ctx)
 }
 
 func (r *ReconcileElasticsearch) updateStatus(
@@ -326,7 +326,6 @@ func (r *ReconcileElasticsearch) updateStatus(
 		"iteration", atomic.LoadUint64(&r.iteration),
 		"namespace", es.Namespace,
 		"es_name", es.Name,
-		"status", cluster.Status,
 	)
 	return common.UpdateStatus(ctx, r.Client, cluster)
 }

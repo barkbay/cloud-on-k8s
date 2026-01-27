@@ -7,10 +7,10 @@ package reconcile
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -24,25 +24,32 @@ import (
 type State struct {
 	*events.Recorder
 	*StatusReporter
-	cluster esv1.Elasticsearch
-	status  esv1.ElasticsearchStatus
-	hints   hints.OrchestrationsHints
+	cluster escommon.ElasticsearchCluster
+	// prevHealth stores the health before reconciliation started for degradation detection
+	prevHealth escommon.ElasticsearchHealth
+	hints      hints.OrchestrationsHints
 }
 
-// NewState creates a new reconcile state based on the given cluster
-func NewState(c esv1.Elasticsearch) (*State, error) {
-	hints, err := hints.NewFromAnnotations(c.Annotations)
+// NewState creates a new reconcile state based on the given cluster.
+// The cluster parameter must be a pointer type that implements ElasticsearchCluster.
+func NewState(cluster escommon.ElasticsearchCluster) (*State, error) {
+	h, err := hints.NewFromAnnotations(cluster.GetAnnotations())
 	if err != nil {
 		return nil, err
 	}
-	status := *c.Status.DeepCopy()
-	status.ObservedGeneration = c.Generation
+
+	// Store previous health for degradation detection
+	prevHealth := cluster.GetStatusHealth()
+
+	// Reset status fields for a fresh reconciliation
+	cluster.SetStatusObservedGeneration(cluster.GetGeneration())
 	// reset the health to 'unknown' so that if reconciliation fails before the observer has had a chance to get it,
 	// we stop reporting a health that may be out of date
-	status.Health = esv1.ElasticsearchUnknownHealth
+	cluster.SetStatusHealth(escommon.ElasticsearchUnknownHealth)
 	// reset the phase to an empty string so that we do not report an outdated phase given that certain phases are
 	// stickier than others (eg. invalid)
-	status.Phase = ""
+	cluster.SetStatusPhase("")
+
 	return &State{
 		Recorder: events.NewRecorder(),
 		StatusReporter: &StatusReporter{
@@ -50,15 +57,15 @@ func NewState(c esv1.Elasticsearch) (*State, error) {
 			UpscaleReporter:   &UpscaleReporter{},
 			UpgradeReporter:   &UpgradeReporter{},
 		},
-		cluster: c,
-		status:  status,
-		hints:   hints,
+		cluster:    cluster,
+		prevHealth: prevHealth,
+		hints:      h,
 	}, nil
 }
 
 // MustNewState like NewState but panics on error. Use recommended only in test code.
 func MustNewState(c esv1.Elasticsearch) *State {
-	state, err := NewState(c)
+	state, err := NewState(&c)
 	if err != nil {
 		panic(err)
 	}
@@ -69,12 +76,12 @@ func (s *State) fetchMinRunningVersion(ctx context.Context, resourcesState Resou
 	log := ulog.FromContext(ctx)
 	minPodVersion, err := version.MinInPods(resourcesState.AllPods, label.VersionLabelName)
 	if err != nil {
-		log.Error(err, "failed to parse running Pods version", "namespace", s.cluster.Namespace, "es_name", s.cluster.Name)
+		log.Error(err, "failed to parse running Pods version", "namespace", s.cluster.GetNamespace(), "es_name", s.cluster.GetName())
 		return nil, err
 	}
 	minSsetVersion, err := version.MinInStatefulSets(resourcesState.StatefulSets, label.VersionLabelName)
 	if err != nil {
-		log.Error(err, "failed to parse running Pods version", "namespace", s.cluster.Namespace, "es_name", s.cluster.Name)
+		log.Error(err, "failed to parse running Pods version", "namespace", s.cluster.GetNamespace(), "es_name", s.cluster.GetName())
 		return nil, err
 	}
 
@@ -92,34 +99,35 @@ func (s *State) fetchMinRunningVersion(ctx context.Context, resourcesState Resou
 	return minPodVersion, nil
 }
 
-func (s *State) UpdateClusterHealth(clusterHealth esv1.ElasticsearchHealth) *State {
+func (s *State) UpdateClusterHealth(clusterHealth escommon.ElasticsearchHealth) *State {
 	if clusterHealth == "" {
-		s.status.Health = esv1.ElasticsearchUnknownHealth
+		s.cluster.SetStatusHealth(escommon.ElasticsearchUnknownHealth)
 		return s
 	}
-	s.status.Health = clusterHealth
+	s.cluster.SetStatusHealth(clusterHealth)
 	return s
 }
 
 func (s *State) UpdateWithPhase(
-	phase esv1.ElasticsearchOrchestrationPhase,
+	phase escommon.ElasticsearchOrchestrationPhase,
 ) *State {
+	currentPhase := s.cluster.GetStatusPhase()
 	switch {
 	// do not overwrite the Invalid marker
-	case s.status.Phase == esv1.ElasticsearchResourceInvalid:
+	case currentPhase == escommon.ElasticsearchResourceInvalid:
 		return s
 	// do not overwrite non-ready phases like MigratingData
-	case s.status.Phase != "" && phase == esv1.ElasticsearchApplyingChangesPhase:
+	case currentPhase != "" && phase == escommon.ElasticsearchApplyingChangesPhase:
 		return s
 	}
-	s.status.Phase = phase
+	s.cluster.SetStatusPhase(phase)
 	return s
 }
 
 func (s *State) UpdateAvailableNodes(
 	resourcesState ResourcesState,
 ) *State {
-	s.status.AvailableNodes = int32(len(AvailableElasticsearchNodes(resourcesState.CurrentPods)))
+	s.cluster.SetStatusAvailableNodes(int32(len(AvailableElasticsearchNodes(resourcesState.CurrentPods))))
 	return s
 }
 
@@ -130,21 +138,22 @@ func (s *State) UpdateMinRunningVersion(
 	lowestVersion, err := s.fetchMinRunningVersion(ctx, resourcesState)
 	// error already handled in fetchMinRunningVersion, move on with the status update
 	if err == nil && lowestVersion != nil {
-		s.status.Version = lowestVersion.String()
+		s.cluster.SetStatusVersion(lowestVersion.String())
 	}
 	// Update the related condition.
-	if s.status.Version == "" {
+	statusVersion := s.cluster.GetStatusVersion()
+	if statusVersion == "" {
 		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, "No running version reported")
 		return s
 	}
 
-	desiredVersion, err := version.Parse(s.cluster.Spec.Version)
+	desiredVersion, err := version.Parse(s.cluster.GetVersion())
 	if err != nil {
 		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing desired version: %s", err.Error()))
 		return s
 	}
 
-	runningVersion, err := version.Parse(s.status.Version)
+	runningVersion, err := version.Parse(statusVersion)
 	if err != nil {
 		s.ReportCondition(esv1.RunningDesiredVersion, corev1.ConditionUnknown, fmt.Sprintf("Error while parsing running version: %s", err.Error()))
 		return s
@@ -163,27 +172,28 @@ func (s *State) UpdateMinRunningVersion(
 	return s
 }
 
-// UpdateElasticsearchInvalidWithEvent is a convenient method to set the phase to esv1.ElasticsearchResourceInvalid
+// UpdateElasticsearchInvalidWithEvent is a convenient method to set the phase to ElasticsearchResourceInvalid
 // and generate an event at the same time.
 func (s *State) UpdateElasticsearchInvalidWithEvent(msg string) {
-	s.status.Phase = esv1.ElasticsearchResourceInvalid
+	s.cluster.SetStatusPhase(escommon.ElasticsearchResourceInvalid)
 	s.AddEvent(corev1.EventTypeWarning, events.EventReasonValidation, msg)
 }
 
-// Apply takes the current Elasticsearch status, compares it to the previous status, and updates the status accordingly.
-// It returns the events to emit and an updated version of the Elasticsearch cluster resource with
-// the current status applied to its status sub-resource.
-func (s *State) Apply() ([]events.Event, *esv1.Elasticsearch) {
-	previous := s.cluster.Status
-	current := s.MergeStatusReportingWith(s.status)
-	if reflect.DeepEqual(previous, current) {
-		return s.Events(), nil
-	}
-	if current.IsDegraded(previous) {
+// Apply takes the current Elasticsearch status, checks for degradation, and returns the cluster for status update.
+// It returns the events to emit and the cluster resource (which has been modified in-place during reconciliation).
+func (s *State) Apply() ([]events.Event, escommon.ElasticsearchCluster) {
+	// Check for degradation by comparing current health to previous health
+	if s.cluster.StatusIsDegraded(s.prevHealth) {
 		s.AddEvent(corev1.EventTypeWarning, events.EventReasonUnhealthy, "Elasticsearch cluster health degraded")
 	}
-	s.cluster.Status = current
-	return s.Events(), &s.cluster
+
+	// For stateful Elasticsearch, merge conditions and operation status from the StatusReporter.
+	// This is done via type assertion since stateless Elasticsearch has a different status structure.
+	if es, ok := s.cluster.(*esv1.Elasticsearch); ok {
+		es.Status = s.MergeStatusReportingWith(es.Status)
+	}
+
+	return s.Events(), s.cluster
 }
 
 // UpdateOrchestrationHints updates the orchestration hints collected so far with the hints in hint.

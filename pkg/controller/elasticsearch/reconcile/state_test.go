@@ -227,7 +227,10 @@ func TestState_Apply(t *testing.T) {
 			}
 			var actual *esv1.ElasticsearchStatus
 			if cluster != nil {
-				actual = &cluster.Status
+				// Type assert to get the concrete Elasticsearch type
+				if es, ok := cluster.(*esv1.Elasticsearch); ok {
+					actual = &es.Status
+				}
 			}
 			assertSemanticEqualStatuses(t, actual, tt.wantStatus)
 		})
@@ -271,7 +274,7 @@ func TestState_UpdateElasticsearchState(t *testing.T) {
 				},
 			},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, "", s.status.Phase)
+				assert.EqualValues(t, "", s.cluster.GetStatusPhase())
 			},
 		},
 		{
@@ -283,7 +286,7 @@ func TestState_UpdateElasticsearchState(t *testing.T) {
 				},
 			},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, "7.7.0", s.status.Version)
+				assert.EqualValues(t, "7.7.0", s.cluster.GetStatusVersion())
 			},
 		},
 		{
@@ -300,7 +303,7 @@ func TestState_UpdateElasticsearchState(t *testing.T) {
 				},
 			},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, "7.8.0", s.status.Version)
+				assert.EqualValues(t, "7.8.0", s.cluster.GetStatusVersion())
 			},
 		},
 		{
@@ -317,14 +320,14 @@ func TestState_UpdateElasticsearchState(t *testing.T) {
 				},
 			},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, "7.7.0", s.status.Version)
+				assert.EqualValues(t, "7.7.0", s.cluster.GetStatusVersion())
 			},
 		},
 		{
 			name:    "health is unknown by default",
 			cluster: esv1.Elasticsearch{},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, esv1.ElasticsearchUnknownHealth, s.status.Health)
+				assert.EqualValues(t, esv1.ElasticsearchUnknownHealth, s.cluster.GetStatusHealth())
 			},
 		},
 		{
@@ -334,7 +337,7 @@ func TestState_UpdateElasticsearchState(t *testing.T) {
 				observedHealth: esv1.ElasticsearchGreenHealth,
 			},
 			stateAssertions: func(s *State) {
-				assert.EqualValues(t, "green", s.status.Health)
+				assert.EqualValues(t, "green", s.cluster.GetStatusHealth())
 			},
 		},
 	}
@@ -450,7 +453,7 @@ func TestState_UpdateMinRunningVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := NewState(tt.es)
+			s, err := NewState(&tt.es)
 			assert.NoError(t, err)
 			got := s.UpdateMinRunningVersion(context.Background(), tt.resourcesState)
 			conditionIndex := got.Conditions.Index(esv1.RunningDesiredVersion)
@@ -461,8 +464,8 @@ func TestState_UpdateMinRunningVersion(t *testing.T) {
 			if !conditionsEqual(condition, tt.want.condition) {
 				t.Errorf("fetchMinRunningVersion() status.Condition[esv1.RunningDesiredVersion] = %v, want %v", condition, tt.want.condition)
 			}
-			if !reflect.DeepEqual(got.status.Version, tt.want.ver) {
-				t.Errorf("fetchMinRunningVersion() status.Version = %v, want %v", got.status.Version, tt.want.ver)
+			if !reflect.DeepEqual(got.cluster.GetStatusVersion(), tt.want.ver) {
+				t.Errorf("fetchMinRunningVersion() status.Version = %v, want %v", got.cluster.GetStatusVersion(), tt.want.ver)
 			}
 		})
 	}
@@ -476,46 +479,48 @@ func conditionsEqual(c1, c2 commonv1alpha1.Condition) bool {
 
 func TestState_UpdateWithPhase(t *testing.T) {
 	tests := []struct {
-		name   string
-		status esv1.ElasticsearchStatus
-		phase  esv1.ElasticsearchOrchestrationPhase
-		want   esv1.ElasticsearchOrchestrationPhase
+		name       string
+		setup      func(s *State) // optional setup to run before UpdateWithPhase
+		phase      esv1.ElasticsearchOrchestrationPhase
+		want       esv1.ElasticsearchOrchestrationPhase
 	}{
 		{
-			name:   "empty default can always be overridden",
-			status: esv1.ElasticsearchStatus{},
-			phase:  esv1.ElasticsearchApplyingChangesPhase,
-			want:   esv1.ElasticsearchApplyingChangesPhase,
+			name:  "empty default can always be overridden",
+			phase: esv1.ElasticsearchApplyingChangesPhase,
+			want:  esv1.ElasticsearchApplyingChangesPhase,
 		},
 		{
 			name: "Invalid phase is sticky",
-			status: esv1.ElasticsearchStatus{
-				Phase: esv1.ElasticsearchResourceInvalid,
+			setup: func(s *State) {
+				// Set the phase to Invalid (simulating validation failure)
+				s.UpdateElasticsearchInvalidWithEvent("validation failed")
 			},
 			phase: esv1.ElasticsearchReadyPhase,
 			want:  esv1.ElasticsearchResourceInvalid,
 		},
 		{
 			name: "ApplyingChanges must not override non-ready phases",
-			status: esv1.ElasticsearchStatus{
-				Phase: esv1.ElasticsearchMigratingDataPhase,
+			setup: func(s *State) {
+				// Set the phase to MigratingData first
+				s.UpdateWithPhase(esv1.ElasticsearchMigratingDataPhase)
 			},
 			phase: esv1.ElasticsearchApplyingChangesPhase,
 			want:  esv1.ElasticsearchMigratingDataPhase,
 		},
 		{
-			name:   "ApplyingChanges can be set if no other phase is set",
-			status: esv1.ElasticsearchStatus{},
-			phase:  esv1.ElasticsearchApplyingChangesPhase,
-			want:   esv1.ElasticsearchApplyingChangesPhase,
+			name:  "ApplyingChanges can be set if no other phase is set",
+			phase: esv1.ElasticsearchApplyingChangesPhase,
+			want:  esv1.ElasticsearchApplyingChangesPhase,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &State{
-				status: tt.status,
+			s := MustNewState(esv1.Elasticsearch{})
+			if tt.setup != nil {
+				tt.setup(s)
 			}
-			assert.Equalf(t, tt.want, s.UpdateWithPhase(tt.phase).status.Phase, "UpdateWithPhase(%v)", tt.phase)
+			s.UpdateWithPhase(tt.phase)
+			assert.Equalf(t, tt.want, s.cluster.GetStatusPhase(), "UpdateWithPhase(%v)", tt.phase)
 		})
 	}
 }
