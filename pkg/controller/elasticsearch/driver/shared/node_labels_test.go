@@ -173,7 +173,7 @@ func Test_annotatePodsWithNodeLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k8sClient := k8s.NewFakeClient(append(tt.args.objects, tt.args.es)...)
-			got := annotatePodsWithNodeLabels(tt.args.ctx, k8sClient, *tt.args.es)
+			got := AnnotatePodsWithNodeLabels(tt.args.ctx, k8sClient, tt.args.es)
 			_, err := got.Aggregate()
 			if tt.wantErrMsg != "" {
 				assert.Containsf(t, err.Error(), tt.wantErrMsg, "expected error containing %q, got %s", tt.wantErrMsg, err)

@@ -537,9 +537,10 @@ func Test_Driver_updateDesiredNodes(t *testing.T) {
 			d := &Driver{
 				BaseDriver: driver.BaseDriver{Parameters: driver.Parameters{
 					ReconcileState: reconcileState,
-					ES:             es,
+					ES:             &es,
 					Client:         k8sClient,
 				}},
+				ES: es,
 			}
 
 			wantClient := wantClient{}

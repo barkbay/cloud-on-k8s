@@ -294,6 +294,15 @@ type ElasticsearchCluster interface {
 	IsConfiguredToAllowDowngrades() bool
 	// GetAssociations returns the list of associations for this Elasticsearch cluster.
 	GetAssociations() []commonv1.Association
+	// GetIdentityLabels returns the identity labels for the cluster.
+	// Required to satisfy commonv1.HasIdentityLabels interface.
+	GetIdentityLabels() map[string]string
+	// GetMonitoringMetricsRefs returns the list of Elasticsearch refs for metrics monitoring.
+	GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef
+	// GetMonitoringLogsRefs returns the list of Elasticsearch refs for logs monitoring.
+	GetMonitoringLogsRefs() []commonv1.ElasticsearchRef
+	// MonitoringAssociation returns the monitoring association for the given selector.
+	MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association
 }
 
 // HasRemoteClusterAPIKey returns true if this cluster is connecting to a remote cluster using API keys.

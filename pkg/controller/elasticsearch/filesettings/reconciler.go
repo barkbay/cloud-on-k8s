@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -38,11 +37,11 @@ var (
 func ReconcileEmptyFileSettingsSecret(
 	ctx context.Context,
 	c k8s.Client,
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	createOnly bool,
 ) error {
 	var currentSecret corev1.Secret
-	err := c.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: escommon.FileSettingsSecretName(&es)}, &currentSecret)
+	err := c.Get(ctx, types.NamespacedName{Namespace: es.GetNamespace(), Name: escommon.FileSettingsSecretName(es)}, &currentSecret)
 	// do nothing when Secret already exists and create only
 	if err == nil && createOnly {
 		return nil
@@ -52,14 +51,14 @@ func ReconcileEmptyFileSettingsSecret(
 	}
 
 	// extract the metadata that should be propagated to children
-	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
+	meta := metadata.Propagate(es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(es), es.IsStateless())})
 	// no secret, reconcile a new empty file settings
-	expectedSecret, _, err := NewSettingsSecretWithVersion(&es, nil, nil, nil, meta)
+	expectedSecret, _, err := NewSettingsSecretWithVersion(es, nil, nil, nil, meta)
 	if err != nil {
 		return err
 	}
 
-	return ReconcileSecret(ctx, c, expectedSecret, &es)
+	return ReconcileSecret(ctx, c, expectedSecret, es)
 }
 
 // ReconcileSecret reconciles the given Secret.

@@ -660,7 +660,7 @@ func resetOrphanSoftOwnedFileSettingSecrets(
 					"es_namespace", namespacedName.Namespace, "es_name", namespacedName.Name,
 					"owner_namespace", softOwner.Namespace, "owner_name", softOwner.Name)
 
-				if err := filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, es, false); err != nil && !apierrors.IsNotFound(err) {
+				if err := filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, &es, false); err != nil && !apierrors.IsNotFound(err) {
 					return err
 				}
 			} else {

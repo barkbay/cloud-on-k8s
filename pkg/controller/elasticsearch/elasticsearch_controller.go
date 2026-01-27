@@ -293,7 +293,7 @@ func (r *ReconcileElasticsearch) internalReconcile(
 
 	return stateful.NewDriver(driver.Parameters{
 		OperatorParameters: r.Parameters,
-		ES:                 es,
+		ES:                 &es,
 		ReconcileState:     reconcileState,
 		Client:             r.Client,
 		Recorder:           r.recorder,

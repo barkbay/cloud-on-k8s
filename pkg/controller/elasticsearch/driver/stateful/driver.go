@@ -8,6 +8,7 @@ package stateful
 import (
 	"context"
 
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	commondriver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/driver"
@@ -19,11 +20,20 @@ import (
 // Driver is the stateful Elasticsearch driver implementation using StatefulSets.
 type Driver struct {
 	driver.BaseDriver
+	ES esv1.Elasticsearch
 }
 
 // NewDriver returns a new stateful driver implementation.
 func NewDriver(parameters driver.Parameters) driver.Driver {
-	return &Driver{BaseDriver: driver.BaseDriver{Parameters: parameters}}
+	// Type assert to get the concrete Elasticsearch type for stateful-specific operations
+	es, ok := parameters.ES.(*esv1.Elasticsearch)
+	if !ok {
+		panic("stateful driver requires *esv1.Elasticsearch")
+	}
+	return &Driver{
+		BaseDriver: driver.BaseDriver{Parameters: parameters},
+		ES:         *es,
+	}
 }
 
 var _ commondriver.Interface = &Driver{}

@@ -26,12 +26,12 @@ func newElasticsearchClient(
 ) esclient.Client {
 	return esclient.NewElasticsearchClient(
 		params.OperatorParameters.Dialer,
-		k8s.ExtractNamespacedName(&params.ES),
+		k8s.ExtractNamespacedName(params.ES),
 		urlProvider,
 		user,
 		v,
 		caCerts,
-		esclient.Timeout(ctx, &params.ES),
+		esclient.Timeout(ctx, params.ES),
 		dev.Enabled,
 	)
 }

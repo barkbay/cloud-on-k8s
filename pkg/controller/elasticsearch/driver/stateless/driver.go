@@ -8,6 +8,7 @@ package stateless
 import (
 	"context"
 
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	commondriver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
@@ -17,6 +18,7 @@ import (
 // Driver is the stateless Elasticsearch driver implementation.
 type Driver struct {
 	driver.BaseDriver
+	ES v1alpha1.ElasticsearchStateless
 }
 
 // NewDriver returns a new stateless driver implementation.

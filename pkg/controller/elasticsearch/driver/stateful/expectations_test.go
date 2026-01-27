@@ -28,11 +28,14 @@ func Test_Driver_expectationSatisfied(t *testing.T) {
 			Name:      "cluster",
 		},
 	}
-	d := &Driver{BaseDriver: driver.BaseDriver{Parameters: driver.Parameters{
-		Expectations: expectations.NewExpectations(client, &appsv1.StatefulSet{}),
-		Client:       client,
-		ES:           es,
-	}}}
+	d := &Driver{
+		BaseDriver: driver.BaseDriver{Parameters: driver.Parameters{
+			Expectations: expectations.NewExpectations(client, &appsv1.StatefulSet{}),
+			Client:       client,
+			ES:           &es,
+		}},
+		ES: es,
+	}
 	ctx := context.Background()
 
 	// no expectations set

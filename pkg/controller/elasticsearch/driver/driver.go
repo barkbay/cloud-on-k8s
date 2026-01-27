@@ -7,7 +7,7 @@ package driver
 import (
 	"context"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
@@ -34,7 +34,7 @@ type Parameters struct {
 	OperatorParameters operator.Parameters
 
 	// ES is the Elasticsearch resource to reconcile
-	ES esv1.Elasticsearch
+	ES common.ElasticsearchCluster
 	// SupportedVersions verifies whether we can support upgrading from the current pods.
 	SupportedVersions version.MinMaxVersion
 

@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/sset"
@@ -37,20 +36,20 @@ func isPodScheduled(pod *corev1.Pod) (bool, string) {
 	return false, ""
 }
 
-// annotatePodsWithNodeLabels annotates all the Pods with the expected node labels.
-func annotatePodsWithNodeLabels(ctx context.Context, c k8s.Client, es esv1.Elasticsearch) *reconciler.Results {
+// AnnotatePodsWithNodeLabels annotates all the Pods with the expected node labels.
+func AnnotatePodsWithNodeLabels(ctx context.Context, c k8s.Client, es escommon.ElasticsearchCluster) *reconciler.Results {
 	span, ctx := apm.StartSpan(ctx, "annotate_pods_with_node_labels", tracing.SpanTypeApp)
 	defer span.End()
 	results := reconciler.NewResult(ctx)
 	if !es.HasDownwardNodeLabels() {
 		return results
 	}
-	actualPods, err := sset.GetActualPodsForCluster(c, &es)
+	actualPods, err := sset.GetActualPodsForCluster(c, es)
 	if err != nil {
 		return results.WithError(err)
 	}
 	for _, pod := range actualPods {
-		results.WithError(annotatePodWithNodeLabels(ctx, c, pod, &es))
+		results.WithError(annotatePodWithNodeLabels(ctx, c, pod, es))
 	}
 	return results
 }
