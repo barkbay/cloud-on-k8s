@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	commonv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/optional"
 )
@@ -15,6 +16,17 @@ import (
 const (
 	// ElasticsearchContainerName is the name of the Elasticsearch container in pods.
 	ElasticsearchContainerName = "elasticsearch"
+)
+
+// ElasticsearchConditionType defines the type alias for Elasticsearch-specific condition types.
+type ElasticsearchConditionType = commonv1alpha1.ConditionType
+
+// Condition types for Elasticsearch resources
+const (
+	ElasticsearchIsReachable ElasticsearchConditionType = "ElasticsearchIsReachable"
+	ReconciliationComplete   ElasticsearchConditionType = "ReconciliationComplete"
+	ResourcesAwareManagement ElasticsearchConditionType = "ResourcesAwareManagement"
+	RunningDesiredVersion    ElasticsearchConditionType = "RunningDesiredVersion"
 )
 
 // ElasticsearchHealth is the health of the cluster as returned by the health API.
@@ -252,7 +264,8 @@ type Replication struct {
 
 // ElasticsearchCluster is an interface that defines common accessors for Elasticsearch cluster resources.
 // Both stateful Elasticsearch and stateless ElasticsearchStateless implement this interface.
-// This interface also satisfies the HasKeystore interface from the keystore package.
+// This interface also satisfies the HasKeystore interface from the keystore package and the
+// MonitoredElasticsearch interface from the stackmon package.
 // +kubebuilder:object:generate=false
 type ElasticsearchCluster interface {
 	// client.Object embeds metav1.Object and runtime.Object, providing access to
@@ -294,6 +307,17 @@ type ElasticsearchCluster interface {
 	IsConfiguredToAllowDowngrades() bool
 	// GetAssociations returns the list of associations for this Elasticsearch cluster.
 	GetAssociations() []commonv1.Association
+
+	// Monitoring-related methods (required to satisfy MonitoredElasticsearch interface)
+
+	// GetIdentityLabels returns the labels that identify this resource.
+	GetIdentityLabels() map[string]string
+	// GetMonitoringMetricsRefs returns the list of Elasticsearch clusters to which monitoring metrics are sent.
+	GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef
+	// GetMonitoringLogsRefs returns the list of Elasticsearch clusters to which monitoring logs are sent.
+	GetMonitoringLogsRefs() []commonv1.ElasticsearchRef
+	// MonitoringAssociation returns the Association for the given ObjectSelector.
+	MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association
 }
 
 // HasRemoteClusterAPIKey returns true if this cluster is connecting to a remote cluster using API keys.

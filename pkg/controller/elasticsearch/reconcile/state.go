@@ -65,6 +65,21 @@ func MustNewState(c esv1.Elasticsearch) *State {
 	return state
 }
 
+// NewStatelessState creates a minimal reconcile state for stateless clusters.
+// It provides the StatusReporter needed for shared reconciliation code.
+func NewStatelessState() *State {
+	return &State{
+		Recorder: events.NewRecorder(),
+		StatusReporter: &StatusReporter{
+			DownscaleReporter: &DownscaleReporter{},
+			UpscaleReporter:   &UpscaleReporter{},
+			UpgradeReporter:   &UpgradeReporter{},
+		},
+		// Note: cluster and status are zero-valued for stateless.
+		// The stateless controller maintains its own state.
+	}
+}
+
 func (s *State) fetchMinRunningVersion(ctx context.Context, resourcesState ResourcesState) (*version.Version, error) {
 	log := ulog.FromContext(ctx)
 	minPodVersion, err := version.MinInPods(resourcesState.AllPods, label.VersionLabelName)

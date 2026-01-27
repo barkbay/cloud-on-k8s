@@ -8,9 +8,9 @@ import (
 	"context"
 	"crypto/x509"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/dev"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
@@ -18,7 +18,8 @@ import (
 // newElasticsearchClient creates a new Elasticsearch HTTP client for this cluster using the provided user
 func newElasticsearchClient(
 	ctx context.Context,
-	params driver.Parameters,
+	es escommon.ElasticsearchCluster,
+	params Parameters,
 	urlProvider esclient.URLProvider,
 	user esclient.BasicAuth,
 	v version.Version,
@@ -26,19 +27,20 @@ func newElasticsearchClient(
 ) esclient.Client {
 	return esclient.NewElasticsearchClient(
 		params.OperatorParameters.Dialer,
-		k8s.ExtractNamespacedName(&params.ES),
+		k8s.ExtractNamespacedName(es),
 		urlProvider,
 		user,
 		v,
 		caCerts,
-		esclient.Timeout(ctx, &params.ES),
+		esclient.Timeout(ctx, es),
 		dev.Enabled,
 	)
 }
 
 func elasticsearchClientProvider(
 	ctx context.Context,
-	params driver.Parameters,
+	es escommon.ElasticsearchCluster,
+	params Parameters,
 	urlProvider esclient.URLProvider,
 	user esclient.BasicAuth,
 	v version.Version,
@@ -48,6 +50,6 @@ func elasticsearchClientProvider(
 		if existingEsClient != nil && existingEsClient.HasProperties(v, user, urlProvider, caCerts) {
 			return existingEsClient
 		}
-		return newElasticsearchClient(ctx, params, urlProvider, user, v, caCerts)
+		return newElasticsearchClient(ctx, es, params, urlProvider, user, v, caCerts)
 	}
 }

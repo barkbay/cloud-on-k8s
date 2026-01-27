@@ -36,7 +36,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/cleanup"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/configmap"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/filesettings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -62,65 +61,65 @@ var (
 func ReconcileSharedResources(
 	ctx context.Context,
 	d commondriver.Interface,
-	params driver.Parameters,
+	es escommon.ElasticsearchCluster,
+	params Parameters,
 ) (*ReconcileState, *reconciler.Results) {
 	results := reconciler.NewResult(ctx)
 	log := ulog.FromContext(ctx)
-	es := params.ES
 	client := params.Client
 
 	// Garbage collect secrets attached to this cluster that we don't need anymore.
-	if err := cleanup.DeleteOrphanedSecrets(ctx, client, &es); err != nil {
+	if err := cleanup.DeleteOrphanedSecrets(ctx, client, es); err != nil {
 		return nil, results.WithError(err)
 	}
 
 	// Extract the metadata that should be propagated to children.
-	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es), es.IsStateless())})
+	meta := metadata.Propagate(es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(es), es.IsStateless())})
 
 	// Reconcile the scripts ConfigMap.
-	if err := configmap.ReconcileScriptsConfigMap(ctx, client, &es, meta); err != nil {
+	if err := configmap.ReconcileScriptsConfigMap(ctx, client, es, meta); err != nil {
 		return nil, results.WithError(err)
 	}
 
 	// Reconcile transport service.
-	if _, err := common.ReconcileService(ctx, client, services.NewTransportService(&es, meta), &es); err != nil {
+	if _, err := common.ReconcileService(ctx, client, services.NewTransportService(es, meta), es); err != nil {
 		return nil, results.WithError(err)
 	}
 
 	// Reconcile external service.
-	externalService, err := common.ReconcileService(ctx, client, services.NewExternalService(&es, meta), &es)
+	externalService, err := common.ReconcileService(ctx, client, services.NewExternalService(es, meta), es)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			return nil, results.WithReconciliationState(DefaultRequeue.WithReason(fmt.Sprintf("Pending %s service recreation", escommon.HTTPService(&es))))
+			return nil, results.WithReconciliationState(DefaultRequeue.WithReason(fmt.Sprintf("Pending %s service recreation", escommon.HTTPService(es))))
 		}
 		return nil, results.WithError(err)
 	}
 
 	// Reconcile internal service.
-	internalService, err := common.ReconcileService(ctx, client, services.NewInternalService(&es, meta), &es)
+	internalService, err := common.ReconcileService(ctx, client, services.NewInternalService(es, meta), es)
 	if err != nil {
 		return nil, results.WithError(err)
 	}
 
 	// Remote Cluster Server (RCS2) Kubernetes Service reconciliation.
-	if es.Spec.RemoteClusterServer.Enabled {
+	if es.GetRemoteClusterServer().Enabled {
 		// Remote Cluster Server is enabled, ensure that the related Kubernetes Service does exist.
-		if _, err := common.ReconcileService(ctx, client, services.NewRemoteClusterService(&es, meta), &es); err != nil {
+		if _, err := common.ReconcileService(ctx, client, services.NewRemoteClusterService(es, meta), es); err != nil {
 			results.WithError(err)
 		}
 	} else {
 		// Ensure that remote cluster Service does not exist.
 		remoteClusterService := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: es.Namespace,
-				Name:      escommon.RemoteClusterService(&es),
+				Namespace: es.GetNamespace(),
+				Name:      escommon.RemoteClusterService(es),
 			},
 		}
 		results.WithError(k8s.DeleteResourceIfExists(ctx, client, remoteClusterService))
 	}
 
 	// Get resources state
-	resourcesState, err := reconcile.NewResourcesStateFromAPI(client, &es)
+	resourcesState, err := reconcile.NewResourcesStateFromAPI(client, es)
 	if err != nil {
 		return nil, results.WithError(err)
 	}
@@ -131,7 +130,7 @@ func ReconcileSharedResources(
 	controllerUser, err := user.ReconcileUsersAndRoles(
 		ctx,
 		client,
-		&es,
+		es,
 		params.DynamicWatches,
 		params.Recorder,
 		params.OperatorParameters.PasswordHasher,
@@ -145,7 +144,7 @@ func ReconcileSharedResources(
 	trustedHTTPCertificates, res := certificates.ReconcileHTTP(
 		ctx,
 		d,
-		&es,
+		es,
 		[]corev1.Service{*externalService, *internalService},
 		params.OperatorParameters.GlobalCA,
 		params.OperatorParameters.CACertRotation,
@@ -166,14 +165,15 @@ func ReconcileSharedResources(
 		minVersion = &params.Version
 	}
 
-	urlProvider := services.NewElasticsearchURLProvider(&es, client)
+	urlProvider := services.NewElasticsearchURLProvider(es, client)
 	hasEndpoints := urlProvider.HasEndpoints()
 
 	observedState := params.Observers.ObservedStateResolver(
 		ctx,
-		&es,
+		es,
 		elasticsearchClientProvider(
 			ctx,
+			es,
 			params,
 			urlProvider,
 			controllerUser,
@@ -193,7 +193,7 @@ func ReconcileSharedResources(
 	res = certificates.ReconcileTransport(
 		ctx,
 		d,
-		&es,
+		es,
 		params.OperatorParameters.GlobalCA,
 		params.OperatorParameters.CACertRotation,
 		params.OperatorParameters.CertRotation,
@@ -219,6 +219,7 @@ func ReconcileSharedResources(
 	// Create ES client
 	esClient := newElasticsearchClient(
 		ctx,
+		es,
 		params,
 		urlProvider,
 		controllerUser,
@@ -256,7 +257,7 @@ func ReconcileSharedResources(
 		}
 		if err != nil {
 			msg := "Could not verify license, re-queuing"
-			log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
+			log.Info(msg, "err", err, "namespace", es.GetNamespace(), "es_name", es.GetName())
 			params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
 			results.WithReconciliationState(DefaultRequeue.WithReason(msg))
 		}
@@ -265,13 +266,13 @@ func ReconcileSharedResources(
 	// Reconcile the Elasticsearch license (even if we assume the cluster might not respond to requests to cover the case of
 	// expired licenses where all health API responses are 403)
 	if hasEndpoints {
-		err = license.Reconcile(ctx, client, &es, esClient, currentLicense)
+		err = license.Reconcile(ctx, client, es, esClient, currentLicense)
 		if err != nil {
 			msg := "Could not reconcile cluster license, re-queuing"
 			// only log an event if Elasticsearch is in a state where success of this API call can be expected. The API call itself
 			// will be logged by the client
 			if hasKnownHealthState {
-				log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
+				log.Info(msg, "err", err, "namespace", es.GetNamespace(), "es_name", es.GetName())
 				params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
 			}
 			results.WithReconciliationState(DefaultRequeue.WithReason(msg))
@@ -280,10 +281,10 @@ func ReconcileSharedResources(
 
 	// Reconcile remote clusters
 	if esReachable {
-		requeue, err := remotecluster.UpdateSettings(ctx, client, esClient, params.Recorder, params.LicenseChecker, &es)
+		requeue, err := remotecluster.UpdateSettings(ctx, client, esClient, params.Recorder, params.LicenseChecker, es)
 		msg := "Could not update remote clusters in Elasticsearch settings, re-queuing"
 		if err != nil {
-			log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
+			log.Info(msg, "err", err, "namespace", es.GetNamespace(), "es_name", es.GetName())
 			params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, msg)
 			results.WithError(err)
 		}
@@ -293,14 +294,14 @@ func ReconcileSharedResources(
 	}
 
 	// Compute seed hosts based on current masters with a podIP
-	if err := settings.UpdateSeedHostsConfigMap(ctx, client, &es, resourcesState.AllPods, meta); err != nil {
+	if err := settings.UpdateSeedHostsConfigMap(ctx, client, es, resourcesState.AllPods, meta); err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
 	}
 
 	// File settings
 	if params.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
-		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, &es, params.OperatorParameters.OperatorNamespace)
+		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, es, params.OperatorParameters.OperatorNamespace)
 		if err != nil {
 			esClient.Close()
 			return nil, results.WithError(err)
@@ -308,7 +309,7 @@ func ReconcileSharedResources(
 			results.WithReconciliationState(
 				DefaultRequeue.WithReason(
 					fmt.Sprintf("This cluster is targeted by at least one StackConfigPolicy, expecting Secret %s to be created by StackConfigPolicy controller",
-						escommon.FileSettingsSecretName(&es)),
+						escommon.FileSettingsSecretName(es)),
 				),
 			)
 		}
@@ -319,7 +320,7 @@ func ReconcileSharedResources(
 	keystoreSecurityContext := securitycontext.For(params.Version, true)
 	keystoreParams.SecurityContext = &keystoreSecurityContext
 
-	remoteClusterAPIKeys, err := apiKeyStoreSecretSource(ctx, &es, client)
+	remoteClusterAPIKeys, err := apiKeyStoreSecretSource(ctx, es, client)
 	if err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
@@ -327,7 +328,7 @@ func ReconcileSharedResources(
 	keystoreResources, err := keystore.ReconcileResources(
 		ctx,
 		d,
-		&es,
+		es,
 		esv1.ESNamer,
 		meta,
 		keystoreParams,
@@ -339,7 +340,7 @@ func ReconcileSharedResources(
 	}
 
 	// Cluster UUID
-	requeue, err := bootstrap.ReconcileClusterUUID(ctx, client, &es, esClient, esReachable)
+	requeue, err := bootstrap.ReconcileClusterUUID(ctx, client, es, esClient, esReachable)
 	if err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
@@ -349,7 +350,7 @@ func ReconcileSharedResources(
 	}
 
 	// Stack monitoring
-	err = stackmon.ReconcileConfigSecrets(ctx, client, &es, meta)
+	err = stackmon.ReconcileConfigSecrets(ctx, client, es, meta)
 	if err != nil {
 		esClient.Close()
 		return nil, results.WithError(err)
@@ -380,10 +381,10 @@ func ReconcileSharedResources(
 // targets this cluster returns true to requeue and doesn't create the empty file-settings secret. If no
 // StackConfigPolicy targets this cluster it creates an empty file-settings secret. Note: This logic here prevents
 // the race condition described in https://github.com/elastic/cloud-on-k8s/issues/8912.
-func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es *esv1.Elasticsearch, operatorNamespace string) (bool, error) {
+func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es escommon.ElasticsearchCluster, operatorNamespace string) (bool, error) {
 	// Check if file-settings secret already exists
 	var currentSecret corev1.Secret
-	if err := c.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: escommon.FileSettingsSecretName(es)}, &currentSecret); err == nil {
+	if err := c.Get(ctx, types.NamespacedName{Namespace: es.GetNamespace(), Name: escommon.FileSettingsSecretName(es)}, &currentSecret); err == nil {
 		// Secret does exist
 		return false, nil
 	} else if !k8serrors.IsNotFound(err) {
@@ -397,7 +398,7 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 	if !enabled {
 		// If the license is not enabled, we reconcile the empty file-settings secret
-		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
+		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, es, true)
 	}
 
 	// Get all StackConfigPolicies in the cluster
@@ -429,14 +430,14 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 
 	// No policies target this cluster, so ES controller should create the empty secret
-	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
+	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, es, true)
 }
 
 // apiKeyStoreSecretSource returns the Secret that holds the remote API keys.
-func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
+func apiKeyStoreSecretSource(ctx context.Context, es escommon.ElasticsearchCluster, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
 	secretName := types.NamespacedName{
 		Name:      escommon.RemoteAPIKeysSecretName(es),
-		Namespace: es.Namespace,
+		Namespace: es.GetNamespace(),
 	}
 	if err := c.Get(ctx, secretName, &corev1.Secret{}); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -446,7 +447,7 @@ func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.
 	}
 	return []commonv1.NamespacedSecretSource{
 		{
-			Namespace:  es.Namespace,
+			Namespace:  es.GetNamespace(),
 			SecretName: secretName.Name,
 		},
 	}, nil

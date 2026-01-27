@@ -46,6 +46,12 @@ func (m *mockCluster) HasDownwardNodeLabels() bool                           { r
 func (m *mockCluster) IsConfiguredToAllowDowngrades() bool                   { return false }
 func (m *mockCluster) GetAssociations() []commonv1.Association               { return nil }
 
+// Monitoring-related methods
+func (m *mockCluster) GetIdentityLabels() map[string]string                        { return nil }
+func (m *mockCluster) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef       { return nil }
+func (m *mockCluster) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef          { return nil }
+func (m *mockCluster) MonitoringAssociation(commonv1.ObjectSelector) commonv1.Association { return nil }
+
 func newMockStatefulCluster(name string) *mockCluster {
 	return &mockCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test"},

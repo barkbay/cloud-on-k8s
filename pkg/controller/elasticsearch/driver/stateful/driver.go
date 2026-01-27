@@ -31,15 +31,15 @@ var _ commondriver.Interface = &Driver{}
 // Reconcile fulfills the Driver interface and reconciles the cluster resources.
 func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 	// Reconcile resources which are common to all drivers.
-	shared, results := shared.ReconcileSharedResources(ctx, d, d.Parameters)
+	sharedState, results := shared.ReconcileSharedResources(ctx, d, &d.ES, d.Parameters.SharedParameters())
 	if results.HasError() {
 		return results
 	}
-	defer shared.ESClient.Close()
+	defer sharedState.ESClient.Close()
 
 	// Stateful specific: Service accounts hint
 	results.WithError(d.maybeSetServiceAccountsOrchestrationHint(
-		ctx, shared.ESReachable, shared.ESClient, shared.ResourcesState))
+		ctx, sharedState.ESReachable, sharedState.ESClient, sharedState.ResourcesState))
 
 	// Stateful specific: Suspended pods
 	// We want to reconcile suspended Pods before we start reconciling node specs as this is considered a debugging and
@@ -50,8 +50,8 @@ func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 
 	// Stateful specific: Node specs (StatefulSets, upgrades, downscales)
 	return results.WithResults(d.reconcileNodeSpecs(
-		ctx, shared.ESReachable, shared.ESClient, d.ReconcileState,
-		*shared.ResourcesState, shared.KeystoreResources, shared.Meta))
+		ctx, sharedState.ESReachable, sharedState.ESClient, d.ReconcileState,
+		*sharedState.ResourcesState, sharedState.KeystoreResources, sharedState.Meta))
 }
 
 // names returns the names of the given pods.
