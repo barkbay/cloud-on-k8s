@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -54,17 +55,17 @@ func (b Builder) WithVersion(version string) Builder {
 }
 
 // WithNodeSet adds a NodeSet to the Elasticsearch spec.
-func (b Builder) WithNodeSet(name string, count int32, nodeTypes ...esv1.NodeRole) Builder {
+func (b Builder) WithNodeSet(name string, count int32, nodeTypes ...escommon.NodeRole) Builder {
 	config := map[string]any{}
 
 	// Only set node.Roles if the first role is not "all_roles"
 	// to properly handle no roles set to equal having all roles assigned.
 	if !(len(nodeTypes) == 1 && nodeTypes[0] == "all_roles") {
 		// This handles the 'coordinating' role properly.
-		config["node.roles"] = []esv1.NodeRole{}
+		config["node.roles"] = []escommon.NodeRole{}
 		for _, nodeType := range nodeTypes {
 			if string(nodeType) != "" {
-				config["node.roles"] = append(config["node.roles"].([]esv1.NodeRole), nodeType) //nolint:forcetypeassert
+				config["node.roles"] = append(config["node.roles"].([]escommon.NodeRole), nodeType) //nolint:forcetypeassert
 			}
 		}
 	}
@@ -87,7 +88,7 @@ func (b Builder) WithNodeSet(name string, count int32, nodeTypes ...esv1.NodeRol
 }
 
 // buildStatefulSet creates a StatefulSet based on the given parameters.
-func (b Builder) buildStatefulSet(name string, replicas int32, nodeRoles []esv1.NodeRole) appsv1.StatefulSet {
+func (b Builder) buildStatefulSet(name string, replicas int32, nodeRoles []escommon.NodeRole) appsv1.StatefulSet {
 	sset := statefulset.TestSset{
 		Namespace:   b.Elasticsearch.Namespace,
 		Name:        name,
@@ -99,31 +100,31 @@ func (b Builder) buildStatefulSet(name string, replicas int32, nodeRoles []esv1.
 	// Set node roles based on nodeRoles
 	for _, nodeRole := range nodeRoles {
 		switch nodeRole {
-		case esv1.MasterRole:
+		case escommon.MasterRole:
 			sset.Master = true
-		case esv1.DataRole:
+		case escommon.DataRole:
 			sset.Data = true
-		case esv1.IngestRole:
+		case escommon.IngestRole:
 			sset.Ingest = true
-		case esv1.MLRole:
+		case escommon.MLRole:
 			sset.ML = true
-		case esv1.TransformRole:
+		case escommon.TransformRole:
 			sset.Transform = true
-		case esv1.RemoteClusterClientRole:
+		case escommon.RemoteClusterClientRole:
 			sset.RemoteClusterClient = true
-		case esv1.DataHotRole:
+		case escommon.DataHotRole:
 			sset.DataHot = true
-		case esv1.DataWarmRole:
+		case escommon.DataWarmRole:
 			sset.DataWarm = true
-		case esv1.DataColdRole:
+		case escommon.DataColdRole:
 			sset.DataCold = true
-		case esv1.DataContentRole:
+		case escommon.DataContentRole:
 			sset.DataContent = true
-		case esv1.DataFrozenRole:
+		case escommon.DataFrozenRole:
 			sset.DataFrozen = true
-		case esv1.CoordinatingRole:
+		case escommon.CoordinatingRole:
 			continue
-		case esv1.VotingOnlyRole:
+		case escommon.VotingOnlyRole:
 			continue
 		}
 	}

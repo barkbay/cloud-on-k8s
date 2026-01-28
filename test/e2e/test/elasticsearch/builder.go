@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/container"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -283,20 +284,20 @@ func (b Builder) WithESCoordinatingNodes(count int, resources corev1.ResourceReq
 	v := version.MustParse(b.Elasticsearch.Spec.Version)
 
 	if v.GTE(version.From(7, 9, 0)) {
-		cfg[esv1.NodeRoles] = []string{}
+		cfg[escommon.NodeRoles] = []string{}
 	} else {
-		cfg[esv1.NodeMaster] = false
-		cfg[esv1.NodeData] = false
-		cfg[esv1.NodeIngest] = false
-		cfg[esv1.NodeML] = false
+		cfg[escommon.NodeMaster] = false
+		cfg[escommon.NodeData] = false
+		cfg[escommon.NodeIngest] = false
+		cfg[escommon.NodeML] = false
 
 		if v.GTE(version.From(7, 3, 0)) {
-			cfg[esv1.NodeVotingOnly] = false
+			cfg[escommon.NodeVotingOnly] = false
 		}
 
 		if v.GTE(version.From(7, 7, 0)) {
-			cfg[esv1.NodeTransform] = false
-			cfg[esv1.NodeRemoteClusterClient] = false
+			cfg[escommon.NodeTransform] = false
+			cfg[escommon.NodeRemoteClusterClient] = false
 		}
 	}
 
@@ -598,32 +599,32 @@ func (b Builder) TriggersRollingUpgrade() bool {
 }
 
 func MixedRolesCfg(ver string) map[string]interface{} {
-	return roleCfg(ver, []esv1.NodeRole{esv1.MasterRole, esv1.DataRole}, map[string]bool{
-		esv1.NodeMaster: true,
-		esv1.NodeData:   true,
+	return roleCfg(ver, []escommon.NodeRole{escommon.MasterRole, escommon.DataRole}, map[string]bool{
+		escommon.NodeMaster: true,
+		escommon.NodeData:   true,
 	})
 }
 
 func DataRoleCfg(ver string) map[string]interface{} {
-	return roleCfg(ver, []esv1.NodeRole{esv1.DataRole}, map[string]bool{
-		esv1.NodeMaster: false,
-		esv1.NodeData:   true,
+	return roleCfg(ver, []escommon.NodeRole{escommon.DataRole}, map[string]bool{
+		escommon.NodeMaster: false,
+		escommon.NodeData:   true,
 	})
 }
 
 func MasterRoleCfg(ver string) map[string]interface{} {
-	return roleCfg(ver, []esv1.NodeRole{esv1.MasterRole}, map[string]bool{
-		esv1.NodeMaster: true,
-		esv1.NodeData:   false,
+	return roleCfg(ver, []escommon.NodeRole{escommon.MasterRole}, map[string]bool{
+		escommon.NodeMaster: true,
+		escommon.NodeData:   false,
 	})
 }
 
-func roleCfg(ver string, post78roles []esv1.NodeRole, pre79roles map[string]bool) map[string]interface{} {
+func roleCfg(ver string, post78roles []escommon.NodeRole, pre79roles map[string]bool) map[string]interface{} {
 	v := version.MustParse(ver)
 
 	cfg := map[string]interface{}{}
 	if v.GTE(version.From(7, 9, 0)) {
-		cfg[esv1.NodeRoles] = post78roles
+		cfg[escommon.NodeRoles] = post78roles
 	} else {
 		for k, v := range pre79roles {
 			cfg[k] = v

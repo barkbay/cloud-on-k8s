@@ -14,7 +14,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
-	v1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 )
 
@@ -65,7 +65,7 @@ func TestNewPodLabels(t *testing.T) {
 		es        types.NamespacedName
 		ssetName  string
 		ver       version.Version
-		nodeRoles *v1.Node
+		nodeRoles *common.Node
 		scheme    string
 	}
 	nameFixture := types.NamespacedName{
@@ -84,7 +84,7 @@ func TestNewPodLabels(t *testing.T) {
 				es:       nameFixture,
 				ssetName: "sset",
 				ver:      version.From(7, 1, 0),
-				nodeRoles: &v1.Node{
+				nodeRoles: &common.Node{
 					Master:    ptr.To[bool](false),
 					Data:      ptr.To[bool](false),
 					Ingest:    ptr.To[bool](false),
@@ -112,7 +112,7 @@ func TestNewPodLabels(t *testing.T) {
 				es:       nameFixture,
 				ssetName: "sset",
 				ver:      version.From(7, 3, 0),
-				nodeRoles: &v1.Node{
+				nodeRoles: &common.Node{
 					Master:     ptr.To[bool](false),
 					Data:       ptr.To[bool](true),
 					Ingest:     ptr.To[bool](false),
@@ -142,7 +142,7 @@ func TestNewPodLabels(t *testing.T) {
 				es:       nameFixture,
 				ssetName: "sset",
 				ver:      version.From(7, 7, 0),
-				nodeRoles: &v1.Node{
+				nodeRoles: &common.Node{
 					Master:    ptr.To[bool](false),
 					Data:      ptr.To[bool](true),
 					Ingest:    ptr.To[bool](false),
@@ -173,7 +173,7 @@ func TestNewPodLabels(t *testing.T) {
 				es:       nameFixture,
 				ssetName: "sset",
 				ver:      version.From(7, 10, 0),
-				nodeRoles: &v1.Node{
+				nodeRoles: &common.Node{
 					Roles: nil,
 				},
 				scheme: "https",
@@ -204,7 +204,7 @@ func TestNewPodLabels(t *testing.T) {
 				es:       nameFixture,
 				ssetName: "sset",
 				ver:      version.From(7, 12, 0),
-				nodeRoles: &v1.Node{
+				nodeRoles: &common.Node{
 					Roles: nil,
 				},
 				scheme: "https",

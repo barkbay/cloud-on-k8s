@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/set"
@@ -140,7 +141,7 @@ func ValidateAutoscalingPolicies(
 			}
 		}
 
-		if stringsutil.StringInSlice(string(esv1.MLRole), autoscalingSpec.Roles) {
+		if stringsutil.StringInSlice(string(escommon.MLRole), autoscalingSpec.Roles) {
 			mlPolicyCount++
 		}
 
@@ -155,7 +156,7 @@ func ValidateAutoscalingPolicies(
 		}
 
 		// Machine learning nodes must be in a dedicated tier.
-		if stringsutil.StringInSlice(string(esv1.MLRole), autoscalingSpec.Roles) && len(ignoreRemoteClusterClientRole(autoscalingSpec.Roles)) > 1 {
+		if stringsutil.StringInSlice(string(escommon.MLRole), autoscalingSpec.Roles) && len(ignoreRemoteClusterClientRole(autoscalingSpec.Roles)) > 1 {
 			errs = append(
 				errs,
 				field.Invalid(
@@ -211,7 +212,7 @@ func ValidateAutoscalingPolicies(
 func ignoreRemoteClusterClientRole(roles []string) []string {
 	var updatedRoles []string
 	for _, role := range roles {
-		if role != string(esv1.RemoteClusterClientRole) {
+		if role != string(escommon.RemoteClusterClientRole) {
 			updatedRoles = append(updatedRoles, role)
 		}
 	}

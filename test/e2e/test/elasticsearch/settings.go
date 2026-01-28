@@ -5,6 +5,7 @@
 package elasticsearch
 
 import (
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -12,14 +13,14 @@ import (
 )
 
 func MustNumMasterNodes(es esv1.Elasticsearch) int {
-	return mustNumNodes(esv1.MasterRole, es)
+	return mustNumNodes(escommon.MasterRole, es)
 }
 
 func MustNumDataNodes(es esv1.Elasticsearch) int {
-	return mustNumNodes(esv1.DataRole, es)
+	return mustNumNodes(escommon.DataRole, es)
 }
 
-func mustNumNodes(role esv1.NodeRole, es esv1.Elasticsearch) int {
+func mustNumNodes(role escommon.NodeRole, es esv1.Elasticsearch) int {
 	var numNodes int
 	ver := version.MustParse(es.Spec.Version)
 	for _, n := range es.Spec.NodeSets {
@@ -30,9 +31,9 @@ func mustNumNodes(role esv1.NodeRole, es esv1.Elasticsearch) int {
 	return numNodes
 }
 
-func hasRole(role esv1.NodeRole, node esv1.NodeSet, ver version.Version) bool {
+func hasRole(role escommon.NodeRole, node esv1.NodeSet, ver version.Version) bool {
 	if node.Config == nil {
-		return esv1.DefaultCfg(ver).Node.IsConfiguredWithRole(esv1.DataRole)
+		return esv1.DefaultCfg(ver).Node.IsConfiguredWithRole(escommon.DataRole)
 	}
 	config, err := common.NewCanonicalConfigFrom(node.Config.Data)
 	if err != nil {

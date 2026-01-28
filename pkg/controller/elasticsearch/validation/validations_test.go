@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 )
 
@@ -121,41 +122,41 @@ func Test_hasCorrectNodeRoles(t *testing.T) {
 		},
 		{
 			name:         "no master defined (node attributes)",
-			es:           esWithRoles("7.6.0", 1, m{esv1.NodeMaster: "false", esv1.NodeData: "true"}, m{esv1.NodeMaster: "true", esv1.NodeVotingOnly: "true"}),
+			es:           esWithRoles("7.6.0", 1, m{escommon.NodeMaster: "false", escommon.NodeData: "true"}, m{escommon.NodeMaster: "true", escommon.NodeVotingOnly: "true"}),
 			expectErrors: true,
 		},
 		{
 			name:         "no master defined (node roles)",
-			es:           esWithRoles("7.9.0", 1, m{esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.MasterRole, esv1.VotingOnlyRole}}),
+			es:           esWithRoles("7.9.0", 1, m{escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.MasterRole, escommon.VotingOnlyRole}}),
 			expectErrors: true,
 		},
 		{
 			name:         "zero master nodes (node attributes)",
-			es:           esWithRoles("7.6.0", 0, m{esv1.NodeMaster: "true", esv1.NodeData: "true"}, m{esv1.NodeData: "true"}),
+			es:           esWithRoles("7.6.0", 0, m{escommon.NodeMaster: "true", escommon.NodeData: "true"}, m{escommon.NodeData: "true"}),
 			expectErrors: true,
 		},
 		{
 			name:         "zero master nodes (node roles)",
-			es:           esWithRoles("7.9.0", 0, m{esv1.NodeRoles: []esv1.NodeRole{esv1.MasterRole, esv1.DataRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole}}),
+			es:           esWithRoles("7.9.0", 0, m{escommon.NodeRoles: []escommon.NodeRole{escommon.MasterRole, escommon.DataRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole}}),
 			expectErrors: true,
 		},
 		{
 			name:         "mixed node attributes and node roles",
-			es:           esWithRoles("7.9.0", 1, m{esv1.NodeMaster: "true", esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole, esv1.TransformRole}}),
+			es:           esWithRoles("7.9.0", 1, m{escommon.NodeMaster: "true", escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole, escommon.TransformRole}}),
 			expectErrors: true,
 		},
 		{
 			name:         "node roles on older version",
-			es:           esWithRoles("7.6.0", 1, m{esv1.NodeRoles: []esv1.NodeRole{esv1.MasterRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole}}),
+			es:           esWithRoles("7.6.0", 1, m{escommon.NodeRoles: []escommon.NodeRole{escommon.MasterRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole}}),
 			expectErrors: true,
 		},
 		{
 			name: "valid configuration (node attributes)",
-			es:   esWithRoles("7.6.0", 3, m{esv1.NodeMaster: "true", esv1.NodeData: "true"}, m{esv1.NodeData: "true"}),
+			es:   esWithRoles("7.6.0", 3, m{escommon.NodeMaster: "true", escommon.NodeData: "true"}, m{escommon.NodeData: "true"}),
 		},
 		{
 			name: "valid configuration (node roles)",
-			es:   esWithRoles("7.9.0", 4, m{esv1.NodeRoles: []esv1.NodeRole{esv1.MasterRole, esv1.DataRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.DataRole}}, m{esv1.NodeRoles: []esv1.NodeRole{esv1.RemoteClusterClientRole}}),
+			es:   esWithRoles("7.9.0", 4, m{escommon.NodeRoles: []escommon.NodeRole{escommon.MasterRole, escommon.DataRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.DataRole}}, m{escommon.NodeRoles: []escommon.NodeRole{escommon.RemoteClusterClientRole}}),
 		},
 	}
 	for _, tt := range tests {

@@ -33,23 +33,23 @@ import (
 var (
 	// group the statefulsets by the priority of their roles.
 	// master, data_*, ingest, ml, transform, coordinating, and we ignore remote_cluster_client as it has no impact on availability
-	priority = []esv1.NodeRole{esv1.DataRole, esv1.MasterRole, esv1.DataFrozenRole, esv1.IngestRole, esv1.MLRole, esv1.TransformRole, esv1.CoordinatingRole}
+	priority = []escommon.NodeRole{escommon.DataRole, escommon.MasterRole, escommon.DataFrozenRole, escommon.IngestRole, escommon.MLRole, escommon.TransformRole, escommon.CoordinatingRole}
 	// All data role variants should be treated as a generic data role for PDB purposes
-	dataRoles = []esv1.NodeRole{
-		esv1.DataRole,
-		esv1.DataHotRole,
-		esv1.DataWarmRole,
-		esv1.DataColdRole,
-		esv1.DataContentRole,
+	dataRoles = []escommon.NodeRole{
+		escommon.DataRole,
+		escommon.DataHotRole,
+		escommon.DataWarmRole,
+		escommon.DataColdRole,
+		escommon.DataContentRole,
 		// Note: DataFrozenRole is excluded as it can be disrupted even when cluster health is yellow.
 	}
 )
 
 // toGenericDataRole returns the normalized form of a role where any data role
 // is normalized to the same data role.
-func toGenericDataRole(role esv1.NodeRole) esv1.NodeRole {
+func toGenericDataRole(role escommon.NodeRole) escommon.NodeRole {
 	if slices.Contains(dataRoles, role) {
-		return esv1.DataRole
+		return escommon.DataRole
 	}
 	return role
 }
@@ -129,13 +129,13 @@ func expectedRolePDBs(
 	return pdbs, nil
 }
 
-func groupBySharedRoles(statefulSets sset.StatefulSetList) (map[esv1.NodeRole][]appsv1.StatefulSet, error) {
+func groupBySharedRoles(statefulSets sset.StatefulSetList) (map[escommon.NodeRole][]appsv1.StatefulSet, error) {
 	n := len(statefulSets)
 	if n == 0 {
-		return map[esv1.NodeRole][]appsv1.StatefulSet{}, nil
+		return map[escommon.NodeRole][]appsv1.StatefulSet{}, nil
 	}
 
-	rolesToIndices := make(map[esv1.NodeRole][]int)
+	rolesToIndices := make(map[escommon.NodeRole][]int)
 	indicesToRoles := make(map[int]set.StringSet)
 	for i, sset := range statefulSets {
 		// A statefulSet may not be found within the expected resources,
@@ -159,8 +159,8 @@ func groupBySharedRoles(statefulSets sset.StatefulSetList) (map[esv1.NodeRole][]
 	}
 
 	// This keeps track of which roles have been assigned to a PDB to avoid assigning the same role to multiple PDBs.
-	roleToTargetPDB := map[esv1.NodeRole]esv1.NodeRole{}
-	grouped := map[esv1.NodeRole][]int{}
+	roleToTargetPDB := map[escommon.NodeRole]escommon.NodeRole{}
+	grouped := map[escommon.NodeRole][]int{}
 	visited := make([]bool, n)
 	for _, role := range priority {
 		indices, ok := rolesToIndices[role]
@@ -178,13 +178,13 @@ func groupBySharedRoles(statefulSets sset.StatefulSetList) (map[esv1.NodeRole][]
 			}
 			grouped[targetPDBRole] = append(grouped[targetPDBRole], idx)
 			for _, r := range indicesToRoles[idx].AsSlice() {
-				roleToTargetPDB[esv1.NodeRole(r)] = targetPDBRole
+				roleToTargetPDB[escommon.NodeRole(r)] = targetPDBRole
 			}
 			visited[idx] = true
 		}
 	}
 	// transform into the expected format
-	res := make(map[esv1.NodeRole][]appsv1.StatefulSet)
+	res := make(map[escommon.NodeRole][]appsv1.StatefulSet)
 	for role, indices := range grouped {
 		group := make([]appsv1.StatefulSet, 0, len(indices))
 		for _, idx := range indices {
@@ -196,8 +196,8 @@ func groupBySharedRoles(statefulSets sset.StatefulSetList) (map[esv1.NodeRole][]
 }
 
 // getRolesFromStatefulSet extracts the roles from a StatefulSet's labels.
-func getRolesFromStatefulSet(statefulSet appsv1.StatefulSet) ([]esv1.NodeRole, error) {
-	roles := make([]esv1.NodeRole, 0, len(label.RoleMappings))
+func getRolesFromStatefulSet(statefulSet appsv1.StatefulSet) ([]escommon.NodeRole, error) {
+	roles := make([]escommon.NodeRole, 0, len(label.RoleMappings))
 	labels := statefulSet.Spec.Template.Labels
 	if labels == nil {
 		return nil, fmt.Errorf("statefulSet %s/%s has no labels", statefulSet.Namespace, statefulSet.Name)
@@ -216,7 +216,7 @@ func getRolesFromStatefulSet(statefulSet appsv1.StatefulSet) ([]esv1.NodeRole, e
 	}
 
 	if isCoordinating {
-		return []esv1.NodeRole{esv1.CoordinatingRole}, nil
+		return []escommon.NodeRole{escommon.CoordinatingRole}, nil
 	}
 	return roles, nil
 }
@@ -226,7 +226,7 @@ func createPDBForStatefulSets(
 	ctx context.Context,
 	es esv1.Elasticsearch,
 	// role is the role used to determine the maxUnavailable value.
-	role esv1.NodeRole,
+	role escommon.NodeRole,
 	// statefulSets are the statefulSets grouped into this pdb.
 	statefulSets []appsv1.StatefulSet,
 	// allStatefulSets are all statefulSets in the whole ES cluster.
@@ -270,7 +270,7 @@ func createPDBForStatefulSets(
 func buildRoleSpecificPDBSpec(
 	ctx context.Context,
 	es esv1.Elasticsearch,
-	role esv1.NodeRole,
+	role escommon.NodeRole,
 	// statefulSets are the statefulSets grouped into this pdb.
 	statefulSets sset.StatefulSetList,
 	// allStatefulSets are all statefulSets in the whole ES cluster.
@@ -309,7 +309,7 @@ func buildRoleSpecificPDBSpec(
 func allowedDisruptionsForRole(
 	ctx context.Context,
 	es esv1.Elasticsearch,
-	role esv1.NodeRole,
+	role escommon.NodeRole,
 	allStatefulSets sset.StatefulSetList,
 ) int32 {
 	// Disallow disruptions when health is unknown, empty or red.
@@ -327,7 +327,7 @@ func allowedDisruptionsForRole(
 	}
 
 	// Allow 1 disruption for data roles only if health is green.
-	if role == esv1.DataRole {
+	if role == escommon.DataRole {
 		if es.Status.Health == esv1.ElasticsearchGreenHealth {
 			return 1
 		}

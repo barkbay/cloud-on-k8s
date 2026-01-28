@@ -213,7 +213,7 @@ func hasCorrectNodeRoles(es esv1.Elasticsearch) field.ErrorList {
 		}
 
 		// Check if this nodeSet has the master role.
-		seenMaster = seenMaster || (cfg.Node.IsConfiguredWithRole(esv1.MasterRole) && !cfg.Node.IsConfiguredWithRole(esv1.VotingOnlyRole) && ns.Count > 0)
+		seenMaster = seenMaster || (cfg.Node.IsConfiguredWithRole(escommon.MasterRole) && !cfg.Node.IsConfiguredWithRole(escommon.VotingOnlyRole) && ns.Count > 0)
 	}
 
 	if !seenMaster {
@@ -229,31 +229,31 @@ func getNodeRoleAttrs(cfg esv1.ElasticsearchSettings) []string {
 	//nolint:nestif
 	if cfg.Node != nil {
 		if cfg.Node.Data != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeData)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeData)
 		}
 
 		if cfg.Node.Ingest != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeIngest)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeIngest)
 		}
 
 		if cfg.Node.Master != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeMaster)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeMaster)
 		}
 
 		if cfg.Node.ML != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeML)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeML)
 		}
 
 		if cfg.Node.RemoteClusterClient != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeRemoteClusterClient)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeRemoteClusterClient)
 		}
 
 		if cfg.Node.Transform != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeTransform)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeTransform)
 		}
 
 		if cfg.Node.VotingOnly != nil {
-			nodeRoleAttrs = append(nodeRoleAttrs, esv1.NodeVotingOnly)
+			nodeRoleAttrs = append(nodeRoleAttrs, escommon.NodeVotingOnly)
 		}
 	}
 

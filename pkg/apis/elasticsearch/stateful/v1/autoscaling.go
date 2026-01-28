@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/set"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/stringsutil"
@@ -85,7 +86,7 @@ func (ns NodeSet) GetAutoscalingSpecFor(v version.Version, as v1alpha1.Autoscali
 func GetMLNodesSettings(as v1alpha1.AutoscalingPolicySpecs) (nodes int32, maxMemory string) {
 	var maxMemoryAsInt int64
 	for _, autoscalingSpec := range as {
-		if !stringsutil.StringInSlice(string(MLRole), autoscalingSpec.Roles) {
+		if !stringsutil.StringInSlice(string(escommon.MLRole), autoscalingSpec.Roles) {
 			// not a node with the machine learning role
 			continue
 		}

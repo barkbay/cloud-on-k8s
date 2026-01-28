@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/compare"
 )
@@ -24,12 +25,12 @@ func TestConfig_RoleDefaults(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		wantCfg Node
+		wantCfg escommon.Node
 	}{
 		{
 			name: "empty equals defaults",
 			args: args{},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master:    ptr.To[bool](true),
 				Data:      ptr.To[bool](true),
 				Ingest:    ptr.To[bool](true),
@@ -42,11 +43,11 @@ func TestConfig_RoleDefaults(t *testing.T) {
 			args: args{
 				c: commonv1.Config{
 					Data: map[string]interface{}{
-						NodeMaster: true,
+						escommon.NodeMaster: true,
 					},
 				},
 			},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master:    ptr.To[bool](true),
 				Data:      ptr.To[bool](true),
 				Ingest:    ptr.To[bool](true),
@@ -59,11 +60,11 @@ func TestConfig_RoleDefaults(t *testing.T) {
 			args: args{
 				c: commonv1.Config{
 					Data: map[string]interface{}{
-						NodeData: false,
+						escommon.NodeData: false,
 					},
 				},
 			},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master:    ptr.To[bool](true),
 				Data:      ptr.To[bool](false),
 				Ingest:    ptr.To[bool](true),
@@ -76,7 +77,7 @@ func TestConfig_RoleDefaults(t *testing.T) {
 			args: args{
 				ver: version.From(7, 7, 0),
 			},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master: ptr.To[bool](true),
 				Data:   ptr.To[bool](true),
 				Ingest: ptr.To[bool](true),
@@ -95,7 +96,7 @@ func TestConfig_RoleDefaults(t *testing.T) {
 				},
 				ver: version.From(7, 7, 0),
 			},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master: ptr.To[bool](true),
 				Data:   ptr.To[bool](false),
 				Ingest: ptr.To[bool](true),
@@ -107,13 +108,13 @@ func TestConfig_RoleDefaults(t *testing.T) {
 			args: args{
 				c: commonv1.Config{
 					Data: map[string]interface{}{
-						NodeData:      false,
-						NodeTransform: true,
+						escommon.NodeData:      false,
+						escommon.NodeTransform: true,
 					},
 				},
 				ver: version.From(7, 7, 0),
 			},
-			wantCfg: Node{
+			wantCfg: escommon.Node{
 				Master:    ptr.To[bool](true),
 				Data:      ptr.To[bool](false),
 				Ingest:    ptr.To[bool](true),
@@ -162,53 +163,53 @@ var expectedJSONized = commonv1.Config{
 
 var (
 	// roles that are applied by default (everything except voting_only)
-	defaultRoles = []NodeRole{
-		DataColdRole,
-		DataContentRole,
-		DataHotRole,
-		DataRole,
-		DataWarmRole,
-		IngestRole,
-		MLRole,
-		MasterRole,
-		RemoteClusterClientRole,
-		TransformRole,
+	defaultRoles = []escommon.NodeRole{
+		escommon.DataColdRole,
+		escommon.DataContentRole,
+		escommon.DataHotRole,
+		escommon.DataRole,
+		escommon.DataWarmRole,
+		escommon.IngestRole,
+		escommon.MLRole,
+		escommon.MasterRole,
+		escommon.RemoteClusterClientRole,
+		escommon.TransformRole,
 	}
 
-	allRoles = append([]NodeRole{VotingOnlyRole}, defaultRoles...)
+	allRoles = append([]escommon.NodeRole{escommon.VotingOnlyRole}, defaultRoles...)
 )
 
 func TestConfig_HasRole(t *testing.T) {
 	testCases := []struct {
 		name      string
-		node      *Node
-		wantRoles []NodeRole
+		node      *escommon.Node
+		wantRoles []escommon.NodeRole
 	}{
 		{
 			name:      "master and data",
-			node:      &Node{Roles: []string{"master", "data"}},
-			wantRoles: []NodeRole{MasterRole, DataContentRole, DataRole, DataHotRole, DataWarmRole, DataColdRole, DataFrozenRole},
+			node:      &escommon.Node{Roles: []string{"master", "data"}},
+			wantRoles: []escommon.NodeRole{escommon.MasterRole, escommon.DataContentRole, escommon.DataRole, escommon.DataHotRole, escommon.DataWarmRole, escommon.DataColdRole, escommon.DataFrozenRole},
 		},
 		{
 			name:      "master and data_content",
-			node:      &Node{Roles: []string{"master", "data_content"}},
-			wantRoles: []NodeRole{MasterRole, DataContentRole},
+			node:      &escommon.Node{Roles: []string{"master", "data_content"}},
+			wantRoles: []escommon.NodeRole{escommon.MasterRole, escommon.DataContentRole},
 		},
 		{
 			name:      "data_hot and data_warm only",
-			node:      &Node{Roles: []string{"data_hot", "data_warm"}},
-			wantRoles: []NodeRole{DataHotRole, DataWarmRole},
+			node:      &escommon.Node{Roles: []string{"data_hot", "data_warm"}},
+			wantRoles: []escommon.NodeRole{escommon.DataHotRole, escommon.DataWarmRole},
 		},
 		{
 			name:      "node.roles (ingest only)",
-			node:      &Node{Roles: []string{"ingest"}},
-			wantRoles: []NodeRole{IngestRole},
+			node:      &escommon.Node{Roles: []string{"ingest"}},
+			wantRoles: []escommon.NodeRole{escommon.IngestRole},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			wantRolesSet := make(map[NodeRole]struct{}, len(tc.wantRoles))
+			wantRolesSet := make(map[escommon.NodeRole]struct{}, len(tc.wantRoles))
 
 			// check that the node has the required roles
 			for _, r := range tc.wantRoles {
@@ -232,8 +233,8 @@ func TestConfig_HasRole(t *testing.T) {
 func TestConfig_IsConfiguredWithRole(t *testing.T) {
 	testCases := []struct {
 		name      string
-		node      *Node
-		wantRoles []NodeRole
+		node      *escommon.Node
+		wantRoles []escommon.NodeRole
 	}{
 		{
 			name:      "nil node",
@@ -241,12 +242,12 @@ func TestConfig_IsConfiguredWithRole(t *testing.T) {
 		},
 		{
 			name:      "empty node",
-			node:      &Node{},
+			node:      &escommon.Node{},
 			wantRoles: defaultRoles,
 		},
 		{
 			name: "node role attributes (all)",
-			node: &Node{
+			node: &escommon.Node{
 				Master:              ptr.To[bool](true),
 				Data:                ptr.To[bool](true),
 				Ingest:              ptr.To[bool](true),
@@ -258,14 +259,14 @@ func TestConfig_IsConfiguredWithRole(t *testing.T) {
 		},
 		{
 			name: "node role attributes (no data)",
-			node: &Node{
+			node: &escommon.Node{
 				Data: ptr.To[bool](false),
 			},
-			wantRoles: []NodeRole{IngestRole, MLRole, MasterRole, RemoteClusterClientRole},
+			wantRoles: []escommon.NodeRole{escommon.IngestRole, escommon.MLRole, escommon.MasterRole, escommon.RemoteClusterClientRole},
 		},
 		{
 			name: "node role attributes (ingest only)",
-			node: &Node{
+			node: &escommon.Node{
 				Master:     ptr.To[bool](false),
 				Data:       ptr.To[bool](false),
 				Ingest:     ptr.To[bool](true),
@@ -273,11 +274,11 @@ func TestConfig_IsConfiguredWithRole(t *testing.T) {
 				Transform:  ptr.To[bool](false),
 				VotingOnly: ptr.To[bool](false),
 			},
-			wantRoles: []NodeRole{IngestRole, RemoteClusterClientRole},
+			wantRoles: []escommon.NodeRole{escommon.IngestRole, escommon.RemoteClusterClientRole},
 		},
 		{
 			name: "mixed node.roles and node role attributes",
-			node: &Node{
+			node: &escommon.Node{
 				Master:     ptr.To[bool](false),
 				Data:       ptr.To[bool](false),
 				Ingest:     ptr.To[bool](true),
@@ -286,11 +287,11 @@ func TestConfig_IsConfiguredWithRole(t *testing.T) {
 				VotingOnly: ptr.To[bool](false),
 				Roles:      []string{"master"},
 			},
-			wantRoles: []NodeRole{MasterRole},
+			wantRoles: []escommon.NodeRole{escommon.MasterRole},
 		},
 		{
 			name: "node.roles (all)",
-			node: &Node{
+			node: &escommon.Node{
 				Roles: []string{
 					"master",
 					"data",
@@ -308,23 +309,23 @@ func TestConfig_IsConfiguredWithRole(t *testing.T) {
 		},
 		{
 			name:      "node.roles (master and data)",
-			node:      &Node{Roles: []string{"master", "data"}},
-			wantRoles: []NodeRole{MasterRole, DataRole},
+			node:      &escommon.Node{Roles: []string{"master", "data"}},
+			wantRoles: []escommon.NodeRole{escommon.MasterRole, escommon.DataRole},
 		},
 		{
 			name:      "node.roles (ingest only)",
-			node:      &Node{Roles: []string{"ingest"}},
-			wantRoles: []NodeRole{IngestRole},
+			node:      &escommon.Node{Roles: []string{"ingest"}},
+			wantRoles: []escommon.NodeRole{escommon.IngestRole},
 		},
 		{
 			name: "node.roles (no roles)",
-			node: &Node{Roles: []string{}},
+			node: &escommon.Node{Roles: []string{}},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			wantRolesSet := make(map[NodeRole]struct{}, len(tc.wantRoles))
+			wantRolesSet := make(map[escommon.NodeRole]struct{}, len(tc.wantRoles))
 
 			// check that the node has the required roles
 			for _, r := range tc.wantRoles {
@@ -427,7 +428,7 @@ func TestConfig_Unpack(t *testing.T) {
 				},
 			},
 			want: ElasticsearchSettings{
-				Node: &Node{
+				Node: &escommon.Node{
 					Master: ptr.To[bool](false),
 					Data:   ptr.To[bool](true),
 				},
@@ -450,7 +451,7 @@ func TestConfig_Unpack(t *testing.T) {
 				},
 			},
 			want: ElasticsearchSettings{
-				Node: &Node{
+				Node: &escommon.Node{
 					Roles: []string{"master", "data"},
 				},
 				Cluster: ClusterSettings{

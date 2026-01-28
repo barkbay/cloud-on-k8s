@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
@@ -329,8 +330,8 @@ func (e *esClusterChecks) compareTopology(es esv1.Elasticsearch, topoElem esv1.N
 	return compareClaimedStorage(e.k, topoElem, pods)
 }
 
-func compareRoles(expected *esv1.Node, actualRoles []string) error {
-	for _, role := range []esv1.NodeRole{esv1.MasterRole, esv1.DataRole} {
+func compareRoles(expected *escommon.Node, actualRoles []string) error {
+	for _, role := range []escommon.NodeRole{escommon.MasterRole, escommon.DataRole} {
 		nodeHasRole := stringsutil.StringInSlice(string(role), actualRoles)
 		roleIsInConfig := expected.HasRole(role)
 		if nodeHasRole && !roleIsInConfig {

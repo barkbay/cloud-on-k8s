@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
 	sset "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
@@ -60,7 +61,7 @@ func (t testPod) withVersion(v string) testPod          { t.version = v; return 
 func (t testPod) inStatefulset(ssetName string) testPod { t.ssetName = ssetName; return t }
 func (t testPod) withResourceVersion(rv string) testPod { t.resourceVersion = rv; return t } //nolint:unparam
 func (t testPod) withFinalizers(f []string) testPod     { t.finalizers = f; return t }
-func (t testPod) withRoles(roles ...esv1.NodeRole) testPod {
+func (t testPod) withRoles(roles ...escommon.NodeRole) testPod {
 	t.roles = make([]string, len(roles))
 	for i := range roles {
 		t.roles[i] = string(roles[i])
@@ -304,7 +305,7 @@ func (t testPod) toPod() corev1.Pod {
 		false, /* IsStateless */
 		t.ssetName,
 		version.MustParse(t.version),
-		&esv1.Node{
+		&escommon.Node{
 			Roles: t.roles,
 		},
 		"https",
@@ -352,13 +353,13 @@ func (t *testESState) NodesInCluster(nodeNames []string) (bool, error) {
 	return false, nil
 }
 
-func newSettings(nodeRoles ...esv1.NodeRole) esv1.ElasticsearchSettings {
+func newSettings(nodeRoles ...escommon.NodeRole) esv1.ElasticsearchSettings {
 	roles := make([]string, len(nodeRoles))
 	for i := range nodeRoles {
 		roles[i] = string(nodeRoles[i])
 	}
 	return esv1.ElasticsearchSettings{
-		Node: &esv1.Node{
+		Node: &escommon.Node{
 			Roles: roles,
 		},
 		Cluster: esv1.ClusterSettings{},

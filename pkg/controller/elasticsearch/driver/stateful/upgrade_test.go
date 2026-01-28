@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -162,9 +163,9 @@ func Test_healthyPods(t *testing.T) {
 			name: "All Pods are healthy",
 			args: args{
 				pods: newUpgradeTestPods(
-					newTestPod("masters-2").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
-					newTestPod("masters-1").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
-					newTestPod("masters-0").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
+					newTestPod("masters-2").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
+					newTestPod("masters-1").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
+					newTestPod("masters-0").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
 				),
 				statefulSets: es_sset.StatefulSetList{
 					sset.TestSset{
@@ -179,10 +180,10 @@ func Test_healthyPods(t *testing.T) {
 			name: "One Pod is terminating",
 			args: args{
 				pods: newUpgradeTestPods(
-					newTestPod("masters-2").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
-					newTestPod("masters-1").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).
+					newTestPod("masters-2").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
+					newTestPod("masters-1").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).
 						isTerminating(true).withResourceVersion("999").withFinalizers([]string{"something"}),
-					newTestPod("masters-0").inStatefulset("masters").withRoles(esv1.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
+					newTestPod("masters-0").inStatefulset("masters").withRoles(escommon.MasterRole).isHealthy(true).needsUpgrade(true).isInCluster(true).withResourceVersion("999"),
 				),
 				statefulSets: es_sset.StatefulSetList{
 					sset.TestSset{

@@ -12,7 +12,6 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/labels"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 )
@@ -70,22 +69,22 @@ const (
 // This is used when creating PDBs for each node role.
 type RoleMapping struct {
 	LabelName string
-	Role      esv1.NodeRole
+	Role      common.NodeRole
 }
 
 // RoleMappings is the definitive list of labels to node roles.
 var RoleMappings = []RoleMapping{
-	{string(NodeTypesMasterLabelName), esv1.MasterRole},
-	{string(NodeTypesDataLabelName), esv1.DataRole},
-	{string(NodeTypesIngestLabelName), esv1.IngestRole},
-	{string(NodeTypesMLLabelName), esv1.MLRole},
-	{string(NodeTypesTransformLabelName), esv1.TransformRole},
-	{string(NodeTypesRemoteClusterClientLabelName), esv1.RemoteClusterClientRole},
-	{string(NodeTypesDataHotLabelName), esv1.DataHotRole},
-	{string(NodeTypesDataWarmLabelName), esv1.DataWarmRole},
-	{string(NodeTypesDataColdLabelName), esv1.DataColdRole},
-	{string(NodeTypesDataContentLabelName), esv1.DataContentRole},
-	{string(NodeTypesDataFrozenLabelName), esv1.DataFrozenRole},
+	{string(NodeTypesMasterLabelName), common.MasterRole},
+	{string(NodeTypesDataLabelName), common.DataRole},
+	{string(NodeTypesIngestLabelName), common.IngestRole},
+	{string(NodeTypesMLLabelName), common.MLRole},
+	{string(NodeTypesTransformLabelName), common.TransformRole},
+	{string(NodeTypesRemoteClusterClientLabelName), common.RemoteClusterClientRole},
+	{string(NodeTypesDataHotLabelName), common.DataHotRole},
+	{string(NodeTypesDataWarmLabelName), common.DataWarmRole},
+	{string(NodeTypesDataColdLabelName), common.DataColdRole},
+	{string(NodeTypesDataContentLabelName), common.DataContentRole},
+	{string(NodeTypesDataFrozenLabelName), common.DataFrozenRole},
 }
 
 // NonMasterRoles are all Elasticsearch node roles except master or voting-only.
@@ -164,7 +163,7 @@ func NewPodLabels(
 	isStateless bool,
 	ssetName string,
 	ver version.Version,
-	nodeRoles *esv1.Node,
+	nodeRoles *common.Node,
 	scheme string,
 ) map[string]string {
 	// cluster name based labels
@@ -173,29 +172,29 @@ func NewPodLabels(
 	labels[VersionLabelName] = ver.String()
 
 	// node types labels
-	NodeTypesMasterLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.MasterRole), labels)
-	NodeTypesDataLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataRole), labels)
-	NodeTypesIngestLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.IngestRole), labels)
-	NodeTypesMLLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.MLRole), labels)
+	NodeTypesMasterLabelName.Set(nodeRoles.IsConfiguredWithRole(common.MasterRole), labels)
+	NodeTypesDataLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataRole), labels)
+	NodeTypesIngestLabelName.Set(nodeRoles.IsConfiguredWithRole(common.IngestRole), labels)
+	NodeTypesMLLabelName.Set(nodeRoles.IsConfiguredWithRole(common.MLRole), labels)
 	// transform and remote_cluster_client roles were only added in 7.7.0 so we should not annotate previous versions with them
 	if ver.GTE(version.From(7, 7, 0)) {
-		NodeTypesTransformLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.TransformRole), labels)
-		NodeTypesRemoteClusterClientLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.RemoteClusterClientRole), labels)
+		NodeTypesTransformLabelName.Set(nodeRoles.IsConfiguredWithRole(common.TransformRole), labels)
+		NodeTypesRemoteClusterClientLabelName.Set(nodeRoles.IsConfiguredWithRole(common.RemoteClusterClientRole), labels)
 	}
 	// voting_only master eligible nodes were added only in 7.3.0 so we don't want to label prior versions with it
 	if ver.GTE(version.From(7, 3, 0)) {
-		NodeTypesVotingOnlyLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.VotingOnlyRole), labels)
+		NodeTypesVotingOnlyLabelName.Set(nodeRoles.IsConfiguredWithRole(common.VotingOnlyRole), labels)
 	}
 	// data tiers were added in 7.10.0
 	if ver.GTE(version.From(7, 10, 0)) {
-		NodeTypesDataContentLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataContentRole), labels)
-		NodeTypesDataColdLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataColdRole), labels)
-		NodeTypesDataHotLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataHotRole), labels)
-		NodeTypesDataWarmLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataWarmRole), labels)
+		NodeTypesDataContentLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataContentRole), labels)
+		NodeTypesDataColdLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataColdRole), labels)
+		NodeTypesDataHotLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataHotRole), labels)
+		NodeTypesDataWarmLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataWarmRole), labels)
 	}
 	// frozen tier has been introduced in 7.12.0
 	if ver.GTE(version.From(7, 12, 0)) {
-		NodeTypesDataFrozenLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataFrozenRole), labels)
+		NodeTypesDataFrozenLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataFrozenRole), labels)
 	}
 
 	labels[HTTPSchemeLabelName] = scheme

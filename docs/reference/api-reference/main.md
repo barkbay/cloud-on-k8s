@@ -1254,10 +1254,6 @@ NewNodeStatus provides details about the status of nodes which are expected to b
 
 
 
-
-
-
-
 ### NodeSet  [#nodeset]
 
 NodeSet is the specification for a group of Elasticsearch nodes sharing the same configuration and a Pod template.
@@ -1384,6 +1380,12 @@ Package v1alpha1 contains API Schema definitions for the elasticsearch v1alpha1 
 
 
 
+
+
+
+
+
+
 ### ElasticsearchStateless  [#elasticsearchstateless]
 
 ElasticsearchStateless represents a stateless Elasticsearch resource in a Kubernetes cluster.
@@ -1476,6 +1478,8 @@ ElasticsearchStatelessTiers defines the tiers of a stateless Elasticsearch clust
 | *`index`* __[TierSpec](#tierspec)__ | Index tier handles indexing operations. |
 | *`search`* __[TierSpec](#tierspec)__ | Search tier handles search operations. |
 | *`ml`* __[TierSpec](#tierspec)__ | ML tier handles machine learning operations. |
+
+
 
 
 ### ObjectStoreConfig  [#objectstoreconfig]

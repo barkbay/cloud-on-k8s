@@ -16,6 +16,7 @@ import (
 	"go.elastic.co/apm/v2"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/autoscaler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoscaling/elasticsearch/status"
@@ -69,7 +70,7 @@ func newStatusBuilder(log logr.Logger, autoscalingPolicies v1alpha1.AutoscalingP
 	sort.Strings(roles)
 
 	for _, role := range roles {
-		if role == string(esv1.RemoteClusterClientRole) {
+		if role == string(escommon.RemoteClusterClientRole) {
 			continue
 		}
 		policies := policiesByRole[role]
