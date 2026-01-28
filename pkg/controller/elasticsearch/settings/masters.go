@@ -55,7 +55,7 @@ func UpdateSeedHostsConfigMap(
 	// Get the masters from the pods
 	var masters []corev1.Pod
 	for _, p := range pods {
-		if label.IsMasterNode(p) {
+		if label.IsMasterNode(p) || label.IsIndexTierNode(p) {
 			masters = append(masters, p)
 		}
 	}

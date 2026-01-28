@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	policyv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/stackconfigpolicy/v1alpha1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
@@ -29,15 +28,15 @@ type PolicyConfig struct {
 	AdditionalVolumes   []volume.VolumeLike
 }
 
-// getPolicyConfig parses the StackConfigPolicy secret and returns a PolicyConfig struct
-func getPolicyConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsearch) (PolicyConfig, error) {
+// GetPolicyConfig parses the StackConfigPolicy secret and returns a PolicyConfig struct
+func GetPolicyConfig(ctx context.Context, client k8s.Client, es escommon.ElasticsearchCluster) (PolicyConfig, error) {
 	var policyConfig PolicyConfig
 	// Retrieve secret created by the StackConfigPolicy controller if it exists
 	// Check for stack config policy Elasticsearch config secret
 	stackConfigPolicyConfigSecret := corev1.Secret{}
 	err := client.Get(ctx, types.NamespacedName{
-		Name:      escommon.StackConfigElasticsearchConfigSecretName(&es),
-		Namespace: es.Namespace,
+		Name:      escommon.StackConfigElasticsearchConfigSecretName(es),
+		Namespace: es.GetNamespace(),
 	}, &stackConfigPolicyConfigSecret)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return policyConfig, err
@@ -70,7 +69,7 @@ func getPolicyConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsear
 		}
 	}
 	for _, secretMount := range additionalSecretMounts {
-		secretName := escommon.StackConfigAdditionalSecretName(&es, secretMount.SecretName)
+		secretName := escommon.StackConfigAdditionalSecretName(es, secretMount.SecretName)
 		secretVolumeFromStackConfigPolicy := volume.NewSecretVolumeWithMountPath(secretName, secretName, secretMount.MountPath)
 		policyConfig.AdditionalVolumes = append(policyConfig.AdditionalVolumes, secretVolumeFromStackConfigPolicy)
 	}

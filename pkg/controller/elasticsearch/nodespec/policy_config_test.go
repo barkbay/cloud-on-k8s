@@ -21,7 +21,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
-func Test_getPolicyConfig(t *testing.T) {
+func Test_GetPolicyConfig(t *testing.T) {
 	// testEs is used for computing expected naming values
 	testEs := esv1.Elasticsearch{
 		ObjectMeta: metav1.ObjectMeta{
@@ -40,8 +40,8 @@ func Test_getPolicyConfig(t *testing.T) {
 		wantErr      bool
 	}{
 		{
-			name: "create valid policy config",
-			es:   testEs,
+			name:         "create valid policy config",
+			es:           testEs,
 			configSecret: mkConfigSecret(escommon.StackConfigElasticsearchConfigSecretName(&testEs), "test-ns"),
 			want: PolicyConfig{
 				ElasticsearchConfig: canonicalConfig,
@@ -80,7 +80,7 @@ func Test_getPolicyConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			client := k8s.NewFakeClient(&tt.configSecret)
-			got, err := getPolicyConfig(context.Background(), client, tt.es)
+			got, err := GetPolicyConfig(context.Background(), client, &tt.es)
 			if !tt.wantErr {
 				require.NoError(t, err)
 			} else {

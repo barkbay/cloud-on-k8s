@@ -73,7 +73,7 @@ func BuildExpectedResources(
 	}
 
 	// Get policy config from StackConfigPolicy
-	policyConfig, err := getPolicyConfig(ctx, client, es)
+	policyConfig, err := GetPolicyConfig(ctx, client, &es)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func BuildExpectedResources(
 		if nodeSpec.Config != nil {
 			userCfg = *nodeSpec.Config
 		}
-		cfg, err := settings.NewMergedESConfig(es.Name, ver, ipFamily, es.Spec.HTTP, userCfg, policyConfig.ElasticsearchConfig, es.Spec.RemoteClusterServer.Enabled, escommon.HasRemoteClusterAPIKey(&es))
+		cfg, err := settings.NewMergedESConfig(es.Name, false, ver, ipFamily, es.Spec.HTTP, userCfg, policyConfig.ElasticsearchConfig, es.Spec.RemoteClusterServer.Enabled, escommon.HasRemoteClusterAPIKey(&es))
 		if err != nil {
 			return nil, err
 		}

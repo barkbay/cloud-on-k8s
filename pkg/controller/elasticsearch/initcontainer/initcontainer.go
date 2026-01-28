@@ -23,6 +23,7 @@ func NewInitContainers(
 	transportCertificatesVolume volume.SecretVolume,
 	keystoreResources *keystore.Resources,
 	nodeLabelsAsAnnotations []string,
+	isStateless bool,
 ) ([]corev1.Container, error) {
 	var containers []corev1.Container
 	prepareFsContainer, err := NewPrepareFSInitContainer(transportCertificatesVolume, nodeLabelsAsAnnotations)
@@ -35,7 +36,9 @@ func NewInitContainers(
 		containers = append(containers, keystoreResources.InitContainer)
 	}
 
-	containers = append(containers, NewSuspendInitContainer())
+	if !isStateless {
+		containers = append(containers, NewSuspendInitContainer())
+	}
 
 	return containers, nil
 }

@@ -5,6 +5,7 @@
 package label
 
 import (
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -63,6 +64,9 @@ const (
 
 	// Type represents the Elasticsearch type
 	Type = "elasticsearch"
+
+	// TierLabelName holds the tier name in the context of Stateless Elasticsearch clusters.
+	TierLabelName = "elasticsearch.k8s.elastic.co/tier"
 )
 
 // RoleMapping is a struct that maps a label name to a node role.
@@ -104,6 +108,17 @@ var NonMasterRoles = []labels.TrueFalseLabel{
 // IsMasterNode returns true if the pod has the master node label
 func IsMasterNode(pod corev1.Pod) bool {
 	return NodeTypesMasterLabelName.HasValue(true, pod.Labels)
+}
+
+// IsIndexTierNode returns true if the pod is in the index tier (i.e., is a master node)
+func IsIndexTierNode(pod corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+	if tier, ok := pod.Labels[TierLabelName]; ok {
+		return tier == string(v1alpha1.IndexTierName)
+	}
+	return false
 }
 
 // IsMasterNodeSet returns true if the given StatefulSet specifies master nodes.
@@ -157,6 +172,13 @@ func NewLabels(es types.NamespacedName, isStateless bool) map[string]string {
 	}
 }
 
+// NewDeploymentLabels returns labels to apply for an Elasticsearch Deployment in stateless mode.
+func NewDeploymentLabels(es types.NamespacedName, deploymentName string) map[string]string {
+	lbls := NewLabels(es, true)
+	lbls[DeploymentNameLabelName] = deploymentName
+	return lbls
+}
+
 // NewPodLabels returns labels to apply for a new Elasticsearch pod.
 func NewPodLabels(
 	es types.NamespacedName,
@@ -170,6 +192,13 @@ func NewPodLabels(
 	labels := NewLabels(es, isStateless)
 	// version label
 	labels[VersionLabelName] = ver.String()
+	labels[HTTPSchemeLabelName] = scheme
+	if isStateless {
+		for k, v := range NewDeploymentLabels(es, ssetName) {
+			labels[k] = v
+		}
+		return labels
+	}
 
 	// node types labels
 	NodeTypesMasterLabelName.Set(nodeRoles.IsConfiguredWithRole(common.MasterRole), labels)
@@ -196,8 +225,6 @@ func NewPodLabels(
 	if ver.GTE(version.From(7, 12, 0)) {
 		NodeTypesDataFrozenLabelName.Set(nodeRoles.IsConfiguredWithRole(common.DataFrozenRole), labels)
 	}
-
-	labels[HTTPSchemeLabelName] = scheme
 
 	// apply stateful set label selector
 	for k, v := range NewStatefulSetLabels(es, ssetName) {

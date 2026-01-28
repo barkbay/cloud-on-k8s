@@ -233,11 +233,11 @@ func TestBuildPodTemplateSpecWithDefaultSecurityContext(t *testing.T) {
 			es.Spec.Version = tt.version.String()
 			es.Spec.NodeSets[0].PodTemplate.Spec.SecurityContext = tt.userSecurityContext
 
-			cfg, err := settings.NewMergedESConfig(es.Name, tt.version, corev1.IPv4Protocol, es.Spec.HTTP, *es.Spec.NodeSets[0].Config, nil, false, false)
+			cfg, err := settings.NewMergedESConfig(es.Name, false, tt.version, corev1.IPv4Protocol, es.Spec.HTTP, *es.Spec.NodeSets[0].Config, nil, false, false)
 			require.NoError(t, err)
 
 			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: es.Namespace, Name: escommon.ScriptsConfigMap(&es)}})
-			actual, err := BuildPodTemplateSpec(context.Background(), client, es, es.Spec.NodeSets[0], cfg, nil, tt.setDefaultFSGroup, PolicyConfig{}, metadata.Metadata{})
+			actual, err := BuildPodTemplateSpec(context.Background(), client, &es, &es.Spec.NodeSets[0], cfg, nil, tt.setDefaultFSGroup, PolicyConfig{}, metadata.Metadata{})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantSecurityContext, actual.Spec.SecurityContext)
 		})
@@ -316,10 +316,10 @@ func TestBuildPodTemplateSpec(t *testing.T) {
 			ver, err := version.Parse(es.Spec.Version)
 			require.NoError(t, err)
 
-			cfg, err := settings.NewMergedESConfig(es.Name, ver, corev1.IPv4Protocol, es.Spec.HTTP, *nodeSet.Config, tt.args.policyConfig.ElasticsearchConfig, false, false)
+			cfg, err := settings.NewMergedESConfig(es.Name, false, ver, corev1.IPv4Protocol, es.Spec.HTTP, *nodeSet.Config, tt.args.policyConfig.ElasticsearchConfig, false, false)
 			require.NoError(t, err)
 
-			actual, err := BuildPodTemplateSpec(context.Background(), tt.args.client, es, es.Spec.NodeSets[0], cfg, tt.args.keystoreResources, tt.args.setDefaultSecurityContext, tt.args.policyConfig, metadata.Metadata{})
+			actual, err := BuildPodTemplateSpec(context.Background(), tt.args.client, &es, &es.Spec.NodeSets[0], cfg, tt.args.keystoreResources, tt.args.setDefaultSecurityContext, tt.args.policyConfig, metadata.Metadata{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BuildPodTemplateSpec wantErr %v got %v", tt.wantErr, err)
 			}
@@ -452,9 +452,9 @@ func Test_buildAnnotations(t *testing.T) {
 				build()
 			ver, err := version.Parse(sampleES.Spec.Version)
 			require.NoError(t, err)
-			cfg, err := settings.NewMergedESConfig(es.Name, ver, corev1.IPv4Protocol, es.Spec.HTTP, *es.Spec.NodeSets[0].Config, nil, false, false)
+			cfg, err := settings.NewMergedESConfig(es.Name, false, ver, corev1.IPv4Protocol, es.Spec.HTTP, *es.Spec.NodeSets[0].Config, nil, false, false)
 			require.NoError(t, err)
-			got := buildAnnotations(es, cfg, tt.args.keystoreResources, tt.args.scriptsContent, tt.args.policyAnnotations)
+			got := buildAnnotations(&es, cfg, tt.args.keystoreResources, tt.args.scriptsContent, tt.args.policyAnnotations)
 
 			for expectedAnnotation, expectedValue := range tt.expectedAnnotations {
 				actualValue, exists := got[expectedAnnotation]
@@ -501,7 +501,7 @@ func Test_getDefaultContainerPorts(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, getDefaultContainerPorts(tc.es), tc.want)
+			assert.Equal(t, getDefaultContainerPorts(&tc.es), tc.want)
 		})
 	}
 }
@@ -549,10 +549,10 @@ func Test_enableLog4JFormatMsgNoLookups(t *testing.T) {
 
 			ver, err := version.Parse(sampleES.Spec.Version)
 			require.NoError(t, err)
-			cfg, err := settings.NewMergedESConfig(sampleES.Name, ver, corev1.IPv4Protocol, sampleES.Spec.HTTP, *sampleES.Spec.NodeSets[0].Config, nil, false, false)
+			cfg, err := settings.NewMergedESConfig(sampleES.Name, false, ver, corev1.IPv4Protocol, sampleES.Spec.HTTP, *sampleES.Spec.NodeSets[0].Config, nil, false, false)
 			require.NoError(t, err)
 			client := k8s.NewFakeClient(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: sampleES.Namespace, Name: escommon.ScriptsConfigMap(&sampleES)}})
-			actual, err := BuildPodTemplateSpec(context.Background(), client, sampleES, sampleES.Spec.NodeSets[0], cfg, nil, false, PolicyConfig{}, metadata.Metadata{})
+			actual, err := BuildPodTemplateSpec(context.Background(), client, &sampleES, &sampleES.Spec.NodeSets[0], cfg, nil, false, PolicyConfig{}, metadata.Metadata{})
 			require.NoError(t, err)
 
 			env := actual.Spec.Containers[1].Env

@@ -94,7 +94,9 @@ func newURLProvider(es escommon.ElasticsearchCluster, c k8s.Client) esclient.URL
 		return services.NewElasticsearchURLProvider(es, c)
 	}
 	// For stateless clusters, return a service-based URL provider
-	return &simpleURLProvider{url: services.ExternalTransportServiceHost(es)}
+	return &simpleURLProvider{
+		url: services.InternalServiceURL(es),
+	}
 }
 
 // simpleURLProvider is a basic URL provider that returns a fixed URL.

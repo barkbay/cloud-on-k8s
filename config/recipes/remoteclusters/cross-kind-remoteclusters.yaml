@@ -23,6 +23,9 @@ metadata:
   name: es1
   namespace: ns1
 spec:
+  # Required for this cluster to be accessed using remote cluster API keys
+  remoteClusterServer:
+    enabled: true
   version: 9.2.2
   remoteClusters:
     - name: stateless-remote
@@ -50,15 +53,27 @@ metadata:
   name: es1
   namespace: ns2
 spec:
-  version: 9.2.2
+  remoteClusters:
+    - name: stateless-remote
+      elasticsearchRef:
+        name: es1
+        namespace: ns1
+      apiKey:
+        access:
+          search:
+            names:
+              - "*"
+  version: 9.4.0-SNAPSHOT
   # Required for this cluster to be accessed using remote cluster API keys
   remoteClusterServer:
     enabled: true
   objectStore:
-    secretName: gcs-creds
+    bucket: foo
+    client: s3-client
+    type: s3
   tiers:
     index:
-      replicas: 1
+      count: 1
       podTemplate:
         spec:
           containers:
@@ -70,7 +85,7 @@ spec:
                   cpu: "1"
                   memory: 4Gi
     search:
-      replicas: 1
+      count: 2
       podTemplate:
         spec:
           containers:
@@ -82,4 +97,16 @@ spec:
                   cpu: "1"
                   memory: 2Gi
     ml:
-      replicas: 0
+      count: 0
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: k1
+  namespace: ns2
+spec:
+  version: 9.4.0-SNAPSHOT
+  count: 1
+  elasticsearchRef:
+    name: "es1"
+    kind: ElasticsearchStateless

@@ -917,6 +917,7 @@ func registerControllers(mgr manager.Manager, params operator.Parameters, access
 	}{
 		{name: "APMServer", registerFunc: apmserver.Add},
 		{name: "Elasticsearch", registerFunc: elasticsearch.Add},
+		{name: "ElasticsearchStateless", registerFunc: elasticsearch.AddStateless},
 		{name: "ElasticsearchAutoscaling", registerFunc: autoscaling.Add},
 		{name: "Kibana", registerFunc: kibana.Add},
 		{name: "EnterpriseSearch", registerFunc: enterprisesearch.Add},

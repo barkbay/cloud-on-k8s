@@ -98,7 +98,7 @@ func BuildStatefulSet(
 	)
 
 	// build pod template
-	podTemplate, err := BuildPodTemplateSpec(ctx, client, es, nodeSet, cfg, keystoreResources, setDefaultSecurityContext, policyConfig, meta)
+	podTemplate, err := BuildPodTemplateSpec(ctx, client, &es, &nodeSet, cfg, keystoreResources, setDefaultSecurityContext, policyConfig, meta)
 	if err != nil {
 		return appsv1.StatefulSet{}, err
 	}

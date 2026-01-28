@@ -42,8 +42,6 @@ func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 	}
 	defer shared.ESClient.Close()
 
-	// STATELESS-SPECIFIC: Future implementation will go here
-	// e.g., d.reconcileStatelessResources(ctx, shared)
-
-	return results
+	// reconcile Deployments and nodes configuration
+	return results.WithResults(d.reconcileTiers(ctx, d.Expectations, shared.Meta, shared.KeystoreResources))
 }

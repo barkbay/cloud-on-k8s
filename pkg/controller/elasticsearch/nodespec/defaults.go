@@ -43,7 +43,7 @@ var (
 )
 
 // DefaultEnvVars are environment variables injected into Elasticsearch pods.
-func DefaultEnvVars(v version.Version, httpCfg commonv1.HTTPConfig, headlessServiceName string) []corev1.EnvVar {
+func DefaultEnvVars(v version.Version, httpCfg commonv1.HTTPConfig, headlessServiceName string, isStaless bool) []corev1.EnvVar {
 	vars := []corev1.EnvVar{
 		// needed in elasticsearch.yml
 		// We do not recommend overriding the default readiness probe on Elasticsearch 8.2.0 and later.
@@ -66,6 +66,10 @@ func DefaultEnvVars(v version.Version, httpCfg commonv1.HTTPConfig, headlessServ
 		//   https://github.com/elastic/cloud-on-k8s/issues/1635
 		//   https://issuetracker.google.com/issues/140577001
 		{Name: "NSS_SDB_USE_CACHE", Value: "no"},
+	}
+	if isStaless {
+		// In stateless Pods are removed from the cluster on termination.
+		vars = append(vars, corev1.EnvVar{Name: "PRE_STOP_SHUTDOWN_TYPE", Value: "remove"})
 	}
 	return defaults.ExtendPodDownwardEnvVars(vars...)
 }

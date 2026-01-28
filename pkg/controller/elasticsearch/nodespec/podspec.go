@@ -57,21 +57,21 @@ var minDefaultSecurityContextVersion = version.MinFor(8, 0, 0)
 func BuildPodTemplateSpec(
 	ctx context.Context,
 	client k8s.Client,
-	es esv1.Elasticsearch,
-	nodeSet esv1.NodeSet,
+	es escommon.ElasticsearchCluster,
+	nodeSet escommon.NodeSetSpec,
 	cfg settings.CanonicalConfig,
 	keystoreResources *keystore.Resources,
 	setDefaultSecurityContext bool,
 	policyConfig PolicyConfig,
 	meta metadata.Metadata,
 ) (corev1.PodTemplateSpec, error) {
-	ver, err := version.Parse(es.Spec.Version)
+	ver, err := version.Parse(es.GetVersion())
 	if err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
 
 	downwardAPIVolume := volume.DownwardAPI{}.WithAnnotations(es.HasDownwardNodeLabels())
-	volumes, volumeMounts := buildVolumes(&es, ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes)
+	volumes, volumeMounts := buildVolumes(es, es.IsStateless(), ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes)
 
 	labels, err := buildLabels(es, cfg, nodeSet)
 	if err != nil {
@@ -82,15 +82,16 @@ func BuildPodTemplateSpec(
 
 	// now build the initContainers using the effective main container resources as an input
 	initContainers, err := initcontainer.NewInitContainers(
-		transportCertificatesVolume(esv1.StatefulSet(es.Name, nodeSet.Name)),
+		transportCertificatesVolume(esv1.StatefulSet(es.GetName(), nodeSet.GetName()), es.IsStateless()),
 		keystoreResources,
 		es.DownwardNodeLabels(),
+		es.IsStateless(),
 	)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
 
-	builder := defaults.NewPodTemplateBuilder(nodeSet.PodTemplate, esv1.ElasticsearchContainerName)
+	builder := defaults.NewPodTemplateBuilder(nodeSet.GetPodTemplate(), esv1.ElasticsearchContainerName)
 
 	if ver.GTE(minDefaultSecurityContextVersion) && setDefaultSecurityContext {
 		builder = builder.WithPodSecurityContext(corev1.PodSecurityContext{
@@ -101,11 +102,11 @@ func BuildPodTemplateSpec(
 		})
 	}
 
-	headlessServiceName := HeadlessServiceName(esv1.StatefulSet(es.Name, nodeSet.Name))
+	headlessServiceName := HeadlessServiceName(esv1.StatefulSet(es.GetName(), nodeSet.GetName()))
 
 	// We retrieve the ConfigMap that holds the scripts to trigger a Pod restart if it is updated.
 	esScripts := &corev1.ConfigMap{}
-	if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: escommon.ScriptsConfigMap(&es)}, esScripts); err != nil {
+	if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.GetNamespace(), Name: escommon.ScriptsConfigMap(es)}, esScripts); err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
 	annotations := buildAnnotations(es, cfg, keystoreResources, getScriptsConfigMapContent(esScripts), policyConfig.PolicyAnnotations)
@@ -121,18 +122,23 @@ func BuildPodTemplateSpec(
 		}
 	}
 
+	defaultTerminationGracePeriod := DefaultTerminationGracePeriodSeconds
+	if es.IsStateless() {
+		defaultTerminationGracePeriod = 3600 // 1 hour for stateless clusters
+	}
+
 	// build the podTemplate until we have the effective resources configured
 	meta = meta.Merge(metadata.Metadata{Labels: labels, Annotations: annotations})
 	builder = builder.
 		WithLabels(meta.Labels).
 		WithAnnotations(meta.Annotations).
-		WithDockerImage(es.Spec.Image, container.ImageRepository(container.ElasticsearchImage, ver)).
+		WithDockerImage(es.GetImage(), container.ImageRepository(container.ElasticsearchImage, ver)).
 		WithResources(DefaultResources).
-		WithTerminationGracePeriod(DefaultTerminationGracePeriodSeconds).
+		WithTerminationGracePeriod(defaultTerminationGracePeriod).
 		WithPorts(defaultContainerPorts).
 		WithReadinessProbe(*NewReadinessProbe(ver)).
-		WithAffinity(DefaultAffinity(es.Name)).
-		WithEnv(DefaultEnvVars(ver, es.Spec.HTTP, headlessServiceName)...).
+		WithAffinity(DefaultAffinity(es.GetName())).
+		WithEnv(DefaultEnvVars(ver, es.GetHTTP(), headlessServiceName, es.IsStateless())...).
 		WithVolumes(volumes...).
 		WithVolumeMounts(volumeMounts...).
 		WithInitContainers(initContainers...).
@@ -142,7 +148,7 @@ func BuildPodTemplateSpec(
 		WithContainersSecurityContext(securitycontext.For(ver, enableReadOnlyRootFilesystem)).
 		WithPreStopHook(*NewPreStopHook())
 
-	builder, err = stackmon.WithMonitoring(ctx, client, builder, &es, meta)
+	builder, err = stackmon.WithMonitoring(ctx, client, builder, es, meta)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, err
 	}
@@ -155,28 +161,32 @@ func BuildPodTemplateSpec(
 	return builder.PodTemplate, nil
 }
 
-func getDefaultContainerPorts(es esv1.Elasticsearch) []corev1.ContainerPort {
+func getDefaultContainerPorts(es escommon.ElasticsearchCluster) []corev1.ContainerPort {
 	return []corev1.ContainerPort{
-		{Name: es.Spec.HTTP.Protocol(), ContainerPort: network.HTTPPort, Protocol: corev1.ProtocolTCP},
+		{Name: es.GetHTTP().Protocol(), ContainerPort: network.HTTPPort, Protocol: corev1.ProtocolTCP},
 		{Name: "transport", ContainerPort: network.TransportPort, Protocol: corev1.ProtocolTCP},
 	}
 }
 
-func transportCertificatesVolume(ssetName string) volume.SecretVolume {
+func transportCertificatesVolume(ssetName string, isStateless bool) volume.SecretVolume {
+	secretName := esv1.StatefulSetTransportCertificatesSecret(ssetName)
+	if isStateless {
+		secretName = escommon.StatelessNamer.Suffix(ssetName, "transport-certs")
+	}
 	return volume.NewSecretVolumeWithMountPath(
-		esv1.StatefulSetTransportCertificatesSecret(ssetName),
+		secretName,
 		esvolume.TransportCertificatesSecretVolumeName,
 		esvolume.TransportCertificatesSecretVolumeMountPath,
 	)
 }
 
 func buildLabels(
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	cfg settings.CanonicalConfig,
-	nodeSet esv1.NodeSet,
+	nodeSetSpec escommon.NodeSetSpec,
 ) (map[string]string, error) {
 	// label with version
-	ver, err := version.Parse(es.Spec.Version)
+	ver, err := version.Parse(es.GetVersion())
 	if err != nil {
 		return nil, err
 	}
@@ -188,17 +198,17 @@ func buildLabels(
 
 	node := unpackedCfg.Node
 	podLabels := label.NewPodLabels(
-		k8s.ExtractNamespacedName(&es),
+		k8s.ExtractNamespacedName(es),
 		es.IsStateless(),
-		esv1.StatefulSet(es.Name, nodeSet.Name),
-		ver, node, es.Spec.HTTP.Protocol(),
+		escommon.PodControllerName(es, nodeSetSpec.GetName()),
+		ver, node, es.GetHTTP().Protocol(),
 	)
 
 	return podLabels, nil
 }
 
 func buildAnnotations(
-	es esv1.Elasticsearch,
+	es escommon.ElasticsearchCluster,
 	cfg settings.CanonicalConfig,
 	keystoreResources *keystore.Resources,
 	scriptsContent string,
@@ -217,7 +227,7 @@ func buildAnnotations(
 
 	if es.HasDownwardNodeLabels() {
 		// list of node labels expected on the pod to rotate the pod when the list is updated
-		_, _ = configHash.Write([]byte(es.Annotations[esv1.DownwardNodeLabelsAnnotation]))
+		_, _ = configHash.Write([]byte(es.GetAnnotations()[esv1.DownwardNodeLabelsAnnotation]))
 	}
 
 	if keystoreResources != nil {
@@ -225,7 +235,7 @@ func buildAnnotations(
 		_, _ = configHash.Write([]byte(keystoreResources.Hash))
 	}
 
-	if !es.Spec.Transport.TLS.SelfSignedEnabled() {
+	if !es.GetTransport().TLS.SelfSignedEnabled() {
 		annotations[esv1.TransportCertDisabledAnnotationName] = "true"
 	}
 

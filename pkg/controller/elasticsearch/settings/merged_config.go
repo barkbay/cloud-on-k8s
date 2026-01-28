@@ -29,6 +29,7 @@ var nodeAttrNodeName = fmt.Sprintf("%s.%s", esv1.NodeAttr, nodeAttrK8sNodeName)
 // parameters. The user provided config overrides have precedence over the ECK config.
 func NewMergedESConfig(
 	clusterName string,
+	isStateless bool,
 	ver version.Version,
 	ipFamily corev1.IPFamily,
 	httpConfig commonv1.HTTPConfig,
@@ -41,7 +42,7 @@ func NewMergedESConfig(
 		return CanonicalConfig{}, err
 	}
 
-	config := baseConfig(clusterName, ver, ipFamily, remoteClusterServerEnabled).CanonicalConfig
+	config := baseConfig(clusterName, isStateless, ver, ipFamily, remoteClusterServerEnabled).CanonicalConfig
 	err = config.MergeWith(
 		xpackConfig(ver, httpConfig, remoteClusterServerEnabled, remoteClusterClientEnabled).CanonicalConfig,
 		userCfg,
@@ -54,7 +55,7 @@ func NewMergedESConfig(
 }
 
 // baseConfig returns the base ES configuration to apply for the given cluster
-func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamily, remoteClusterServerEnabled bool) *CanonicalConfig {
+func baseConfig(clusterName string, isStateless bool, ver version.Version, ipFamily corev1.IPFamily, remoteClusterServerEnabled bool) *CanonicalConfig {
 	cfg := map[string]interface{}{
 		// derive node name dynamically from the pod name, injected as env var
 		esv1.NodeName:    "${" + EnvPodName + "}",
@@ -62,7 +63,6 @@ func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamil
 
 		// use the DNS name as the publish host
 		esv1.NetworkPublishHost: netutil.IPLiteralFor("${"+EnvPodIP+"}", ipFamily),
-		esv1.HTTPPublishHost:    "${" + EnvPodName + "}.${" + HeadlessServiceName + "}.${" + EnvNamespace + "}.svc",
 		esv1.NetworkHost:        "0",
 
 		// allow ES to be aware of k8s node the pod is running on when allocating shards
@@ -73,9 +73,19 @@ func baseConfig(clusterName string, ver version.Version, ipFamily corev1.IPFamil
 		esv1.PathLogs: volume.ElasticsearchLogsMountPath,
 	}
 
+	if isStateless {
+		cfg[esv1.HTTPPublishHost] = "0" // no headless service per node set
+	} else {
+		cfg[esv1.HTTPPublishHost] = "${" + EnvPodName + "}.${" + HeadlessServiceName + "}.${" + EnvNamespace + "}.svc"
+	}
+
 	if remoteClusterServerEnabled {
 		cfg[esv1.RemoteClusterEnabled] = "true"
-		cfg[esv1.RemoteClusterPublishHost] = "${" + EnvPodName + "}.${" + HeadlessServiceName + "}.${" + EnvNamespace + "}.svc"
+		if isStateless {
+			cfg[esv1.RemoteClusterPublishHost] = netutil.IPLiteralFor("${"+EnvPodIP+"}", ipFamily)
+		} else {
+			cfg[esv1.RemoteClusterPublishHost] = "${" + EnvPodName + "}.${" + HeadlessServiceName + "}.${" + EnvNamespace + "}.svc"
+		}
 		cfg[esv1.RemoteClusterHost] = "0"
 	}
 

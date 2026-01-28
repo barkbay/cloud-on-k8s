@@ -484,6 +484,7 @@ Config represents untyped YAML configuration.
 * [NodeSet](#nodeset)
 * [PackageRegistrySpec](#packageregistryspec)
 * [Search](#search)
+* [TierSpec](#tierspec)
 
 :::
 
@@ -1482,18 +1483,41 @@ ElasticsearchStatelessTiers defines the tiers of a stateless Elasticsearch clust
 
 
 
+
+
 ### ObjectStoreConfig  [#objectstoreconfig]
 
-ObjectStoreConfig contains the configuration for the object store used for stateless data.
+
 
 :::{admonition} Appears In:
 * [ElasticsearchStatelessSpec](#elasticsearchstatelessspec)
+* [StatelessConfig](#statelessconfig)
 
 :::
 
 | Field | Description |
 | --- | --- |
-| *`secretName`* __string__ | SecretName is the name of the secret containing the object store credentials. |
+| *`base_path`* __string__ |  |
+| *`bucket`* __string__ |  |
+| *`client`* __string__ |  |
+| *`type`* __string__ |  |
+
+
+### SimpleMetadata  [#simplemetadata]
+
+
+
+:::{admonition} Appears In:
+* [VolumeClaimTemplate](#volumeclaimtemplate)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`annotations`* __object (keys:string, values:string)__ |  |
+| *`labels`* __object (keys:string, values:string)__ |  |
+
+
 
 
 ### TierSpec  [#tierspec]
@@ -1502,13 +1526,18 @@ TierSpec defines the specification for a tier in a stateless Elasticsearch clust
 
 :::{admonition} Appears In:
 * [ElasticsearchStatelessTiers](#elasticsearchstatelesstiers)
+* [NamedTierSpec](#namedtierspec)
+* [Tiers](#tiers)
 
 :::
 
 | Field | Description |
 | --- | --- |
-| *`replicas`* __integer__ | Replicas is the number of replicas for this tier. |
-| *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate provides customisation options for the Pods belonging to this tier. |
+| *`count`* __integer__ | Count is the desired number of pods in this tier. |
+| *`rollingUpdate`* __[RollingUpdateDeployment](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#rollingupdatedeployment-v1-apps)__ | RollingUpdate is the rolling update strategy to use when updating pods in this tier.<br>If empty, the default rolling update strategy will be used. |
+| *`podTemplate`* __[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podtemplatespec-v1-core)__ | PodTemplate is the pod template to use for the pods in this tier. |
+| *`config`* __[Config](#config)__ | Config holds the Elasticsearch configuration specific to a tier. |
+| *`volumeClaimTemplate`* __[VolumeClaimTemplate](#volumeclaimtemplate)__ | VolumeClaimTemplate is the volume claim template to use for the caching volume in this tier. |
 
 
 ### TierStatus  [#tierstatus]
@@ -1524,6 +1553,23 @@ TierStatus represents the status of a tier.
 | --- | --- |
 | *`availableReplicas`* __integer__ | AvailableReplicas is the number of available replicas for this tier. |
 | *`expectedReplicas`* __integer__ | ExpectedReplicas is the expected number of replicas for this tier. |
+
+
+
+
+### VolumeClaimTemplate  [#volumeclaimtemplate]
+
+
+
+:::{admonition} Appears In:
+* [TierSpec](#tierspec)
+
+:::
+
+| Field | Description |
+| --- | --- |
+| *`metadata`* __[SimpleMetadata](#simplemetadata)__ | Refer to Kubernetes API documentation for fields of `metadata`. |
+| *`spec`* __[PersistentVolumeClaimSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#persistentvolumeclaimspec-v1-core)__ | spec defines the desired characteristics of a volume requested by a pod author.<br>More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims |
 
 
 

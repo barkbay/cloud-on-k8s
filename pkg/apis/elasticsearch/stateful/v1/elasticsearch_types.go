@@ -234,6 +234,27 @@ type NodeSet struct {
 	VolumeClaimTemplates []corev1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 }
 
+func (n *NodeSet) GetName() string {
+	if n == nil {
+		return ""
+	}
+	return n.Name
+}
+
+func (n *NodeSet) GetVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
+	if n == nil {
+		return nil
+	}
+	return n.VolumeClaimTemplates
+}
+
+func (n *NodeSet) GetPodTemplate() corev1.PodTemplateSpec {
+	if n == nil {
+		return corev1.PodTemplateSpec{}
+	}
+	return n.PodTemplate
+}
+
 // +kubebuilder:object:generate=false
 type NodeSetList []NodeSet
 

@@ -1,0 +1,268 @@
+# This sample demonstrates remote cluster connections between stateful and stateless Elasticsearch clusters.
+# It creates:
+# - A stateful Elasticsearch cluster (es1) in namespace ns1
+# - A stateless Elasticsearch cluster (es1) in namespace ns2
+# - Cross-cluster search configured from stateful to stateless using the Kind field
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns1
+---
+# Stateless Elasticsearch cluster in ns1
+# This cluster references the stateless cluster in ns2 as a remote cluster
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: ElasticsearchStateless
+metadata:
+  name: es1 # Same name as the stateful cluster to demonstrate cross-kind remote clusters
+  namespace: ns1
+spec:
+  version: 9.2.2
+  objectStore:
+    bucket: foo
+    client: s3-client
+    type: s3
+  tiers:
+    index:
+      config:
+        node.store.allow_mmap: false
+      count: 1
+    search:
+      config:
+        node.store.allow_mmap: false
+      count: 2
+    ml:
+      config:
+        node.store.allow_mmap: false
+      count: 0
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: kibana
+  namespace: ns1
+spec:
+  version: 9.2.2
+  count: 1
+  elasticsearchRef:
+    name: "es1"
+    namespace: "ns1"
+    kind: ElasticsearchStateless
+  config:
+    xpack.fleet.agents.elasticsearch.hosts: ["https://es1-ess-http.ns1.svc:9200"]
+    xpack.fleet.agents.fleet_server.hosts: ["https://fleet-server-agent-http.ns1.svc:8220"]
+    xpack.fleet.packages:
+      - name: system
+        version: latest
+      - name: elastic_agent
+        version: latest
+      - name: fleet_server
+        version: latest
+      - name: kubernetes
+        version: latest
+    xpack.fleet.agentPolicies:
+      - name: Fleet Server on ECK policy
+        id: eck-fleet-server
+        namespace: default
+        is_managed: true
+        monitoring_enabled:
+          - logs
+          - metrics
+        unenroll_timeout: 900
+        package_policies:
+          - name: fleet_server-1
+            id: fleet_server-1
+            package:
+              name: fleet_server
+      - name: Elastic Agent on ECK policy
+        id: eck-agent
+        namespace: default
+        is_managed: true
+        monitoring_enabled:
+          - logs
+          - metrics
+        unenroll_timeout: 900
+        package_policies:
+          - package:
+              name: system
+            name: system-1
+          - package:
+              name: kubernetes
+            name: kubernetes-1
+---
+apiVersion: agent.k8s.elastic.co/v1alpha1
+kind: Agent
+metadata:
+  name: fleet-server
+spec:
+  version: 9.2.2
+  kibanaRef:
+    name: kibana
+  elasticsearchRefs:
+    - name: elasticsearch
+      kind: ElasticsearchStateless
+  mode: fleet
+  fleetServerEnabled: true
+  policyID: eck-fleet-server
+  deployment:
+    replicas: 1
+    podTemplate:
+      spec:
+        serviceAccountName: fleet-server
+        automountServiceAccountToken: true
+        securityContext:
+          runAsUser: 0
+---
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fleet-server
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - namespaces
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups: ["apps"]
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - leases
+    verbs:
+      - get
+      - create
+      - update
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fleet-server
+  namespace: ns1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fleet-server
+subjects:
+  - kind: ServiceAccount
+    name: fleet-server
+    namespace: ns1
+roleRef:
+  kind: ClusterRole
+  name: fleet-server
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: elastic-agent
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - nodes
+      - namespaces
+      - events
+      - services
+      - configmaps
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - leases
+    verbs:
+      - get
+      - create
+      - update
+  - nonResourceURLs:
+      - "/metrics"
+    verbs:
+      - get
+  - apiGroups: ["extensions"]
+    resources:
+      - replicasets
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  - apiGroups:
+      - "apps"
+    resources:
+      - statefulsets
+      - deployments
+      - replicasets
+      - daemonsets
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/stats
+    verbs:
+      - get
+  - nonResourceURLs:
+      - "/metrics"
+    verbs:
+      - get
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+      - cronjobs
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  - apiGroups:
+      - "storage.k8s.io"
+    resources:
+      - storageclasses
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: elastic-agent
+  namespace: ns1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: elastic-agent
+subjects:
+  - kind: ServiceAccount
+    name: elastic-agent
+    namespace: ns1
+roleRef:
+  kind: ClusterRole
+  name: elastic-agent
+  apiGroup: rbac.authorization.k8s.io
+...

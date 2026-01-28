@@ -10,23 +10,23 @@ import (
 )
 
 const (
-	ConfigSecretSuffix           = "config"
-	SecureSettingsSecretSuffix   = "secure-settings"
-	FileSettingsSecretSuffix     = "file-settings"
-	PolicyEsConfigSecretSuffix   = "policy-config" //nolint:gosec
-	HTTPServiceSuffix            = "http"
-	InternalHTTPServiceSuffix    = "internal-http"
-	RemoteClusterServiceSuffix   = "remote-cluster"
-	TransportServiceSuffix       = "transport"
-	ElasticUserSecretSuffix      = "elastic-user"
-	InternalUsersSecretSuffix    = "internal-users"
-	UnicastHostsConfigMapSuffix  = "unicast-hosts"
-	LicenseSecretSuffix          = "license"
-	DefaultPodDisruptionBudget   = "default"
-	ScriptsConfigMapSuffix       = "scripts"
+	ConfigSecretSuffix            = "config"
+	SecureSettingsSecretSuffix    = "secure-settings"
+	FileSettingsSecretSuffix      = "file-settings"
+	PolicyEsConfigSecretSuffix    = "policy-config" //nolint:gosec
+	HTTPServiceSuffix             = "http"
+	InternalHTTPServiceSuffix     = "internal-http"
+	RemoteClusterServiceSuffix    = "remote-cluster"
+	TransportServiceSuffix        = "transport"
+	ElasticUserSecretSuffix       = "elastic-user"
+	InternalUsersSecretSuffix     = "internal-users"
+	UnicastHostsConfigMapSuffix   = "unicast-hosts"
+	LicenseSecretSuffix           = "license"
+	DefaultPodDisruptionBudget    = "default"
+	ScriptsConfigMapSuffix        = "scripts"
 	RolesAndFileRealmSecretSuffix = "xpack-file-realm" //nolint:gosec
-	RemoteCaNameSuffix           = "remote-ca"
-	RemoteAPIKeysNameSuffix      = "remote-api-keys"
+	RemoteCaNameSuffix            = "remote-ca"
+	RemoteAPIKeysNameSuffix       = "remote-api-keys"
 )
 
 var (
@@ -154,5 +154,10 @@ type Namer = common_name.Namer
 // DeploymentTransportCertificatesSecret returns the name of the Secret containing transport certificates
 // for a given Deployment in a stateless cluster.
 func DeploymentTransportCertificatesSecret(clusterName, deploymentName string) string {
-	return StatelessNamer.Suffix(clusterName, deploymentName, "transport-certs")
+	return StatelessNamer.Suffix(deploymentName, "transport-certs")
+}
+
+// PodControllerName returns the name of the controller (StatefulSet or Deployment) managing the given pod.
+func PodControllerName(cluster ElasticsearchCluster, nodesetName string) string {
+	return NamerFor(cluster).Suffix(cluster.GetName(), nodesetName)
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -81,13 +82,6 @@ type ElasticsearchStatelessSpec struct {
 	Monitoring commonv1.Monitoring `json:"monitoring,omitempty"`
 }
 
-// ObjectStoreConfig contains the configuration for the object store used for stateless data.
-type ObjectStoreConfig struct {
-	// SecretName is the name of the secret containing the object store credentials.
-	// +kubebuilder:validation:Required
-	SecretName string `json:"secretName"`
-}
-
 // ElasticsearchStatelessTiers defines the tiers of a stateless Elasticsearch cluster.
 type ElasticsearchStatelessTiers struct {
 	// Index tier handles indexing operations.
@@ -105,14 +99,31 @@ type ElasticsearchStatelessTiers struct {
 
 // TierSpec defines the specification for a tier in a stateless Elasticsearch cluster.
 type TierSpec struct {
-	// Replicas is the number of replicas for this tier.
+	// Count is the desired number of pods in this tier.
 	// +kubebuilder:validation:Minimum=0
-	Replicas int32 `json:"replicas"`
+	// +kubebuilder:validation:Required
+	Count int32 `json:"count"`
 
-	// PodTemplate provides customisation options for the Pods belonging to this tier.
+	// RollingUpdate is the rolling update strategy to use when updating pods in this tier.
+	// If empty, the default rolling update strategy will be used.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	RollingUpdate *appsv1.RollingUpdateDeployment `json:"rollingUpdate,omitempty"`
+
+	// PodTemplate is the pod template to use for the pods in this tier.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
+
+	// Config holds the Elasticsearch configuration specific to a tier.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Config *commonv1.Config `json:"config,omitempty"`
+
+	// VolumeClaimTemplate is the volume claim template to use for the caching volume in this tier.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	VolumeClaimTemplate *VolumeClaimTemplate `json:"volumeClaimTemplate,omitempty"`
 }
 
 // ElasticsearchStatelessStatus represents the observed state of ElasticsearchStateless.
@@ -172,8 +183,8 @@ type ElasticsearchStateless struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec      ElasticsearchStatelessSpec                           `json:"spec,omitempty"`
-	Status    ElasticsearchStatelessStatus                         `json:"status,omitempty"`
+	Spec       ElasticsearchStatelessSpec                           `json:"spec,omitempty"`
+	Status     ElasticsearchStatelessStatus                         `json:"status,omitempty"`
 	AssocConfs map[commonv1.ObjectSelector]commonv1.AssociationConf `json:"-"`
 }
 

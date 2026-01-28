@@ -4,6 +4,16 @@
 
 package volume
 
+import (
+	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
+)
+
+// Re-export common volume constants for backward compatibility.
+const (
+	ElasticsearchDataVolumeName = escommon.ElasticsearchDataVolumeName
+	ElasticsearchDataMountPath  = escommon.ElasticsearchDataMountPath
+)
+
 // Default values for the volume name and paths
 const (
 	PodMountedUsersSecretMountPath = "/mnt/elastic-internal/pod-mounted-users" //nolint:gosec
@@ -26,9 +36,6 @@ const (
 	UnicastHostsVolumeName      = "elastic-internal-unicast-hosts"
 	UnicastHostsVolumeMountPath = "/mnt/elastic-internal/unicast-hosts"
 	UnicastHostsFile            = "unicast_hosts.txt"
-
-	ElasticsearchDataVolumeName = "elasticsearch-data"
-	ElasticsearchDataMountPath  = "/usr/share/elasticsearch/data"
 
 	ElasticsearchLogsVolumeName = "elasticsearch-logs"
 	ElasticsearchLogsMountPath  = "/usr/share/elasticsearch/logs"
