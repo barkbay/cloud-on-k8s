@@ -145,7 +145,7 @@ func doReconcile(
 
 	// apiKeyReconciledRemoteClients is used to track all the client clusters for which API keys have already been reconciled.
 	// This is used to garbage collect API keys for clusters which have been deleted and are not in expectedRemoteClusters.
-	apiKeyReconciledRemoteClients := sets.New[types.NamespacedName]()
+	apiKeyReconciledRemoteClients := sets.New[commonv1.KindNamespacedName]()
 
 	// Main loop to:
 	// 1. Create or update expected remote CA.
@@ -156,7 +156,7 @@ func doReconcile(
 		if err != nil {
 			if errors.IsNotFound(err) {
 				// Remote client cluster does not exist, invalidate API keys for that client cluster.
-				apiKeyReconciledRemoteClients.Insert(remoteClientKey.NamespacedName())
+				apiKeyReconciledRemoteClients.Insert(remoteClientKey)
 				results.WithResults(reconcileAPIKeys(ctx, r.Client, activeAPIKeys, remoteServer, nil, nil, esClient, r.keystoreProvider))
 				continue
 			}
@@ -177,7 +177,7 @@ func doReconcile(
 			// Remove from the expected remote cluster to clean up local keystore.
 			delete(expectedRemoteClients, remoteClientKey)
 			// Invalidate API keys for that client cluster.
-			apiKeyReconciledRemoteClients.Insert(remoteClientKey.NamespacedName())
+			apiKeyReconciledRemoteClients.Insert(remoteClientKey)
 			results.WithResults(reconcileAPIKeys(ctx, r.Client, activeAPIKeys, remoteServer, remoteClient, nil, esClient, r.keystoreProvider))
 			continue
 		}
@@ -210,7 +210,7 @@ func doReconcile(
 			continue
 		}
 		// Reconcile the API Keys.
-		apiKeyReconciledRemoteClients.Insert(remoteClientKey.NamespacedName())
+		apiKeyReconciledRemoteClients.Insert(remoteClientKey)
 		results.WithResults(reconcileAPIKeys(ctx, r.Client, activeAPIKeys, remoteServer, remoteClient, remoteClusterRefs, esClient, r.keystoreProvider))
 	}
 

@@ -10,14 +10,13 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"k8s.io/apimachinery/pkg/types"
-
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
 type pendingChangesPerCluster struct {
-	pendingChangesPerCluster map[types.NamespacedName]*pendingChanges
+	pendingChangesPerCluster map[commonv1.KindNamespacedName]*pendingChanges
 	mu                       sync.RWMutex
 }
 
@@ -25,7 +24,7 @@ func NewProvider(c k8s.Client) *Provider {
 	return &Provider{
 		c: c,
 		pendingChangesPerCluster: pendingChangesPerCluster{
-			pendingChangesPerCluster: make(map[types.NamespacedName]*pendingChanges),
+			pendingChangesPerCluster: make(map[commonv1.KindNamespacedName]*pendingChanges),
 		},
 	}
 }
@@ -35,53 +34,64 @@ type Provider struct {
 	pendingChangesPerCluster pendingChangesPerCluster
 }
 
-func (p *Provider) ForgetCluster(name types.NamespacedName) {
+// ForgetCluster removes pending changes for a cluster identified by namespace, name and kind.
+func (p *Provider) ForgetCluster(key commonv1.KindNamespacedName) {
 	if p == nil {
 		return
 	}
 	p.pendingChangesPerCluster.mu.Lock()
 	defer p.pendingChangesPerCluster.mu.Unlock()
-	delete(p.pendingChangesPerCluster.pendingChangesPerCluster, name)
+	delete(p.pendingChangesPerCluster.pendingChangesPerCluster, key)
 }
 
 func (p *Provider) ForCluster(ctx context.Context, log logr.Logger, owner escommon.ElasticsearchCluster) (*APIKeyStore, error) {
 	if p == nil {
 		return nil, nil
 	}
-	name := types.NamespacedName{
-		Namespace: owner.GetNamespace(),
-		Name:      owner.GetName(),
-	}
-	pendingChanges := p.forCluster(name)
+	key := kindNamespacedNameFor(owner)
+	pendingChanges := p.forCluster(key)
 	if pendingChanges != nil {
 		return loadAPIKeyStore(ctx, log, p.c, owner, pendingChanges)
 	}
-	return loadAPIKeyStore(ctx, log, p.c, owner, p.newForCluster(name))
+	return loadAPIKeyStore(ctx, log, p.c, owner, p.newForCluster(key))
 }
 
-func (p *Provider) forCluster(name types.NamespacedName) *pendingChanges {
+// kindNamespacedNameFor creates a KindNamespacedName from an ElasticsearchCluster.
+func kindNamespacedNameFor(cluster escommon.ElasticsearchCluster) commonv1.KindNamespacedName {
+	kind := commonv1.ElasticsearchKind
+	if cluster.IsStateless() {
+		kind = commonv1.ElasticsearchStatelessKind
+	}
+	return commonv1.KindNamespacedName{
+		Kind:      kind,
+		Namespace: cluster.GetNamespace(),
+		Name:      cluster.GetName(),
+	}
+}
+
+func (p *Provider) forCluster(key commonv1.KindNamespacedName) *pendingChanges {
 	if p == nil {
 		return nil
 	}
 	p.pendingChangesPerCluster.mu.RLock()
 	defer p.pendingChangesPerCluster.mu.RUnlock()
-	return p.pendingChangesPerCluster.pendingChangesPerCluster[name]
+	return p.pendingChangesPerCluster.pendingChangesPerCluster[key]
 }
 
-func (p *Provider) newForCluster(name types.NamespacedName) *pendingChanges {
+func (p *Provider) newForCluster(key commonv1.KindNamespacedName) *pendingChanges {
 	if p == nil {
 		return nil
 	}
 	p.pendingChangesPerCluster.mu.Lock()
 	defer p.pendingChangesPerCluster.mu.Unlock()
 	// Check if another goroutine did not create the pending changes
-	currentPendingChanges := p.pendingChangesPerCluster.pendingChangesPerCluster[name]
+	currentPendingChanges := p.pendingChangesPerCluster.pendingChangesPerCluster[key]
 	if currentPendingChanges != nil {
 		return currentPendingChanges
 	}
 	newPendingChanges := &pendingChanges{
 		changes: make(map[string]pendingChange),
 	}
-	p.pendingChangesPerCluster.pendingChangesPerCluster[name] = newPendingChanges
+	p.pendingChangesPerCluster.pendingChangesPerCluster[key] = newPendingChanges
 	return newPendingChanges
 }

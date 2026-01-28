@@ -90,7 +90,8 @@ func reconcileAPIKeys(
 	}
 
 	// Get all the active API keys which have been created for that client cluster.
-	activeAPIKeysForClientCluster, err := activeAPIKeys.ForCluster(remoteClientES.GetNamespace(), remoteClientES.GetName())
+	// We need to consider if the client cluster is stateful or stateless as the API key names differ.
+	activeAPIKeysForClientCluster, err := activeAPIKeys.ForCluster(remoteClientES.GetNamespace(), remoteClientES.GetName(), remoteClientES.IsStateless())
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -106,7 +107,8 @@ func reconcileAPIKeys(
 	}
 
 	// Delete all the keys in the keystore which are not expected.
-	aliases := clientClusterAPIKeyStore.ForCluster(remoteServerES.GetNamespace(), remoteServerES.GetName())
+	remoteServerKind := kindNamespacedNameFor(remoteServerES).Kind
+	aliases := clientClusterAPIKeyStore.ForCluster(remoteServerES.GetNamespace(), remoteServerES.GetName(), remoteServerKind)
 	for existingAlias := range aliases {
 		if expectedAliases.Has(existingAlias) {
 			continue
@@ -144,7 +146,8 @@ func createAPIKey(
 	if err != nil {
 		return err
 	}
-	clientClusterAPIKeyStore.Update(reconciledES.GetName(), reconciledES.GetNamespace(), remoteCluster.Name, apiKey.ID, apiKey.Encoded)
+	reconciledESKind := kindNamespacedNameFor(reconciledES).Kind
+	clientClusterAPIKeyStore.Update(reconciledES.GetName(), reconciledES.GetNamespace(), reconciledESKind, remoteCluster.Name, apiKey.ID, apiKey.Encoded)
 	return nil
 }
 
@@ -200,11 +203,15 @@ func apiKeyNameFor(clientES escommon.ElasticsearchCluster, alias string) string 
 // newMetadataFor returns the metadata to be set in the Elasticsearch API keys metadata in the Elasticsearch cluster
 // state, not on a Kubernetes object.
 func newMetadataFor(clientES escommon.ElasticsearchCluster, expectedHash string) map[string]interface{} {
-	return map[string]interface{}{
+	meta := map[string]interface{}{
 		"elasticsearch.k8s.elastic.co/config-hash": expectedHash,
 		"elasticsearch.k8s.elastic.co/name":        clientES.GetName(),
 		"elasticsearch.k8s.elastic.co/namespace":   clientES.GetNamespace(),
 		"elasticsearch.k8s.elastic.co/uid":         clientES.GetUID(),
 		"elasticsearch.k8s.elastic.co/managed-by":  "eck",
 	}
+	if clientES.IsStateless() {
+		meta["elasticsearch.k8s.elastic.co/is-stateless"] = "true"
+	}
+	return meta
 }

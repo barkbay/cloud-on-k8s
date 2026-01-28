@@ -57,6 +57,9 @@ type AliasValue struct {
 	Namespace string `json:"namespace"`
 	// Name of the remote cluster.
 	Name string `json:"name"`
+	// Kind of the remote cluster (Elasticsearch or ElasticsearchStateless).
+	// Empty value defaults to Elasticsearch for backward compatibility.
+	Kind string `json:"kind,omitempty"`
 	// ID is the key ID.
 	ID string `json:"id"`
 }
@@ -148,7 +151,7 @@ func (aks *APIKeyStore) withPendingChanges() *APIKeyStore {
 		}
 		// Change is not reflected in the Secret yet.
 		pendingAdds++
-		aks.update(pendingChange.remoteClusterName, pendingChange.remoteClusterNamespace, pendingChange.alias, pendingChange.key.keyID, pendingChange.key.encodedValue)
+		aks.update(pendingChange.remoteClusterName, pendingChange.remoteClusterNamespace, pendingChange.remoteClusterKind, pendingChange.alias, pendingChange.key.keyID, pendingChange.key.encodedValue)
 	}
 
 	if pendingAdds > 0 || pendingDeletions > 0 {
@@ -157,21 +160,22 @@ func (aks *APIKeyStore) withPendingChanges() *APIKeyStore {
 	return aks
 }
 
-func (aks *APIKeyStore) Update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue string) *APIKeyStore {
+func (aks *APIKeyStore) Update(remoteClusterName, remoteClusterNamespace, remoteClusterKind, alias, keyID, encodedKeyValue string) *APIKeyStore {
 	// Save the change in memory
-	aks.pendingChanges.AddKey(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue)
+	aks.pendingChanges.AddKey(remoteClusterName, remoteClusterNamespace, remoteClusterKind, alias, keyID, encodedKeyValue)
 	// Load the change in this instance of the store
-	aks.update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue)
+	aks.update(remoteClusterName, remoteClusterNamespace, remoteClusterKind, alias, keyID, encodedKeyValue)
 	return aks
 }
 
-func (aks *APIKeyStore) update(remoteClusterName, remoteClusterNamespace, alias, keyID, encodedKeyValue string) {
+func (aks *APIKeyStore) update(remoteClusterName, remoteClusterNamespace, remoteClusterKind, alias, keyID, encodedKeyValue string) {
 	if aks.aliases == nil {
 		aks.aliases = make(map[string]AliasValue)
 	}
 	aks.aliases[alias] = AliasValue{
 		Namespace: remoteClusterNamespace,
 		Name:      remoteClusterName,
+		Kind:      remoteClusterKind,
 		ID:        keyID,
 	}
 	if aks.encodedKeys == nil {
@@ -284,14 +288,20 @@ func (aks *APIKeyStore) IsEmpty() bool {
 	return len(aks.aliases) == 0
 }
 
-// ForCluster returns
-func (aks *APIKeyStore) ForCluster(namespace string, name string) sets.Set[string] {
+// ForCluster returns all aliases that point to a specific remote cluster.
+// The kind parameter is used to distinguish between stateful (Elasticsearch) and stateless (ElasticsearchStateless) clusters.
+func (aks *APIKeyStore) ForCluster(namespace, name, kind string) sets.Set[string] {
 	aliases := sets.New[string]()
 	if aks == nil {
 		return aliases
 	}
 	for alias, c := range aks.aliases {
-		if c.Name == name && c.Namespace == namespace {
+		// For backward compatibility, empty kind in stored alias defaults to Elasticsearch
+		storedKind := c.Kind
+		if storedKind == "" {
+			storedKind = commonv1.ElasticsearchKind
+		}
+		if c.Name == name && c.Namespace == namespace && storedKind == kind {
 			aliases.Insert(alias)
 		}
 	}

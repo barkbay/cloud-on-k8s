@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/types"
+	v1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
@@ -93,7 +93,7 @@ func (cl *CrossClusterAPIKeyList) KeyNames() sets.Set[string] {
 }
 
 // ForCluster returns all the API keys related to a specific client cluster.
-func (cl *CrossClusterAPIKeyList) ForCluster(namespace string, name string) (*CrossClusterAPIKeyList, error) {
+func (cl *CrossClusterAPIKeyList) ForCluster(namespace string, name string, isStateless bool) (*CrossClusterAPIKeyList, error) {
 	if cl == nil || cl.APIKeys == nil {
 		return nil, nil
 	}
@@ -105,7 +105,8 @@ func (cl *CrossClusterAPIKeyList) ForCluster(namespace string, name string) (*Cr
 		if err != nil {
 			return nil, err
 		}
-		if elasticsearchName.Namespace == namespace && elasticsearchName.Name == name {
+		if elasticsearchName.Namespace == namespace && elasticsearchName.Name == name &&
+			elasticsearchName.IsStateless() == isStateless {
 			crossClusterAPIKeyList.APIKeys = append(crossClusterAPIKeyList.APIKeys, apiKey)
 		}
 	}
@@ -119,25 +120,36 @@ type CrossClusterAPIKey struct {
 }
 
 // GetElasticsearchName returns the name of the client cluster for which this key has been created.
-func (c *CrossClusterAPIKey) GetElasticsearchName() (types.NamespacedName, error) {
+func (c *CrossClusterAPIKey) GetElasticsearchName() (v1.KindNamespacedName, error) {
 	if c == nil {
-		return types.NamespacedName{}, nil
+		return v1.KindNamespacedName{}, nil
 	}
 	esNameInMetadata, ok := c.Metadata["elasticsearch.k8s.elastic.co/name"]
 	if !ok {
-		return types.NamespacedName{}, fmt.Errorf("missing metadata in cross cluster API key: elasticsearch.k8s.elastic.co/name")
+		return v1.KindNamespacedName{}, fmt.Errorf("missing metadata in cross cluster API key: elasticsearch.k8s.elastic.co/name")
 	}
 	esNamespaceInMetadata, ok := c.Metadata["elasticsearch.k8s.elastic.co/namespace"]
 	if !ok {
-		return types.NamespacedName{}, fmt.Errorf("missing metadata in cross cluster API key: elasticsearch.k8s.elastic.co/namespace")
+		return v1.KindNamespacedName{}, fmt.Errorf("missing metadata in cross cluster API key: elasticsearch.k8s.elastic.co/namespace")
 	}
 
-	namespacedName := types.NamespacedName{}
+	isStateless := false
+	if isStatelessValue, ok := c.Metadata["elasticsearch.k8s.elastic.co/is-stateless"]; ok {
+		if isStatelessAsString, ok := isStatelessValue.(string); ok {
+			isStateless = isStatelessAsString == "true"
+		}
+	}
+	namespacedName := v1.KindNamespacedName{
+		Kind: v1.ElasticsearchKind,
+	}
 	if esName, ok := esNameInMetadata.(string); ok {
 		namespacedName.Name = esName
 	}
 	if esNamespace, ok := esNamespaceInMetadata.(string); ok {
 		namespacedName.Namespace = esNamespace
+	}
+	if isStateless {
+		namespacedName.Kind = v1.ElasticsearchStatelessKind
 	}
 	return namespacedName, nil
 }

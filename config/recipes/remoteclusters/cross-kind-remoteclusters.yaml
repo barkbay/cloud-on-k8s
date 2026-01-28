@@ -15,8 +15,7 @@ kind: Namespace
 metadata:
   name: ns2
 ---
-# Stateful Elasticsearch cluster in ns1
-# This cluster references the stateless cluster in ns2 as a remote cluster
+
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
@@ -28,7 +27,7 @@ spec:
     enabled: true
   version: 9.2.2
   remoteClusters:
-    - name: stateless-remote
+    - name: sample-statful-to-stateless
       elasticsearchRef:
         name: es1
         namespace: ns2
@@ -44,6 +43,41 @@ spec:
       config:
         node.store.allow_mmap: false
       count: 3
+---
+# Stateless Elasticsearch cluster in ns1
+# This cluster references the stateless cluster in ns2 as a remote cluster
+apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+kind: ElasticsearchStateless
+metadata:
+  name: es1 # Same name as the stateful cluster to demonstrate cross-kind remote clusters
+  namespace: ns1
+spec:
+  remoteClusters:
+    - name: sample-stateless-to-stateless
+      elasticsearchRef:
+        name: es1
+        namespace: ns2
+        kind: ElasticsearchStateless
+      apiKey:
+        access:
+          search:
+            names:
+              - "*"
+  version: 9.4.0-SNAPSHOT
+  # Required for this cluster to be accessed using remote cluster API keys
+  remoteClusterServer:
+    enabled: true
+  objectStore:
+    bucket: foo
+    client: s3-client
+    type: s3
+  tiers:
+    index:
+      count: 1
+    search:
+      count: 2
+    ml:
+      count: 0
 ---
 # Stateless Elasticsearch cluster in ns2
 # This cluster is configured as a remote cluster server to accept connections

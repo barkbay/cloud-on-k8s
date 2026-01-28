@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
 	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
@@ -152,7 +153,11 @@ func (r *ReconcileRemoteClustersStateful) Reconcile(ctx context.Context, request
 	err := r.Get(ctx, request.NamespacedName, es)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.keystoreProvider.ForgetCluster(request.NamespacedName)
+			r.keystoreProvider.ForgetCluster(commonv1.KindNamespacedName{
+				Kind:      commonv1.ElasticsearchKind,
+				Namespace: request.Namespace,
+				Name:      request.Name,
+			})
 			return deleteAllRemoteCa(ctx, &r.baseRemoteClustersReconciler, request.NamespacedName, false)
 		}
 		return reconcile.Result{}, err
@@ -177,7 +182,11 @@ func (r *ReconcileRemoteClustersStateless) Reconcile(ctx context.Context, reques
 	err := r.Get(ctx, request.NamespacedName, ess)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.keystoreProvider.ForgetCluster(request.NamespacedName)
+			r.keystoreProvider.ForgetCluster(commonv1.KindNamespacedName{
+				Kind:      commonv1.ElasticsearchStatelessKind,
+				Namespace: request.Namespace,
+				Name:      request.Name,
+			})
 			return deleteAllRemoteCa(ctx, &r.baseRemoteClustersReconciler, request.NamespacedName, true)
 		}
 		return reconcile.Result{}, err

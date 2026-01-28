@@ -181,7 +181,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 					// Keystore for es2 must be updated.
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"generated-alias-from-ns1-es2-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","id":"generated-id-from-fake-es-client-eck-ns1-es2-generated-alias-from-ns1-es2-to-ns1-es1-with-api-key"}}`,
+							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"generated-alias-from-ns1-es2-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","kind":"Elasticsearch","id":"generated-id-from-fake-es-client-eck-ns1-es2-generated-alias-from-ns1-es2-to-ns1-es1-with-api-key"}}`,
 						},
 						Labels: map[string]string{
 							"common.k8s.elastic.co/type":                "remote-cluster-api-keys",
@@ -421,7 +421,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 					// Keystore for es2 must be updated.
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"existing-api-key-to-esx":{"namespace":"foo","name":"bar","id":"apikey-to-esx"},"generated-alias-from-ns2-es2-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","id":"generated-id-from-fake-es-client-eck-ns2-es2-generated-alias-from-ns2-es2-to-ns1-es1-with-api-key"}}`,
+							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"existing-api-key-to-esx":{"namespace":"foo","name":"bar","id":"apikey-to-esx"},"generated-alias-from-ns2-es2-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","kind":"Elasticsearch","id":"generated-id-from-fake-es-client-eck-ns2-es2-generated-alias-from-ns2-es2-to-ns1-es1-with-api-key"}}`,
 						},
 						Labels: map[string]string{
 							"common.k8s.elastic.co/type":                "remote-cluster-api-keys",
@@ -440,7 +440,7 @@ func TestRemoteCluster_Reconcile(t *testing.T) {
 					// Keystore for es3 must be created.
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"generated-alias-from-ns3-es3-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","id":"generated-id-from-fake-es-client-eck-ns3-es3-generated-alias-from-ns3-es3-to-ns1-es1-with-api-key"}}`,
+							"elasticsearch.k8s.elastic.co/remote-cluster-api-keys": `{"generated-alias-from-ns3-es3-to-ns1-es1-with-api-key":{"namespace":"ns1","name":"es1","kind":"Elasticsearch","id":"generated-id-from-fake-es-client-eck-ns3-es3-generated-alias-from-ns3-es3-to-ns1-es1-with-api-key"}}`,
 						},
 						Labels: map[string]string{
 							"common.k8s.elastic.co/type":                "remote-cluster-api-keys",
