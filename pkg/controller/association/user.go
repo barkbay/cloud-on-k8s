@@ -102,7 +102,7 @@ func reconcileEsUserSecret(
 	defer span.End()
 
 	esUserSecretMeta := meta.Merge(metadata.Metadata{
-		Labels: map[string]string{eslabel.ClusterNameLabelName: es.GetName()},
+		Labels: map[string]string{eslabel.ClusterNameLabelNameForStateless(es.IsStateless()): es.GetName()},
 	})
 
 	secKey := secretKey(association, userObjectSuffix)

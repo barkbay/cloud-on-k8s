@@ -44,8 +44,8 @@ type AssociatedUser struct {
 // AssociatedUserLabels returns labels matching associated users for the given es resource.
 func AssociatedUserLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return map[string]string{
-		label.ClusterNameLabelName: es.GetName(),
-		commonv1.TypeLabelName:     AssociatedUserType,
+		label.ClusterNameLabelNameForStateless(es.IsStateless()): es.GetName(),
+		commonv1.TypeLabelName: AssociatedUserType,
 	}
 }
 

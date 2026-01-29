@@ -25,16 +25,16 @@ import (
 
 func AddAgentFleetServer(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &agentv1alpha1.Agent{} },
-		ExternalServiceURL:    getFleetServerExternalURL,
+		AssociatedObjTemplate:     func() commonv1.Associated { return &agentv1alpha1.Agent{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &agentv1alpha1.Agent{} },
+		ExternalServiceURL:        getFleetServerExternalURL,
 		ReferencedResourceVersion: referencedFleetServerStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return agent.Namer },
-		ReferencedKinds:         func() []string { return []string{agentv1alpha1.Kind} },
-		AssociationName:         "agent-fleetserver",
-		AssociatedShortName:     "agent",
-		AssociationType:         commonv1.FleetServerAssociationType,
-		AdditionalSecrets:       additionalSecrets,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return agent.Namer },
+		ReferencedKinds:           func() []string { return []string{agentv1alpha1.Kind} },
+		AssociationName:           "agent-fleetserver",
+		AssociatedShortName:       "agent",
+		AssociationType:           commonv1.FleetServerAssociationType,
+		AdditionalSecrets:         additionalSecrets,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				AgentAssociationLabelName:      associated.Name,
@@ -43,8 +43,8 @@ func AddAgentFleetServer(mgr manager.Manager, accessReviewer rbac.AccessReviewer
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.FleetServerConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      agent.NameLabelName,
-		AssociationResourceNamespaceLabelName: agent.NamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return agent.NameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return agent.NamespaceLabelName },
 
 		ElasticsearchUserCreation: nil,
 	})

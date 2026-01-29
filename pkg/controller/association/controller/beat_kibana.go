@@ -27,15 +27,15 @@ import (
 
 func AddBeatKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate: func() commonv1.Associated { return &beatv1beta1.Beat{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &kbv1.Kibana{} },
-		ExternalServiceURL:    getKibanaExternalURL,
+		AssociatedObjTemplate:     func() commonv1.Associated { return &beatv1beta1.Beat{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &kbv1.Kibana{} },
+		ExternalServiceURL:        getKibanaExternalURL,
 		ReferencedResourceVersion: referencedKibanaStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return kbv1.KBNamer },
-		ReferencedKinds:         func() []string { return []string{kbv1.Kind} },
-		AssociationName:         "beat-kibana",
-		AssociatedShortName:     "beat",
-		AssociationType:         commonv1.KibanaAssociationType,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return kbv1.KBNamer },
+		ReferencedKinds:           func() []string { return []string{kbv1.Kind} },
+		AssociationName:           "beat-kibana",
+		AssociatedShortName:       "beat",
+		AssociationType:           commonv1.KibanaAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				BeatAssociationLabelName:      associated.Name,
@@ -44,8 +44,8 @@ func AddBeatKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, para
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.KibanaConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      kblabel.KibanaNameLabelName,
-		AssociationResourceNamespaceLabelName: kblabel.KibanaNamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return kblabel.KibanaNameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return kblabel.KibanaNamespaceLabelName },
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
 			ElasticsearchRef: getElasticsearchFromKibana,

@@ -26,15 +26,15 @@ import (
 
 func AddKibanaEPR(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &eprv1alpha1.PackageRegistry{} },
-		ExternalServiceURL:    getEPRExternalURL,
+		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &eprv1alpha1.PackageRegistry{} },
+		ExternalServiceURL:        getEPRExternalURL,
 		ReferencedResourceVersion: referencedEPRStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return eprv1alpha1.Namer },
-		ReferencedKinds:         func() []string { return []string{eprv1alpha1.Kind} },
-		AssociationName:         "kb-epr",
-		AssociatedShortName:     "kb",
-		AssociationType:         commonv1.PackageRegistryAssociationType,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return eprv1alpha1.Namer },
+		ReferencedKinds:           func() []string { return []string{eprv1alpha1.Kind} },
+		AssociationName:           "kb-epr",
+		AssociatedShortName:       "kb",
+		AssociationType:           commonv1.PackageRegistryAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				KibanaAssociationLabelName:      associated.Name,
@@ -43,8 +43,8 @@ func AddKibanaEPR(mgr manager.Manager, accessReviewer rbac.AccessReviewer, param
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.EPRConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      eprlabels.NameLabelName,
-		AssociationResourceNamespaceLabelName: eprlabels.PackageRegistryNamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return eprlabels.NameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return eprlabels.PackageRegistryNamespaceLabelName },
 		ElasticsearchUserCreation:             nil, // no dedicated ES user required for Kibana->EPR connection
 	})
 }

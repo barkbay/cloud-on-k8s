@@ -25,15 +25,15 @@ import (
 
 func AddKibanaEnt(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate: func() commonv1.Associated { return &kbv1.Kibana{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &entv1.EnterpriseSearch{} },
-		ExternalServiceURL:    getEntExternalURL,
+		AssociatedObjTemplate:     func() commonv1.Associated { return &kbv1.Kibana{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &entv1.EnterpriseSearch{} },
+		ExternalServiceURL:        getEntExternalURL,
 		ReferencedResourceVersion: referencedEntStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return entv1.Namer },
-		ReferencedKinds:         func() []string { return []string{entv1.Kind} },
-		AssociationName:         "kb-ent",
-		AssociatedShortName:     "kb",
-		AssociationType:         commonv1.EntAssociationType,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return entv1.Namer },
+		ReferencedKinds:           func() []string { return []string{entv1.Kind} },
+		AssociationName:           "kb-ent",
+		AssociatedShortName:       "kb",
+		AssociationType:           commonv1.EntAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				KibanaAssociationLabelName:      associated.Name,
@@ -42,8 +42,8 @@ func AddKibanaEnt(mgr manager.Manager, accessReviewer rbac.AccessReviewer, param
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.EntConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      entctl.EnterpriseSearchNameLabelName,
-		AssociationResourceNamespaceLabelName: entctl.EnterpriseSearchNamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return entctl.EnterpriseSearchNameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return entctl.EnterpriseSearchNamespaceLabelName },
 		ElasticsearchUserCreation:             nil, // no dedicated ES user required for Kibana->Ent connection
 	})
 }

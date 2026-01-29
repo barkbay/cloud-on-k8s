@@ -171,8 +171,8 @@ func TestReconcileAssociation_reconcileCASecret(t *testing.T) {
 						return map[string]string{}
 					},
 					AssociationName:                       "kibana-es",
-					AssociationResourceNameLabelName:      "elasticsearch.k8s.elastic.co/cluster-name",
-					AssociationResourceNamespaceLabelName: "elasticsearch.k8s.elastic.co/cluster-namespace",
+					AssociationResourceNameLabelName:      func(_ string) string { return "elasticsearch.k8s.elastic.co/cluster-name" },
+					AssociationResourceNamespaceLabelName: func(_ string) string { return "elasticsearch.k8s.elastic.co/cluster-namespace" },
 				},
 				Client:     tt.client,
 				watches:    watches.DynamicWatches{},
@@ -181,7 +181,7 @@ func TestReconcileAssociation_reconcileCASecret(t *testing.T) {
 
 			// re-use the one used for ES association, but it could be anything else
 			caSecretServiceLabelName := "elasticsearch.k8s.elastic.co/cluster-name"
-			assocMeta := metadata.Propagate(&tt.kibana, metadata.Metadata{Labels: r.AssociationResourceLabels(k8s.ExtractNamespacedName(&tt.kibana), tt.kibana.EsAssociation().AssociationRef().NamespacedName())})
+			assocMeta := metadata.Propagate(&tt.kibana, metadata.Metadata{Labels: r.AssociationResourceLabels(k8s.ExtractNamespacedName(&tt.kibana), tt.kibana.EsAssociation().AssociationRef().NamespacedName(), tt.kibana.EsAssociation().AssociationRefKind())})
 			got, err := r.ReconcileCASecret(
 				context.Background(),
 				tt.kibana.EsAssociation(),

@@ -24,15 +24,15 @@ import (
 
 func AddAgentKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedObjTemplate: func() commonv1.Associated { return &agentv1alpha1.Agent{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &kbv1.Kibana{} },
-		ExternalServiceURL:    getKibanaExternalURL,
+		AssociatedObjTemplate:     func() commonv1.Associated { return &agentv1alpha1.Agent{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &kbv1.Kibana{} },
+		ExternalServiceURL:        getKibanaExternalURL,
 		ReferencedResourceVersion: referencedKibanaStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return kbv1.KBNamer },
-		ReferencedKinds:         func() []string { return []string{kbv1.Kind} },
-		AssociationName:         "agent-kibana",
-		AssociatedShortName:     "agent",
-		AssociationType:         commonv1.KibanaAssociationType,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return kbv1.KBNamer },
+		ReferencedKinds:           func() []string { return []string{kbv1.Kind} },
+		AssociationName:           "agent-kibana",
+		AssociatedShortName:       "agent",
+		AssociationType:           commonv1.KibanaAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				AgentAssociationLabelName:      associated.Name,
@@ -41,8 +41,8 @@ func AddAgentKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, par
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.KibanaConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      kblabel.KibanaNameLabelName,
-		AssociationResourceNamespaceLabelName: kblabel.KibanaNamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return kblabel.KibanaNameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return kblabel.KibanaNamespaceLabelName },
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
 			ElasticsearchRef: getElasticsearchFromKibana,

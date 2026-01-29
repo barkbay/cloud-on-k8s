@@ -117,7 +117,7 @@ func Test_buildPodTemplate(t *testing.T) {
 				},
 			},
 		}}
-	beatWithMonitoring.MonitoringAssociation(commonv1.ObjectSelector{Name: "testes", Namespace: "ns"}).SetAssociationConf(&commonv1.AssociationConf{
+	beatWithMonitoring.MonitoringAssociation(commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: "testes", Namespace: "ns"}}).SetAssociationConf(&commonv1.AssociationConf{
 		AuthSecretName: "secret",
 		AuthSecretKey:  "elastic",
 		CASecretName:   "testbeat-es-testes-ns-monitoring-ca",

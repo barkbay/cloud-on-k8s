@@ -241,7 +241,7 @@ func (b *Beat) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &BeatMonitoringAssociation{
 				Beat: b,
-				ref:  ref.ObjectSelector.WithDefaultNamespace(b.Namespace),
+				ref:  ref.WithDefaultNamespace(b.Namespace),
 			})
 		}
 	}
@@ -249,7 +249,7 @@ func (b *Beat) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &BeatMonitoringAssociation{
 				Beat: b,
-				ref:  ref.ObjectSelector.WithDefaultNamespace(b.Namespace),
+				ref:  ref.WithDefaultNamespace(b.Namespace),
 			})
 		}
 	}
@@ -402,8 +402,8 @@ func init() {
 type BeatMonitoringAssociation struct {
 	// The associated Beat
 	*Beat
-	// ref is the object selector of the monitoring Elasticsearch referenced in the association
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference for the monitoring Elasticsearch in the association
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &BeatMonitoringAssociation{}
@@ -423,7 +423,7 @@ func (beatmon *BeatMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(beatmon.ref)
+	return commonv1.ElasticsearchConfigAnnotationName(beatmon.ref.ObjectSelector)
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationType() commonv1.AssociationType {
@@ -431,15 +431,15 @@ func (beatmon *BeatMonitoringAssociation) AssociationType() commonv1.Association
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
-	return beatmon.ref
+	return beatmon.ref.ObjectSelector
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationRefKind() string {
-	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+	return beatmon.ref.GetKind()
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(beatmon, beatmon.ref, beatmon.monitoringAssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(beatmon, beatmon.ref.ObjectSelector, beatmon.monitoringAssocConfs)
 }
 
 func (beatmon *BeatMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
@@ -447,7 +447,7 @@ func (beatmon *BeatMonitoringAssociation) SetAssociationConf(assocConf *commonv1
 		beatmon.monitoringAssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if assocConf != nil {
-		beatmon.monitoringAssocConfs[beatmon.ref] = *assocConf
+		beatmon.monitoringAssocConfs[beatmon.ref.ObjectSelector] = *assocConf
 	}
 }
 
@@ -456,7 +456,7 @@ func (beatmon *BeatMonitoringAssociation) SupportsAuthAPIKey() bool {
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationID() string {
-	return beatmon.ref.ToID()
+	return beatmon.ref.ObjectSelector.ToID()
 }
 
 // -- HasMonitoring methods
@@ -469,7 +469,7 @@ func (b *Beat) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return b.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 
-func (b *Beat) MonitoringAssociation(esRef commonv1.ObjectSelector) commonv1.Association {
+func (b *Beat) MonitoringAssociation(esRef commonv1.ElasticsearchRef) commonv1.Association {
 	return &BeatMonitoringAssociation{
 		Beat: b,
 		ref:  esRef.WithDefaultNamespace(b.Namespace),

@@ -13,9 +13,64 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
+
+func TestAssociatedUserLabels(t *testing.T) {
+	tests := []struct {
+		name string
+		es   func() interface {
+			GetName() string
+			IsStateless() bool
+		}
+		wantLabels map[string]string
+	}{
+		{
+			name: "stateful Elasticsearch uses ClusterNameLabelName",
+			es: func() interface {
+				GetName() string
+				IsStateless() bool
+			} { return &esv1.Elasticsearch{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-es", Namespace: "ns"},
+			} },
+			wantLabels: map[string]string{
+				label.ClusterNameLabelName: "my-es",
+				commonv1.TypeLabelName:     AssociatedUserType,
+			},
+		},
+		{
+			name: "stateless ElasticsearchStateless uses StatelessClusterNameLabelName",
+			es: func() interface {
+				GetName() string
+				IsStateless() bool
+			} { return &essv1alpha1.ElasticsearchStateless{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-ess", Namespace: "ns"},
+			} },
+			wantLabels: map[string]string{
+				label.StatelessClusterNameLabelName: "my-ess",
+				commonv1.TypeLabelName:              AssociatedUserType,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// We need to use the interface that AssociatedUserLabels expects
+			es := tt.es()
+			switch e := es.(type) {
+			case *esv1.Elasticsearch:
+				got := AssociatedUserLabels(e)
+				require.Equal(t, tt.wantLabels, got)
+			case *essv1alpha1.ElasticsearchStateless:
+				got := AssociatedUserLabels(e)
+				require.Equal(t, tt.wantLabels, got)
+			}
+		})
+	}
+}
 
 func Test_retrieveAssociatedUsers(t *testing.T) {
 	es := &esv1.Elasticsearch{
@@ -73,6 +128,121 @@ func Test_retrieveAssociatedUsers(t *testing.T) {
 			require.Equal(t, tt.want, users)
 		})
 	}
+}
+
+func Test_retrieveAssociatedUsers_stateless(t *testing.T) {
+	ess := &essv1alpha1.ElasticsearchStateless{
+		ObjectMeta: metav1.ObjectMeta{Name: "ess", Namespace: "ns"},
+	}
+	// Also create a stateful ES with same name/namespace to verify isolation
+	es := &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{Name: "ess", Namespace: "ns"},
+	}
+
+	tests := []struct {
+		name    string
+		secrets []client.Object
+		want    users
+	}{
+		{
+			name:    "no associated user secret for stateless",
+			secrets: nil,
+			want:    users{},
+		},
+		{
+			name: "stateless ES only retrieves secrets with StatelessClusterNameLabelName",
+			secrets: []client.Object{
+				// Secret for stateless ES - should be found
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: ess.Namespace,
+						Name:      "stateless-user",
+						Labels:    AssociatedUserLabels(ess),
+					},
+					Data: map[string][]byte{
+						UserNameField:     []byte("stateless-user"),
+						PasswordHashField: []byte("passwordHash1"),
+						UserRolesField:    []byte("kibana_system"),
+					},
+				},
+				// Secret for stateful ES with same name - should NOT be found
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: es.Namespace,
+						Name:      "stateful-user",
+						Labels:    AssociatedUserLabels(es),
+					},
+					Data: map[string][]byte{
+						UserNameField:     []byte("stateful-user"),
+						PasswordHashField: []byte("passwordHash2"),
+						UserRolesField:    []byte("kibana_system"),
+					},
+				},
+			},
+			want: users{
+				{Name: "stateless-user", PasswordHash: []byte("passwordHash1"), Roles: []string{"kibana_system"}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := k8s.NewFakeClient(tt.secrets...)
+			users, err := retrieveAssociatedUsers(c, ess)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, users)
+		})
+	}
+}
+
+func Test_retrieveAssociatedUsers_isolation(t *testing.T) {
+	// Test that stateful and stateless ES with same name/namespace are properly isolated
+	ess := &essv1alpha1.ElasticsearchStateless{
+		ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "ns"},
+	}
+	es := &esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "ns"},
+	}
+
+	secrets := []client.Object{
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "ns",
+				Name:      "stateless-user",
+				Labels:    AssociatedUserLabels(ess),
+			},
+			Data: map[string][]byte{
+				UserNameField:     []byte("stateless-user"),
+				PasswordHashField: []byte("hash1"),
+				UserRolesField:    []byte("role1"),
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "ns",
+				Name:      "stateful-user",
+				Labels:    AssociatedUserLabels(es),
+			},
+			Data: map[string][]byte{
+				UserNameField:     []byte("stateful-user"),
+				PasswordHashField: []byte("hash2"),
+				UserRolesField:    []byte("role2"),
+			},
+		},
+	}
+
+	c := k8s.NewFakeClient(secrets...)
+
+	// Stateless ES should only find stateless user
+	statelessUsers, err := retrieveAssociatedUsers(c, ess)
+	require.NoError(t, err)
+	require.Len(t, statelessUsers, 1)
+	require.Equal(t, "stateless-user", statelessUsers[0].Name)
+
+	// Stateful ES should only find stateful user
+	statefulUsers, err := retrieveAssociatedUsers(c, es)
+	require.NoError(t, err)
+	require.Len(t, statefulUsers, 1)
+	require.Equal(t, "stateful-user", statefulUsers[0].Name)
 }
 
 func Test_parseAssociatedUserSecret(t *testing.T) {

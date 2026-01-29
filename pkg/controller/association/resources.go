@@ -64,16 +64,17 @@ func deleteOrphanedResources(
 
 func isSecretForAssociation(info AssociationInfo, secret corev1.Secret, association commonv1.Association) bool {
 	ref := association.AssociationRef()
+	kind := association.AssociationRefKind()
 
 	// grab name from label (eg. elasticsearch.k8s.elastic.co/cluster-name=elasticsearch1 or kibana.k8s.elastic.co/name=kibana1)
-	resourceName, ok := secret.Labels[info.AssociationResourceNameLabelName]
+	resourceName, ok := secret.Labels[info.AssociationResourceNameLabelName(kind)]
 	if !ok || resourceName != ref.Name {
 		// name points to a resource not involved in this `association`
 		return false
 	}
 
 	// grab namespace from label (eg. elasticsearch.k8s.elastic.co/cluster-namespace=default or kibana.k8s.elastic.co/namespace=default)
-	resourceNamespace, ok := secret.Labels[info.AssociationResourceNamespaceLabelName]
+	resourceNamespace, ok := secret.Labels[info.AssociationResourceNamespaceLabelName(kind)]
 	if !ok || resourceNamespace != ref.Namespace {
 		// namespace points to a resource not involved in this `association`
 		return false

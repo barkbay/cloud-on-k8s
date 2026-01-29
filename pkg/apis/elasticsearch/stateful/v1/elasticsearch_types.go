@@ -485,7 +485,7 @@ func (es *Elasticsearch) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &EsMonitoringAssociation{
 				Elasticsearch: es,
-				ref:           ref.ObjectSelector.WithDefaultNamespace(es.Namespace),
+				ref:           ref.WithDefaultNamespace(es.Namespace),
 			})
 		}
 	}
@@ -493,7 +493,7 @@ func (es *Elasticsearch) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &EsMonitoringAssociation{
 				Elasticsearch: es,
-				ref:           ref.ObjectSelector.WithDefaultNamespace(es.Namespace),
+				ref:           ref.WithDefaultNamespace(es.Namespace),
 			})
 		}
 	}
@@ -506,8 +506,8 @@ func (es *Elasticsearch) GetAssociations() []commonv1.Association {
 type EsMonitoringAssociation struct {
 	// The monitored Elasticsearch cluster from where are collected logs and monitoring metrics
 	*Elasticsearch
-	// ref is the object selector of the Elasticsearch referenced in the Association used to send and store monitoring data
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference in the Association used to send and store monitoring data
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &EsMonitoringAssociation{}
@@ -523,7 +523,7 @@ func (ema *EsMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (ema *EsMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(ema.ref)
+	return commonv1.ElasticsearchConfigAnnotationName(ema.ref.ObjectSelector)
 }
 
 func (ema *EsMonitoringAssociation) AssociationType() commonv1.AssociationType {
@@ -531,15 +531,15 @@ func (ema *EsMonitoringAssociation) AssociationType() commonv1.AssociationType {
 }
 
 func (ema *EsMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
-	return ema.ref
+	return ema.ref.ObjectSelector
 }
 
 func (ema *EsMonitoringAssociation) AssociationRefKind() string {
-	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+	return ema.ref.GetKind()
 }
 
 func (ema *EsMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(ema, ema.ref, ema.AssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(ema, ema.ref.ObjectSelector, ema.AssocConfs)
 }
 
 func (ema *EsMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
@@ -547,7 +547,7 @@ func (ema *EsMonitoringAssociation) SetAssociationConf(assocConf *commonv1.Assoc
 		ema.AssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if assocConf != nil {
-		ema.AssocConfs[ema.ref] = *assocConf
+		ema.AssocConfs[ema.ref.ObjectSelector] = *assocConf
 	}
 }
 
@@ -556,7 +556,7 @@ func (ema *EsMonitoringAssociation) SupportsAuthAPIKey() bool {
 }
 
 func (ema *EsMonitoringAssociation) AssociationID() string {
-	return ema.ref.ToID()
+	return ema.ref.ObjectSelector.ToID()
 }
 
 // HasMonitoring methods
@@ -569,7 +569,7 @@ func (es *Elasticsearch) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return es.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 
-func (es *Elasticsearch) MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association {
+func (es *Elasticsearch) MonitoringAssociation(ref commonv1.ElasticsearchRef) commonv1.Association {
 	return &EsMonitoringAssociation{
 		Elasticsearch: es,
 		ref:           ref.WithDefaultNamespace(es.Namespace),

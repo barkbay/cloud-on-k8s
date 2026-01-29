@@ -61,24 +61,24 @@ func TestLogstashEsAssociation_AssociationConfAnnotationName(t *testing.T) {
 func TestLogstashMonitoringAssociation_AssociationConfAnnotationName(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		ref  commonv1.ObjectSelector
+		ref  commonv1.ElasticsearchRef
 		want string
 	}{
 		{
 			name: "average length names",
-			ref:  commonv1.ObjectSelector{Namespace: "namespace1", Name: "elasticsearch1"},
+			ref:  commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Namespace: "namespace1", Name: "elasticsearch1"}},
 			want: "association.k8s.elastic.co/es-conf-2150608354-sm",
 		},
 		{
 			name: "max length namespace and name (63 and 36 respectively)",
-			ref: commonv1.ObjectSelector{
+			ref: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{
 				Namespace: "longnamespacelongnamespacelongnamespacelongnamespacelongnamespa",
-				Name:      "elasticsearch1elasticsearch1elastics"},
+				Name:      "elasticsearch1elasticsearch1elastics"}},
 			want: "association.k8s.elastic.co/es-conf-3419573237-sm",
 		},
 		{
 			name: "secret name gives a different hash",
-			ref:  commonv1.ObjectSelector{Namespace: "namespace1", SecretName: "elasticsearch1"},
+			ref:  commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Namespace: "namespace1", SecretName: "elasticsearch1"}},
 			want: "association.k8s.elastic.co/es-conf-851285294-sm",
 		},
 	} {

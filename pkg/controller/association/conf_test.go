@@ -580,10 +580,10 @@ func TestRemoveObsoleteAssociationConfs(t *testing.T) {
 			if i == 0 {
 				outputName = "default"
 			}
-		agent.Spec.ElasticsearchRefs = append(agent.Spec.ElasticsearchRefs, agentv1alpha1.Output{
-			ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: nsName.Name, Namespace: nsName.Namespace}},
-			OutputName:       outputName,
-		})
+			agent.Spec.ElasticsearchRefs = append(agent.Spec.ElasticsearchRefs, agentv1alpha1.Output{
+				ElasticsearchRef: commonv1.ElasticsearchRef{ObjectSelector: commonv1.ObjectSelector{Name: nsName.Name, Namespace: nsName.Namespace}},
+				OutputName:       outputName,
+			})
 		}
 		return agent
 	}

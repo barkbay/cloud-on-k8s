@@ -268,7 +268,7 @@ func (a *Agent) GetAssociations() []commonv1.Association {
 	for _, ref := range a.Spec.ElasticsearchRefs {
 		associations = append(associations, &AgentESAssociation{
 			Agent: a,
-			ref:   ref.WithDefaultNamespace(a.Namespace).ObjectSelector,
+			ref:   ref.WithDefaultNamespace(a.Namespace),
 		})
 	}
 
@@ -356,8 +356,8 @@ func (a *Agent) GetObservedGeneration() int64 {
 
 type AgentESAssociation struct {
 	*Agent
-	// ref is the object selector of the Elasticsearch used in Association
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference used in Association, including Kind for stateless support
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &AgentESAssociation{}
@@ -380,6 +380,11 @@ func (aea *AgentESAssociation) AssociationID() string {
 	return fmt.Sprintf("%s-%s", aea.ref.Namespace, aea.ref.NameOrSecretName())
 }
 
+// objectSelector returns the ObjectSelector for use with association conf maps.
+func (aea *AgentESAssociation) objectSelector() commonv1.ObjectSelector {
+	return aea.ref.ObjectSelector
+}
+
 func (aea *AgentESAssociation) Associated() commonv1.Associated {
 	if aea == nil {
 		return nil
@@ -395,19 +400,19 @@ func (aea *AgentESAssociation) AssociationType() commonv1.AssociationType {
 }
 
 func (aea *AgentESAssociation) AssociationRef() commonv1.ObjectSelector {
-	return aea.ref
+	return aea.ref.ObjectSelector
 }
 
 func (aea *AgentESAssociation) AssociationRefKind() string {
-	return "" // Agent ES association uses ObjectSelector, Kind not yet supported
+	return aea.ref.Kind
 }
 
 func (aea *AgentESAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(aea.ref)
+	return commonv1.ElasticsearchConfigAnnotationName(aea.objectSelector())
 }
 
 func (aea *AgentESAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(aea, aea.ref, aea.esAssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(aea, aea.objectSelector(), aea.esAssocConfs)
 }
 
 func (aea *AgentESAssociation) SupportsAuthAPIKey() bool {
@@ -419,7 +424,7 @@ func (aea *AgentESAssociation) SetAssociationConf(conf *commonv1.AssociationConf
 		aea.esAssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if conf != nil {
-		aea.esAssocConfs[aea.ref] = *conf
+		aea.esAssocConfs[aea.objectSelector()] = *conf
 	}
 }
 

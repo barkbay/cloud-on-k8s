@@ -92,12 +92,12 @@ type AssociationInfo struct { //nolint:revive
 	ReferencedResourceVersion func(c k8s.Client, association commonv1.Association) (string, bool, error)
 	// AssociationResourceNameLabelName is a label used on resources needed for an association. It identifies the name
 	// of the associated resource (eg. user secret allowing to connect Beat to Kibana will have this label pointing to the
-	// Beat resource).
-	AssociationResourceNameLabelName string
+	// Beat resource). The kind parameter is the Kind of the referenced resource (e.g., "Elasticsearch" or "ElasticsearchStateless").
+	AssociationResourceNameLabelName func(kind string) string
 	// AssociationResourceNamespaceLabelName is a label used on resources needed for an association. It identifies the
 	// namespace of the associated resource (eg. user secret allowing to connect Beat to Kibana will have this label
-	// pointing to the Beat resource).
-	AssociationResourceNamespaceLabelName string
+	// pointing to the Beat resource). The kind parameter is the Kind of the referenced resource.
+	AssociationResourceNamespaceLabelName func(kind string) string
 
 	// ElasticsearchUserCreation specifies settings to create an Elasticsearch user as part of the association.
 	// May be nil if no user creation is required.
@@ -107,7 +107,9 @@ type AssociationInfo struct { //nolint:revive
 type ElasticsearchUserCreation struct {
 	// ElasticsearchRef is a function which returns the maybe transitive Elasticsearch reference (eg. APMServer -> Kibana -> Elasticsearch).
 	// In the case of a transitive reference this is used to create the Elasticsearch user.
-	ElasticsearchRef func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error)
+	// Returns: (found bool, ref ObjectSelector, kind string, err error)
+	// The kind return value specifies the Kind of the Elasticsearch resource ("Elasticsearch" or "ElasticsearchStateless").
+	ElasticsearchRef func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, string, error)
 	// UserSecretSuffix is used as a suffix in the name of the secret holding user data in the associated namespace.
 	UserSecretSuffix string
 	// ESUserRole is the role to use for the Elasticsearch user created by the association.
@@ -116,27 +118,31 @@ type ElasticsearchUserCreation struct {
 
 // AssociationResourceLabels returns all labels required by a resource to allow identifying both its Associated resource
 // (ie. Kibana for Kibana-ES association) and its Association resource (ie. ES for APM-ES association).
+// The kind parameter is the Kind of the referenced resource (e.g., "Elasticsearch" or "ElasticsearchStateless").
 func (a AssociationInfo) AssociationResourceLabels(
 	associated types.NamespacedName,
 	association types.NamespacedName,
+	kind string,
 ) client.MatchingLabels {
 	return maps.Merge(
 		map[string]string{
-			a.AssociationResourceNameLabelName:      association.Name,
-			a.AssociationResourceNamespaceLabelName: association.Namespace,
+			a.AssociationResourceNameLabelName(kind):      association.Name,
+			a.AssociationResourceNamespaceLabelName(kind): association.Namespace,
 		},
 		a.Labels(associated),
 	)
 }
 
 // userLabelSelector returns labels selecting the ES user secret, including association labels and user type label.
+// The kind parameter is the Kind of the referenced resource (e.g., "Elasticsearch" or "ElasticsearchStateless").
 func (a AssociationInfo) userLabelSelector(
 	associated types.NamespacedName,
 	association types.NamespacedName,
+	kind string,
 ) client.MatchingLabels {
 	return maps.Merge(
 		map[string]string{commonv1.TypeLabelName: user.AssociatedUserType},
-		a.AssociationResourceLabels(associated, association),
+		a.AssociationResourceLabels(associated, association, kind),
 	)
 }
 
@@ -173,8 +179,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	associatedKey := k8s.ExtractNamespacedName(associated)
-
 	if common.IsUnmanaged(ctx, associated) {
 		log.Info("Object is currently not managed by this controller. Skipping reconciliation")
 		return reconcile.Result{}, nil
@@ -199,6 +203,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	// garbage collect leftover resources that are not required anymore
+	associatedKey := k8s.ExtractNamespacedName(associated)
 	if err := deleteOrphanedResources(ctx, r.Client, r.AssociationInfo, associatedKey, associations); err != nil {
 		log.Error(err, "Error while trying to delete orphaned resources. Continuing.")
 	}
@@ -240,7 +245,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	log := ulog.FromContext(ctx)
 
 	// the referenced object can be an Elastic resource or a custom Secret
-	kind := commonv1.AssociationRefKindOrDefault(association, commonv1.ElasticsearchKind)
+	kind := association.AssociationRefKind()
 	referencedObj := r.ReferencedObjTemplate(kind)
 	if assocRef.IsExternal() {
 		referencedObj = &corev1.Secret{}
@@ -268,7 +273,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 
 	// metadata to propagate to children
-	assocMeta := metadata.Propagate(association, metadata.Metadata{Labels: r.AssociationResourceLabels(k8s.ExtractNamespacedName(association), association.AssociationRef().NamespacedName())})
+	assocMeta := metadata.Propagate(association, metadata.Metadata{Labels: r.AssociationResourceLabels(k8s.ExtractNamespacedName(association), association.AssociationRef().NamespacedName(), kind)})
 	namer := r.AssociationInfo.ReferencedResourceNamer(kind)
 	caSecret, err := r.ReconcileCASecret(
 		ctx,
@@ -332,7 +337,7 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 	}
 
 	// since Elasticsearch can be a transitive reference we need to use the provided ElasticsearchRef function
-	found, esAssocRef, err := r.ElasticsearchUserCreation.ElasticsearchRef(r.Client, association)
+	found, esAssocRef, esKind, err := r.ElasticsearchUserCreation.ElasticsearchRef(r.Client, association)
 	if err != nil {
 		return commonv1.AssociationFailed, err
 	}
@@ -350,8 +355,8 @@ func (r *Reconciler) reconcileAssociation(ctx context.Context, association commo
 		return r.updateAssocConf(ctx, expectedAssocConf, association)
 	}
 
-	// retrieve the Elasticsearch resource
-	es, associationStatus, err := r.getElasticsearch(ctx, association, esAssocRef)
+	// retrieve the Elasticsearch resource using the kind from the transitive reference
+	es, associationStatus, err := r.getElasticsearch(ctx, association, esAssocRef, esKind)
 	if associationStatus != "" || err != nil {
 		return associationStatus, err
 	}
@@ -437,12 +442,15 @@ func (r *Reconciler) getElasticsearch(
 	ctx context.Context,
 	association commonv1.Association,
 	elasticsearchRef commonv1.ObjectSelector,
+	kind string,
 ) (escommon.ElasticsearchCluster, commonv1.AssociationStatus, error) {
 	span, ctx := apm.StartSpan(ctx, "get_elasticsearch", tracing.SpanTypeApp)
 	defer span.End()
 
-	// Determine the kind from the association reference
-	kind := commonv1.AssociationRefKindOrDefault(association, commonv1.ElasticsearchKind)
+	// Default to stateful Elasticsearch if kind is not specified
+	if kind == "" {
+		kind = commonv1.ElasticsearchKind
+	}
 
 	var es escommon.ElasticsearchCluster
 	var err error
@@ -486,6 +494,7 @@ func (r *Reconciler) Unbind(ctx context.Context, association commonv1.Associatio
 		r.userLabelSelector(
 			k8s.ExtractNamespacedName(association),
 			association.AssociationRef().NamespacedName(),
+			association.AssociationRefKind(),
 		)); err != nil {
 		return err
 	}

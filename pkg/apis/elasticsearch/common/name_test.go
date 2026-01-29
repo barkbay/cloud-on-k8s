@@ -48,7 +48,7 @@ func (m *mockCluster) GetAssociations() []commonv1.Association               { r
 func (m *mockCluster) GetIdentityLabels() map[string]string                  { return nil }
 func (m *mockCluster) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef { return nil }
 func (m *mockCluster) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef    { return nil }
-func (m *mockCluster) MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association {
+func (m *mockCluster) MonitoringAssociation(ref commonv1.ElasticsearchRef) commonv1.Association {
 	return nil
 }
 

@@ -196,15 +196,6 @@ func AssociationRefIsStateless(assoc Association) bool {
 	return assoc.AssociationRefKind() == ElasticsearchStatelessKind
 }
 
-// AssociationRefKindOrDefault returns the association's ref kind if set, otherwise the provided default.
-func AssociationRefKindOrDefault(assoc Association, defaultKind string) string {
-	kind := assoc.AssociationRefKind()
-	if kind != "" {
-		return kind
-	}
-	return defaultKind
-}
-
 // FormatNameWithID conditionally formats `template`. `template` is expected to have a single %s verb.
 // If `id` is empty, the %s verb will be formatted with empty string. Otherwise %s verb will be replaced with `-id`.
 // Eg:
@@ -366,12 +357,12 @@ func (r ElasticsearchRef) IsStateless() bool {
 	return r.Kind == ElasticsearchStatelessKind
 }
 
-// GetKindOrDefault returns the Kind if set, otherwise returns the provided default.
-func (r ElasticsearchRef) GetKindOrDefault(defaultKind string) string {
+// GetKind returns the Kind if set, otherwise returns the provided default.
+func (r ElasticsearchRef) GetKind() string {
 	if r.Kind != "" {
 		return r.Kind
 	}
-	return defaultKind
+	return ElasticsearchKind
 }
 
 // WithDefaultNamespace returns a copy of the ElasticsearchRef with the namespace defaulted if not set.

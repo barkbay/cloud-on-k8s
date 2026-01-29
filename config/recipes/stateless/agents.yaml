@@ -29,6 +29,13 @@ spec:
         node.store.allow_mmap: false
       count: 1
     search:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
       config:
         node.store.allow_mmap: false
       count: 2
@@ -100,7 +107,7 @@ spec:
   kibanaRef:
     name: kibana
   elasticsearchRefs:
-    - name: elasticsearch
+    - name: es1
       kind: ElasticsearchStateless
   mode: fleet
   fleetServerEnabled: true
@@ -114,7 +121,39 @@ spec:
         securityContext:
           runAsUser: 0
 ---
-
+apiVersion: agent.k8s.elastic.co/v1alpha1
+kind: Agent
+metadata:
+  name: elastic-agent
+spec:
+  version: 9.2.2
+  kibanaRef:
+    name: kibana
+  fleetServerRef:
+    name: fleet-server
+  # Advanced configuration is possible in Fleet mode to
+  # customize the agent's providers.
+  # See https://www.elastic.co/docs/reference/fleet/advanced-kubernetes-managed-by-fleet
+  # for more information.
+  # Note: the sample configuration below enables deployment metadata collection which is not
+  # enabled by default because it has a performance impact.
+  # config:
+  #   fleet:
+  #     enabled: true
+  #   providers.kubernetes:
+  #     add_resource_metadata:
+  #       deployment: true
+  mode: fleet
+  policyID: eck-agent
+  daemonSet:
+    podTemplate:
+      spec:
+        serviceAccountName: elastic-agent
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
+        automountServiceAccountToken: true
+        securityContext:
+          runAsUser: 0
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

@@ -60,6 +60,66 @@ func TestExtractVersion(t *testing.T) {
 	}
 }
 
+func TestClusterNameLabelNameForKind(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+		want string
+	}{
+		{
+			name: "stateful Elasticsearch",
+			kind: commonv1.ElasticsearchKind,
+			want: ClusterNameLabelName,
+		},
+		{
+			name: "stateless ElasticsearchStateless",
+			kind: commonv1.ElasticsearchStatelessKind,
+			want: StatelessClusterNameLabelName,
+		},
+		{
+			name: "empty kind defaults to stateful",
+			kind: "",
+			want: ClusterNameLabelName,
+		},
+		{
+			name: "unknown kind defaults to stateful",
+			kind: "SomeOtherKind",
+			want: ClusterNameLabelName,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClusterNameLabelNameForKind(tt.kind)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestClusterNameLabelNameForStateless(t *testing.T) {
+	tests := []struct {
+		name        string
+		isStateless bool
+		want        string
+	}{
+		{
+			name:        "stateful cluster returns ClusterNameLabelName",
+			isStateless: false,
+			want:        ClusterNameLabelName,
+		},
+		{
+			name:        "stateless cluster returns StatelessClusterNameLabelName",
+			isStateless: true,
+			want:        StatelessClusterNameLabelName,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClusterNameLabelNameForStateless(tt.isStateless)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestNewPodLabels(t *testing.T) {
 	type args struct {
 		es        types.NamespacedName

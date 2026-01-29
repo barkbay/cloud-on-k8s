@@ -28,15 +28,15 @@ import (
 
 func AddApmKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params operator.Parameters) error {
 	return association.AddAssociationController(mgr, accessReviewer, params, association.AssociationInfo{
-		AssociatedShortName:   "apm",
-		AssociatedObjTemplate: func() commonv1.Associated { return &apmv1.ApmServer{} },
-		ReferencedObjTemplate: func(_ string) client.Object { return &kbv1.Kibana{} },
-		ExternalServiceURL:    getKibanaExternalURL,
+		AssociatedShortName:       "apm",
+		AssociatedObjTemplate:     func() commonv1.Associated { return &apmv1.ApmServer{} },
+		ReferencedObjTemplate:     func(_ string) client.Object { return &kbv1.Kibana{} },
+		ExternalServiceURL:        getKibanaExternalURL,
 		ReferencedResourceVersion: referencedKibanaStatusVersion,
-		ReferencedResourceNamer: func(_ string) name.Namer { return kbv1.KBNamer },
-		ReferencedKinds:         func() []string { return []string{kbv1.Kind} },
-		AssociationName:         "apm-kibana",
-		AssociationType:         commonv1.KibanaAssociationType,
+		ReferencedResourceNamer:   func(_ string) name.Namer { return kbv1.KBNamer },
+		ReferencedKinds:           func() []string { return []string{kbv1.Kind} },
+		AssociationName:           "apm-kibana",
+		AssociationType:           commonv1.KibanaAssociationType,
 		Labels: func(associated types.NamespacedName) map[string]string {
 			return map[string]string{
 				ApmAssociationLabelName:      associated.Name,
@@ -45,8 +45,8 @@ func AddApmKibana(mgr manager.Manager, accessReviewer rbac.AccessReviewer, param
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.KibanaConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      kblabel.KibanaNameLabelName,
-		AssociationResourceNamespaceLabelName: kblabel.KibanaNamespaceLabelName,
+		AssociationResourceNameLabelName:      func(_ string) string { return kblabel.KibanaNameLabelName },
+		AssociationResourceNamespaceLabelName: func(_ string) string { return kblabel.KibanaNamespaceLabelName },
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
 			ElasticsearchRef: getElasticsearchFromKibana,
@@ -126,20 +126,22 @@ func referencedKibanaStatusVersion(c k8s.Client, kbAssociation commonv1.Associat
 }
 
 // getElasticsearchFromKibana returns the Elasticsearch reference in which the user must be created for this association.
-func getElasticsearchFromKibana(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error) {
+// It returns the ObjectSelector, the Kind of the Elasticsearch resource, and any error.
+func getElasticsearchFromKibana(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, string, error) {
 	kibanaRef := association.AssociationRef()
 	if !kibanaRef.IsDefined() {
-		return false, commonv1.ObjectSelector{}, nil
+		return false, commonv1.ObjectSelector{}, "", nil
 	}
 
 	kb := kbv1.Kibana{}
 	err := c.Get(context.Background(), kibanaRef.NamespacedName(), &kb)
 	if errors.IsNotFound(err) {
-		return false, commonv1.ObjectSelector{}, nil
+		return false, commonv1.ObjectSelector{}, "", nil
 	}
 	if err != nil {
-		return false, commonv1.ObjectSelector{}, err
+		return false, commonv1.ObjectSelector{}, "", err
 	}
 
-	return true, kb.EsAssociation().AssociationRef(), nil
+	esAssoc := kb.EsAssociation()
+	return true, esAssoc.AssociationRef(), esAssoc.AssociationRefKind(), nil
 }

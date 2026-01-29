@@ -240,7 +240,7 @@ func (l *Logstash) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &LogstashMonitoringAssociation{
 				Logstash: l,
-				ref:      ref.ObjectSelector.WithDefaultNamespace(l.Namespace),
+				ref:      ref.WithDefaultNamespace(l.Namespace),
 			})
 		}
 	}
@@ -248,7 +248,7 @@ func (l *Logstash) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &LogstashMonitoringAssociation{
 				Logstash: l,
-				ref:      ref.ObjectSelector.WithDefaultNamespace(l.Namespace),
+				ref:      ref.WithDefaultNamespace(l.Namespace),
 			})
 		}
 	}
@@ -353,8 +353,8 @@ func (lses *LogstashESAssociation) AssociationID() string {
 type LogstashMonitoringAssociation struct {
 	// The associated Logstash
 	*Logstash
-	// ref is the object selector of the monitoring Elasticsearch referenced in the Association
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference for the monitoring Elasticsearch in the Association
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &LogstashMonitoringAssociation{}
@@ -375,7 +375,7 @@ func (lsmon *LogstashMonitoringAssociation) Associated() commonv1.Associated {
 
 func (lsmon *LogstashMonitoringAssociation) AssociationConfAnnotationName() string {
 	// Use a custom suffix for monitoring elasticsearchRefs to avoid clashes with other elasticsearchRefs
-	return commonv1.FormatNameWithID(commonv1.ElasticsearchConfigAnnotationNameBase+"%s-sm", hash.HashObject(lsmon.ref))
+	return commonv1.FormatNameWithID(commonv1.ElasticsearchConfigAnnotationNameBase+"%s-sm", hash.HashObject(lsmon.ref.ObjectSelector))
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationType() commonv1.AssociationType {
@@ -383,15 +383,15 @@ func (lsmon *LogstashMonitoringAssociation) AssociationType() commonv1.Associati
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
-	return lsmon.ref
+	return lsmon.ref.ObjectSelector
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationRefKind() string {
-	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+	return lsmon.ref.GetKind()
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(lsmon, lsmon.ref, lsmon.MonitoringAssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(lsmon, lsmon.ref.ObjectSelector, lsmon.MonitoringAssocConfs)
 }
 
 func (lsmon *LogstashMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
@@ -399,7 +399,7 @@ func (lsmon *LogstashMonitoringAssociation) SetAssociationConf(assocConf *common
 		lsmon.MonitoringAssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if assocConf != nil {
-		lsmon.MonitoringAssocConfs[lsmon.ref] = *assocConf
+		lsmon.MonitoringAssocConfs[lsmon.ref.ObjectSelector] = *assocConf
 	}
 }
 
@@ -408,7 +408,7 @@ func (lsmon *LogstashMonitoringAssociation) SupportsAuthAPIKey() bool {
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationID() string {
-	return lsmon.ref.ToID()
+	return lsmon.ref.ObjectSelector.ToID()
 }
 
 func (l *Logstash) GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef {
@@ -419,7 +419,7 @@ func (l *Logstash) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return l.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 
-func (l *Logstash) MonitoringAssociation(esRef commonv1.ObjectSelector) commonv1.Association {
+func (l *Logstash) MonitoringAssociation(esRef commonv1.ElasticsearchRef) commonv1.Association {
 	return &LogstashMonitoringAssociation{
 		Logstash: l,
 		ref:      esRef.WithDefaultNamespace(l.Namespace),

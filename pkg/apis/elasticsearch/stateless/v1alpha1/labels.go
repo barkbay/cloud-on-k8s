@@ -11,7 +11,7 @@ import (
 // GetIdentityLabels will return the common Elastic assigned labels for the ElasticsearchStateless cluster.
 func (ess *ElasticsearchStateless) GetIdentityLabels() map[string]string {
 	return map[string]string{
-		commonv1.TypeLabelName:                                 "elasticsearch-stateless",
+		commonv1.TypeLabelName:                                "elasticsearch-stateless",
 		"elasticsearch.k8s.elastic.co/stateless-cluster-name": ess.Name,
 	}
 }

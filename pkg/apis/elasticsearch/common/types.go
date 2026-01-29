@@ -301,8 +301,8 @@ type ElasticsearchCluster interface {
 	GetMonitoringMetricsRefs() []commonv1.ElasticsearchRef
 	// GetMonitoringLogsRefs returns the list of Elasticsearch refs for logs monitoring.
 	GetMonitoringLogsRefs() []commonv1.ElasticsearchRef
-	// MonitoringAssociation returns the monitoring association for the given selector.
-	MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association
+	// MonitoringAssociation returns the monitoring association for the given Elasticsearch reference.
+	MonitoringAssociation(ref commonv1.ElasticsearchRef) commonv1.Association
 
 	// Status-related methods for reconciliation state management
 

@@ -18,6 +18,7 @@ import (
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	kbv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/kibana/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/password/fixtures"
@@ -300,4 +301,171 @@ func GetSecret(list corev1.SecretList, namespacedName types.NamespacedName) *cor
 		}
 	}
 	return nil
+}
+
+func Test_reconcileEsUser_statelessES(t *testing.T) {
+	// Test that user secrets for stateless ES use StatelessClusterNameLabelName
+	essFixture := essv1alpha1.ElasticsearchStateless{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ess-foo",
+			Namespace: "default",
+			UID:       "f8d564d9-885e-11e9-896d-08002703f062",
+		},
+	}
+
+	var kibanaFixtureUID types.UID = "82257b19-8862-11e9-896d-08002703f062"
+
+	kibanaFixture := kbv1.Kibana{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kibana-foo",
+			Namespace: "default",
+			UID:       kibanaFixtureUID,
+		},
+		Spec: kbv1.KibanaSpec{
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      essFixture.Name,
+					Namespace: essFixture.Namespace,
+				},
+			},
+		},
+	}
+
+	c := k8s.NewFakeClient()
+	err := reconcileEsUserSecret(
+		context.Background(),
+		c,
+		kibanaFixture.EsAssociation(),
+		metadata.Metadata{
+			Labels: map[string]string{
+				associationLabelName:      kibanaFixture.Name,
+				associationLabelNamespace: kibanaFixture.Namespace,
+			},
+		},
+		"kibana_system",
+		"kibana-user",
+		&essFixture,
+		fixtures.MustTestRandomGenerator(24),
+	)
+	require.NoError(t, err)
+
+	// Check that the ES user secret was created with the correct stateless label
+	userName := "default-kibana-foo-kibana-user-ess" // -ess suffix for stateless
+	var esUser corev1.Secret
+	err = c.Get(context.Background(), types.NamespacedName{Name: userName, Namespace: "default"}, &esUser)
+	require.NoError(t, err)
+
+	// Verify StatelessClusterNameLabelName is used instead of ClusterNameLabelName
+	assert.Equal(t, "ess-foo", esUser.Labels[label.StatelessClusterNameLabelName])
+	assert.Empty(t, esUser.Labels[label.ClusterNameLabelName])
+	assert.Equal(t, esuser.AssociatedUserType, esUser.Labels[commonv1.TypeLabelName])
+}
+
+func Test_reconcileEsUser_statefulAndStatelessIsolation(t *testing.T) {
+	// Test that secrets for stateful and stateless ES with the same name are properly isolated
+	esFixture := esv1.Elasticsearch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "same-name",
+			Namespace: "default",
+			UID:       "es-uid",
+		},
+	}
+	essFixture := essv1alpha1.ElasticsearchStateless{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "same-name",
+			Namespace: "default",
+			UID:       "ess-uid",
+		},
+	}
+
+	kibanaForStateful := kbv1.Kibana{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kb-stateful",
+			Namespace: "default",
+			UID:       "kb-stateful-uid",
+		},
+		Spec: kbv1.KibanaSpec{
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      esFixture.Name,
+					Namespace: esFixture.Namespace,
+				},
+			},
+		},
+	}
+	kibanaForStateless := kbv1.Kibana{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kb-stateless",
+			Namespace: "default",
+			UID:       "kb-stateless-uid",
+		},
+		Spec: kbv1.KibanaSpec{
+			ElasticsearchRef: commonv1.ElasticsearchRef{
+				ObjectSelector: commonv1.ObjectSelector{
+					Name:      essFixture.Name,
+					Namespace: essFixture.Namespace,
+				},
+			},
+		},
+	}
+
+	c := k8s.NewFakeClient()
+
+	// Create user for stateful ES
+	err := reconcileEsUserSecret(
+		context.Background(),
+		c,
+		kibanaForStateful.EsAssociation(),
+		metadata.Metadata{Labels: map[string]string{
+			associationLabelName:      kibanaForStateful.Name,
+			associationLabelNamespace: kibanaForStateful.Namespace,
+		}},
+		"kibana_system",
+		"kibana-user",
+		&esFixture,
+		fixtures.MustTestRandomGenerator(24),
+	)
+	require.NoError(t, err)
+
+	// Create user for stateless ES
+	err = reconcileEsUserSecret(
+		context.Background(),
+		c,
+		kibanaForStateless.EsAssociation(),
+		metadata.Metadata{Labels: map[string]string{
+			associationLabelName:      kibanaForStateless.Name,
+			associationLabelNamespace: kibanaForStateless.Namespace,
+		}},
+		"kibana_system",
+		"kibana-user",
+		&essFixture,
+		fixtures.MustTestRandomGenerator(24),
+	)
+	require.NoError(t, err)
+
+	// List all secrets
+	var secrets corev1.SecretList
+	err = c.List(context.Background(), &secrets)
+	require.NoError(t, err)
+
+	// Find secrets by their labels
+	var statefulUserSecret, statelessUserSecret *corev1.Secret
+	for i := range secrets.Items {
+		s := &secrets.Items[i]
+		if s.Labels[label.ClusterNameLabelName] == "same-name" && s.Labels[commonv1.TypeLabelName] == esuser.AssociatedUserType {
+			statefulUserSecret = s
+		}
+		if s.Labels[label.StatelessClusterNameLabelName] == "same-name" && s.Labels[commonv1.TypeLabelName] == esuser.AssociatedUserType {
+			statelessUserSecret = s
+		}
+	}
+
+	// Both secrets should exist and be different
+	require.NotNil(t, statefulUserSecret, "stateful user secret should exist")
+	require.NotNil(t, statelessUserSecret, "stateless user secret should exist")
+	require.NotEqual(t, statefulUserSecret.Name, statelessUserSecret.Name, "secrets should have different names")
+
+	// Verify labels are correct
+	assert.Empty(t, statefulUserSecret.Labels[label.StatelessClusterNameLabelName])
+	assert.Empty(t, statelessUserSecret.Labels[label.ClusterNameLabelName])
 }

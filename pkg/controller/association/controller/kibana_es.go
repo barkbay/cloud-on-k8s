@@ -67,12 +67,12 @@ func AddKibanaES(mgr manager.Manager, accessReviewer rbac.AccessReviewer, params
 			}
 		},
 		AssociationConfAnnotationNameBase:     commonv1.ElasticsearchConfigAnnotationNameBase,
-		AssociationResourceNameLabelName:      eslabel.ClusterNameLabelName,
-		AssociationResourceNamespaceLabelName: eslabel.ClusterNamespaceLabelName,
+		AssociationResourceNameLabelName:      eslabel.ClusterNameLabelNameForKind,
+		AssociationResourceNamespaceLabelName: func(_ string) string { return eslabel.ClusterNamespaceLabelName },
 
 		ElasticsearchUserCreation: &association.ElasticsearchUserCreation{
-			ElasticsearchRef: func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, error) {
-				return true, association.AssociationRef(), nil
+			ElasticsearchRef: func(c k8s.Client, association commonv1.Association) (bool, commonv1.ObjectSelector, string, error) {
+				return true, association.AssociationRef(), association.AssociationRefKind(), nil
 			},
 			UserSecretSuffix: "kibana-user",
 			ESUserRole: func(associated commonv1.Associated) (string, error) {

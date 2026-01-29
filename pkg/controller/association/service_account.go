@@ -52,16 +52,16 @@ const (
 
 func applicationSecretLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return labels.AddCredentialsLabel(map[string]string{
-		label.ClusterNamespaceLabelName: es.GetNamespace(),
-		label.ClusterNameLabelName:      es.GetName(),
+		label.ClusterNamespaceLabelName:                       es.GetNamespace(),
+		label.ClusterNameLabelNameForStateless(es.IsStateless()): es.GetName(),
 	})
 }
 
 func esSecretsLabels(es escommon.ElasticsearchCluster) map[string]string {
 	return map[string]string{
-		label.ClusterNamespaceLabelName: es.GetNamespace(),
-		label.ClusterNameLabelName:      es.GetName(),
-		commonv1.TypeLabelName:          esuser.ServiceAccountTokenType,
+		label.ClusterNamespaceLabelName:                          es.GetNamespace(),
+		label.ClusterNameLabelNameForStateless(es.IsStateless()): es.GetName(),
+		commonv1.TypeLabelName:                                   esuser.ServiceAccountTokenType,
 	}
 }
 

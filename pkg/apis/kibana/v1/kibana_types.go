@@ -188,7 +188,7 @@ func (k *Kibana) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &KbMonitoringAssociation{
 				Kibana: k,
-				ref:    ref.ObjectSelector.WithDefaultNamespace(k.Namespace),
+				ref:    ref.WithDefaultNamespace(k.Namespace),
 			})
 		}
 	}
@@ -196,7 +196,7 @@ func (k *Kibana) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &KbMonitoringAssociation{
 				Kibana: k,
-				ref:    ref.ObjectSelector.WithDefaultNamespace(k.Namespace),
+				ref:    ref.WithDefaultNamespace(k.Namespace),
 			})
 		}
 	}
@@ -404,8 +404,8 @@ func (kbent *KibanaEntAssociation) AssociationID() string {
 type KbMonitoringAssociation struct {
 	// The associated Kibana
 	*Kibana
-	// ref is the object selector of the monitoring Elasticsearch referenced in the Association
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference for the monitoring Elasticsearch in the Association
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &KbMonitoringAssociation{}
@@ -425,7 +425,7 @@ func (kbmon *KbMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(kbmon.ref)
+	return commonv1.ElasticsearchConfigAnnotationName(kbmon.ref.ObjectSelector)
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationType() commonv1.AssociationType {
@@ -433,15 +433,15 @@ func (kbmon *KbMonitoringAssociation) AssociationType() commonv1.AssociationType
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
-	return kbmon.ref
+	return kbmon.ref.ObjectSelector
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationRefKind() string {
-	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+	return kbmon.ref.GetKind()
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(kbmon, kbmon.ref, kbmon.monitoringAssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(kbmon, kbmon.ref.ObjectSelector, kbmon.monitoringAssocConfs)
 }
 
 func (kbmon *KbMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
@@ -449,7 +449,7 @@ func (kbmon *KbMonitoringAssociation) SetAssociationConf(assocConf *commonv1.Ass
 		kbmon.monitoringAssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if assocConf != nil {
-		kbmon.monitoringAssocConfs[kbmon.ref] = *assocConf
+		kbmon.monitoringAssocConfs[kbmon.ref.ObjectSelector] = *assocConf
 	}
 }
 
@@ -458,7 +458,7 @@ func (kbmon *KbMonitoringAssociation) SupportsAuthAPIKey() bool {
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationID() string {
-	return kbmon.ref.ToID()
+	return kbmon.ref.ObjectSelector.ToID()
 }
 
 // -- association with Elastic Package Registry
@@ -530,7 +530,7 @@ func (k *Kibana) GetMonitoringLogsRefs() []commonv1.ElasticsearchRef {
 	return k.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 
-func (k *Kibana) MonitoringAssociation(esRef commonv1.ObjectSelector) commonv1.Association {
+func (k *Kibana) MonitoringAssociation(esRef commonv1.ElasticsearchRef) commonv1.Association {
 	return &KbMonitoringAssociation{
 		Kibana: k,
 		ref:    esRef.WithDefaultNamespace(k.Namespace),

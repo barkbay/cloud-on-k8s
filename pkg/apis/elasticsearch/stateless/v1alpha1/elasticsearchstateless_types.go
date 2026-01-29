@@ -322,8 +322,8 @@ func (ess *ElasticsearchStateless) GetMonitoringLogsRefs() []commonv1.Elasticsea
 	return ess.Spec.Monitoring.Logs.ElasticsearchRefs
 }
 
-// MonitoringAssociation returns the Association for the given ObjectSelector.
-func (ess *ElasticsearchStateless) MonitoringAssociation(ref commonv1.ObjectSelector) commonv1.Association {
+// MonitoringAssociation returns the Association for the given ElasticsearchRef.
+func (ess *ElasticsearchStateless) MonitoringAssociation(ref commonv1.ElasticsearchRef) commonv1.Association {
 	return &EssMonitoringAssociation{
 		ElasticsearchStateless: ess,
 		ref:                    ref.WithDefaultNamespace(ess.Namespace),
@@ -337,7 +337,7 @@ func (ess *ElasticsearchStateless) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &EssMonitoringAssociation{
 				ElasticsearchStateless: ess,
-				ref:                    ref.ObjectSelector.WithDefaultNamespace(ess.Namespace),
+				ref:                    ref.WithDefaultNamespace(ess.Namespace),
 			})
 		}
 	}
@@ -345,7 +345,7 @@ func (ess *ElasticsearchStateless) GetAssociations() []commonv1.Association {
 		if ref.IsDefined() {
 			associations = append(associations, &EssMonitoringAssociation{
 				ElasticsearchStateless: ess,
-				ref:                    ref.ObjectSelector.WithDefaultNamespace(ess.Namespace),
+				ref:                    ref.WithDefaultNamespace(ess.Namespace),
 			})
 		}
 	}
@@ -383,8 +383,8 @@ var _ commonv1.Associated = &ElasticsearchStateless{}
 type EssMonitoringAssociation struct {
 	// The monitored ElasticsearchStateless cluster from where are collected logs and monitoring metrics
 	*ElasticsearchStateless
-	// ref is the object selector of the Elasticsearch referenced in the Association used to send and store monitoring data
-	ref commonv1.ObjectSelector
+	// ref is the Elasticsearch reference in the Association used to send and store monitoring data
+	ref commonv1.ElasticsearchRef
 }
 
 var _ commonv1.Association = &EssMonitoringAssociation{}
@@ -400,7 +400,7 @@ func (ema *EssMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (ema *EssMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(ema.ref)
+	return commonv1.ElasticsearchConfigAnnotationName(ema.ref.ObjectSelector)
 }
 
 func (ema *EssMonitoringAssociation) AssociationType() commonv1.AssociationType {
@@ -408,15 +408,15 @@ func (ema *EssMonitoringAssociation) AssociationType() commonv1.AssociationType 
 }
 
 func (ema *EssMonitoringAssociation) AssociationRef() commonv1.ObjectSelector {
-	return ema.ref
+	return ema.ref.ObjectSelector
 }
 
 func (ema *EssMonitoringAssociation) AssociationRefKind() string {
-	return "" // Monitoring associations use ObjectSelector, Kind not yet supported
+	return ema.ref.GetKind()
 }
 
 func (ema *EssMonitoringAssociation) AssociationConf() (*commonv1.AssociationConf, error) {
-	return commonv1.GetAndSetAssociationConfByRef(ema, ema.ref, ema.AssocConfs)
+	return commonv1.GetAndSetAssociationConfByRef(ema, ema.ref.ObjectSelector, ema.AssocConfs)
 }
 
 func (ema *EssMonitoringAssociation) SetAssociationConf(assocConf *commonv1.AssociationConf) {
@@ -424,7 +424,7 @@ func (ema *EssMonitoringAssociation) SetAssociationConf(assocConf *commonv1.Asso
 		ema.AssocConfs = make(map[commonv1.ObjectSelector]commonv1.AssociationConf)
 	}
 	if assocConf != nil {
-		ema.AssocConfs[ema.ref] = *assocConf
+		ema.AssocConfs[ema.ref.ObjectSelector] = *assocConf
 	}
 }
 
@@ -433,7 +433,7 @@ func (ema *EssMonitoringAssociation) SupportsAuthAPIKey() bool {
 }
 
 func (ema *EssMonitoringAssociation) AssociationID() string {
-	return ema.ref.ToID()
+	return ema.ref.ObjectSelector.ToID()
 }
 
 func (ema *EssMonitoringAssociation) ElasticServiceAccount() (commonv1.ServiceAccountName, error) {

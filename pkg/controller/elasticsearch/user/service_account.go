@@ -57,8 +57,8 @@ func GetServiceAccountTokens(c k8s.Client, es escommon.ElasticsearchCluster) (Se
 		client.InNamespace(es.GetNamespace()),
 		client.MatchingLabels(
 			map[string]string{
-				label.ClusterNameLabelName: es.GetName(),
-				commonv1.TypeLabelName:     ServiceAccountTokenType,
+				label.ClusterNameLabelNameForStateless(es.IsStateless()): es.GetName(),
+				commonv1.TypeLabelName: ServiceAccountTokenType,
 			},
 		),
 	); err != nil {

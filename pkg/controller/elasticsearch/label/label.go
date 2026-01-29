@@ -282,3 +282,21 @@ func NewLabelSelectorForDeploymentName(clusterName, deploymentName string) clien
 		DeploymentNameLabelName:       deploymentName,
 	})
 }
+
+// ClusterNameLabelNameForKind returns the appropriate cluster name label based on the Elasticsearch kind.
+// For ElasticsearchStateless, it returns StatelessClusterNameLabelName, otherwise ClusterNameLabelName.
+func ClusterNameLabelNameForKind(kind string) string {
+	if kind == commonv1.ElasticsearchStatelessKind {
+		return StatelessClusterNameLabelName
+	}
+	return ClusterNameLabelName
+}
+
+// ClusterNameLabelNameForStateless returns the appropriate cluster name label based on whether the cluster is stateless.
+// For stateless clusters, it returns StatelessClusterNameLabelName, otherwise ClusterNameLabelName.
+func ClusterNameLabelNameForStateless(isStateless bool) string {
+	if isStateless {
+		return StatelessClusterNameLabelName
+	}
+	return ClusterNameLabelName
+}
