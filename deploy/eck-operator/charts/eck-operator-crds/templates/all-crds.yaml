@@ -7321,10 +7321,18 @@ spec:
     - jsonPath: .status.health
       name: health
       type: string
-    - description: Available nodes
-      jsonPath: .status.availableNodes
-      name: nodes
-      type: integer
+    - description: Index tier replicas
+      jsonPath: .status.indexCount
+      name: index
+      type: string
+    - description: Search tier replicas
+      jsonPath: .status.searchCount
+      name: search
+      type: string
+    - description: ML tier replicas
+      jsonPath: .status.mlCount
+      name: ml
+      type: string
     - description: Elasticsearch version
       jsonPath: .status.version
       name: version
@@ -9756,6 +9764,10 @@ spec:
                 description: Health is the health of the cluster as returned by the
                   health API.
                 type: string
+              indexCount:
+                description: IndexCount is a human-readable representation of index
+                  tier replicas (e.g., "3/3").
+                type: string
               indexTierStatus:
                 description: IndexTierStatus contains the status of the index tier.
                 properties:
@@ -9770,6 +9782,10 @@ spec:
                     format: int32
                     type: integer
                 type: object
+              mlCount:
+                description: MLCount is a human-readable representation of ML tier
+                  replicas (e.g., "0/0").
+                type: string
               mlTierStatus:
                 description: MLTierStatus contains the status of the ML tier.
                 properties:
@@ -9799,6 +9815,10 @@ spec:
               phase:
                 description: Phase is the phase Elasticsearch is in from the controller
                   point of view.
+                type: string
+              searchCount:
+                description: SearchCount is a human-readable representation of search
+                  tier replicas (e.g., "2/2").
                 type: string
               searchTierStatus:
                 description: SearchTierStatus contains the status of the search tier.

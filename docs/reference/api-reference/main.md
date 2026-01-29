@@ -1463,6 +1463,9 @@ ElasticsearchStatelessStatus represents the observed state of ElasticsearchState
 | *`indexTierStatus`* __[TierStatus](#tierstatus)__ | IndexTierStatus contains the status of the index tier. |
 | *`searchTierStatus`* __[TierStatus](#tierstatus)__ | SearchTierStatus contains the status of the search tier. |
 | *`mlTierStatus`* __[TierStatus](#tierstatus)__ | MLTierStatus contains the status of the ML tier. |
+| *`indexCount`* __string__ | IndexCount is a human-readable representation of index tier replicas (e.g., "3/3"). |
+| *`searchCount`* __string__ | SearchCount is a human-readable representation of search tier replicas (e.g., "2/2"). |
+| *`mlCount`* __string__ | MLCount is a human-readable representation of ML tier replicas (e.g., "0/0"). |
 
 
 ### ElasticsearchStatelessTiers  [#elasticsearchstatelesstiers]

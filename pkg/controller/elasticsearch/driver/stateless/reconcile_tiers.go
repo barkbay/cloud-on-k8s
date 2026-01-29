@@ -9,6 +9,7 @@ import (
 
 	v1 "k8s.io/api/apps/v1"
 
+	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
@@ -46,7 +47,7 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 
-	for _, tierResources := range buildTierResources {
+	for tierName, tierResources := range buildTierResources {
 		// Reconcile the config first
 		if err := settings.ReconcileConfig(
 			ctx,
@@ -92,6 +93,26 @@ func (d *Driver) reconcileTiers(
 				}
 			},
 		}))
+
+		// Update tier status from the reconciled Deployment
+		d.updateTierStatus(tierName, reconciled, expected)
 	}
 	return results
+}
+
+// updateTierStatus updates the tier status on the ElasticsearchStateless resource from the Deployment status.
+func (d *Driver) updateTierStatus(tier v1alpha1.ElasticsearchTierName, reconciled, expected *v1.Deployment) {
+	// Use expected replicas from the spec, and available replicas from the reconciled deployment status
+	var expectedReplicas int32
+	if expected.Spec.Replicas != nil {
+		expectedReplicas = *expected.Spec.Replicas
+	}
+
+	status := &v1alpha1.TierStatus{
+		AvailableReplicas: reconciled.Status.AvailableReplicas,
+		ExpectedReplicas:  expectedReplicas,
+	}
+
+	// Update tier status through the reconcile state to ensure the correct cluster object is modified
+	d.ReconcileState.UpdateTierStatus(tier, status)
 }

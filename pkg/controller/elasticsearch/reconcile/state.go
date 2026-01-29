@@ -12,6 +12,7 @@ import (
 
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
+	essv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateless/v1alpha1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/hints"
@@ -179,6 +180,21 @@ func (s *State) UpdateElasticsearchInvalidWithEvent(msg string) {
 	s.AddEvent(corev1.EventTypeWarning, events.EventReasonValidation, msg)
 }
 
+// UpdateTierStatus updates the tier status for stateless Elasticsearch clusters.
+func (s *State) UpdateTierStatus(tier essv1alpha1.ElasticsearchTierName, status *essv1alpha1.TierStatus) *State {
+	if ess, ok := s.cluster.(*essv1alpha1.ElasticsearchStateless); ok {
+		switch tier {
+		case essv1alpha1.IndexTierName:
+			ess.Status.IndexTierStatus = status
+		case essv1alpha1.SearchTierName:
+			ess.Status.SearchTierStatus = status
+		case essv1alpha1.MLTierName:
+			ess.Status.MLTierStatus = status
+		}
+	}
+	return s
+}
+
 // Apply takes the current Elasticsearch status, checks for degradation, and returns the cluster for status update.
 // It returns the events to emit and the cluster resource (which has been modified in-place during reconciliation).
 func (s *State) Apply() ([]events.Event, escommon.ElasticsearchCluster) {
@@ -191,6 +207,11 @@ func (s *State) Apply() ([]events.Event, escommon.ElasticsearchCluster) {
 	// This is done via type assertion since stateless Elasticsearch has a different status structure.
 	if es, ok := s.cluster.(*esv1.Elasticsearch); ok {
 		es.Status = s.MergeStatusReportingWith(es.Status)
+	}
+
+	// For stateless Elasticsearch, update the tier count display strings.
+	if ess, ok := s.cluster.(*essv1alpha1.ElasticsearchStateless); ok {
+		ess.Status.UpdateTierCounts()
 	}
 
 	return s.Events(), s.cluster

@@ -155,6 +155,15 @@ type ElasticsearchStatelessStatus struct {
 	// +kubebuilder:validation:Optional
 	MLTierStatus *TierStatus `json:"mlTierStatus,omitempty"`
 
+	// IndexCount is a human-readable representation of index tier replicas (e.g., "3/3").
+	IndexCount string `json:"indexCount,omitempty"`
+
+	// SearchCount is a human-readable representation of search tier replicas (e.g., "2/2").
+	SearchCount string `json:"searchCount,omitempty"`
+
+	// MLCount is a human-readable representation of ML tier replicas (e.g., "0/0").
+	MLCount string `json:"mlCount,omitempty"`
+
 	// MonitoringAssociationStatus is the status of any auto-linking to monitoring Elasticsearch clusters.
 	MonitoringAssociationStatus commonv1.AssociationStatusMap `json:"monitoringAssociationStatus,omitempty"`
 }
@@ -168,13 +177,30 @@ type TierStatus struct {
 	ExpectedReplicas int32 `json:"expectedReplicas,omitempty"`
 }
 
+// UpdateTierCounts updates the human-readable tier count strings from the tier statuses.
+func (s *ElasticsearchStatelessStatus) UpdateTierCounts() {
+	s.IndexCount = formatTierCount(s.IndexTierStatus)
+	s.SearchCount = formatTierCount(s.SearchTierStatus)
+	s.MLCount = formatTierCount(s.MLTierStatus)
+}
+
+// formatTierCount returns a human-readable string representation of a tier's replica count.
+func formatTierCount(tier *TierStatus) string {
+	if tier == nil {
+		return "0/0"
+	}
+	return fmt.Sprintf("%d/%d", tier.AvailableReplicas, tier.ExpectedReplicas)
+}
+
 // +kubebuilder:object:root=true
 
 // ElasticsearchStateless represents a stateless Elasticsearch resource in a Kubernetes cluster.
 // +kubebuilder:resource:categories=elastic,shortName=ess
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="health",type="string",JSONPath=".status.health"
-// +kubebuilder:printcolumn:name="nodes",type="integer",JSONPath=".status.availableNodes",description="Available nodes"
+// +kubebuilder:printcolumn:name="index",type="string",JSONPath=".status.indexCount",description="Index tier replicas"
+// +kubebuilder:printcolumn:name="search",type="string",JSONPath=".status.searchCount",description="Search tier replicas"
+// +kubebuilder:printcolumn:name="ml",type="string",JSONPath=".status.mlCount",description="ML tier replicas"
 // +kubebuilder:printcolumn:name="version",type="string",JSONPath=".status.version",description="Elasticsearch version"
 // +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
