@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
@@ -25,7 +26,7 @@ func AdditionalCAWatchKey(name types.NamespacedName) string {
 func caWatchHandlerFor(name string, watched string, owner types.NamespacedName) watches.NamedWatch[*corev1.ConfigMap] {
 	return watches.NamedWatch[*corev1.ConfigMap]{
 		Name: name,
-		Watched: []types.NamespacedName{{
+		Watched: []commonv1.KindNamespacedName{{
 			Namespace: owner.Namespace,
 			Name:      watched,
 		}},

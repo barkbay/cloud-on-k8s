@@ -17,6 +17,7 @@ import (
 	"go.elastic.co/apm/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -154,6 +155,7 @@ type Reconciler struct {
 	accessReviewer rbac.AccessReviewer
 	recorder       record.EventRecorder
 	watches        watches.DynamicWatches
+	scheme         *runtime.Scheme
 	operator.Parameters
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration uint64
@@ -203,6 +205,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	// garbage collect leftover resources that are not required anymore
+	// associatedKey doesn't need Kind because each association type (es-monitoring, ess-monitoring, kb-es, etc.)
+	// has its own controller that only handles one type of associated resource. The Kind is implicit based on
+	// which controller is doing the reconciliation - there's no ambiguity within a single controller's context.
 	associatedKey := k8s.ExtractNamespacedName(associated)
 	if err := deleteOrphanedResources(ctx, r.Client, r.AssociationInfo, associatedKey, associations); err != nil {
 		log.Error(err, "Error while trying to delete orphaned resources. Continuing.")
@@ -220,7 +225,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		if err != nil {
 			results.WithError(err)
 		}
-
 		newStatusMap[association.AssociationRef().NamespacedName().String()] = newStatus
 	}
 

@@ -523,7 +523,10 @@ func (ema *EsMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (ema *EsMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(ema.ref.ObjectSelector)
+	// Use ElasticsearchConfigAnnotationNameWithKind to include Kind in the hash.
+	// This ensures unique annotation names when both Elasticsearch and ElasticsearchStateless
+	// resources with the same name/namespace are referenced for monitoring.
+	return commonv1.ElasticsearchConfigAnnotationNameWithKind(ema.ref)
 }
 
 func (ema *EsMonitoringAssociation) AssociationType() commonv1.AssociationType {

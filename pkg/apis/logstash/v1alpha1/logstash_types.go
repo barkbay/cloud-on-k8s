@@ -374,8 +374,24 @@ func (lsmon *LogstashMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationConfAnnotationName() string {
-	// Use a custom suffix for monitoring elasticsearchRefs to avoid clashes with other elasticsearchRefs
-	return commonv1.FormatNameWithID(commonv1.ElasticsearchConfigAnnotationNameBase+"%s-sm", hash.HashObject(lsmon.ref.ObjectSelector))
+	// Use a custom suffix (-sm) for monitoring elasticsearchRefs to avoid clashes with other elasticsearchRefs.
+	//
+	// For backward compatibility:
+	// - Stateful Elasticsearch (Kind="" or "Elasticsearch"): uses original hash without Kind
+	// - ElasticsearchStateless: includes Kind in hash to avoid collisions with stateful refs
+	if !lsmon.ref.IsStateless() {
+		return commonv1.FormatNameWithID(commonv1.ElasticsearchConfigAnnotationNameBase+"%s-sm", hash.HashObject(lsmon.ref.ObjectSelector))
+	}
+
+	// Include Kind in the hash for ElasticsearchStateless to avoid collisions with stateful refs.
+	type refWithKind struct {
+		commonv1.ObjectSelector
+		Kind string
+	}
+	return commonv1.FormatNameWithID(commonv1.ElasticsearchConfigAnnotationNameBase+"%s-sm", hash.HashObject(refWithKind{
+		ObjectSelector: lsmon.ref.ObjectSelector,
+		Kind:           lsmon.ref.GetKind(),
+	}))
 }
 
 func (lsmon *LogstashMonitoringAssociation) AssociationType() commonv1.AssociationType {

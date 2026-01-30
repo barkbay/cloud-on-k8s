@@ -50,16 +50,16 @@ func WatchUserProvidedNamespacedSecrets(
 		watched.Secrets.RemoveHandlerForKey(watchName)
 		return nil
 	}
-	userSecretNsns := make([]types.NamespacedName, 0, len(secrets))
+	userSecretWatched := make([]commonv1.KindNamespacedName, 0, len(secrets))
 	for _, s := range secrets {
-		userSecretNsns = append(userSecretNsns, types.NamespacedName{
+		userSecretWatched = append(userSecretWatched, commonv1.KindNamespacedName{
 			Namespace: s.Namespace,
 			Name:      s.SecretName,
 		})
 	}
 	return watched.Secrets.AddHandler(NamedWatch[*corev1.Secret]{
 		Name:    watchName,
-		Watched: userSecretNsns,
+		Watched: userSecretWatched,
 		Watcher: watcher,
 	})
 }

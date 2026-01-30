@@ -425,7 +425,10 @@ func (kbmon *KbMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(kbmon.ref.ObjectSelector)
+	// Use ElasticsearchConfigAnnotationNameWithKind to include Kind in the hash.
+	// This ensures unique annotation names when both Elasticsearch and ElasticsearchStateless
+	// resources with the same name/namespace are referenced for monitoring.
+	return commonv1.ElasticsearchConfigAnnotationNameWithKind(kbmon.ref)
 }
 
 func (kbmon *KbMonitoringAssociation) AssociationType() commonv1.AssociationType {

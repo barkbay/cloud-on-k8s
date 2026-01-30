@@ -316,6 +316,39 @@ func ElasticsearchConfigAnnotationName(o ObjectSelector) string {
 	return FormatNameWithID(ElasticsearchConfigAnnotationNameBase+"%s", hash.HashObject(o))
 }
 
+// ElasticsearchConfigAnnotationNameWithKind generates an annotation name that avoids collisions
+// when both Elasticsearch and ElasticsearchStateless resources can be referenced.
+//
+// For backward compatibility:
+// - Stateful Elasticsearch (Kind="" or Kind="Elasticsearch"): uses the original hash without Kind,
+//   so existing annotations remain valid after upgrade.
+// - ElasticsearchStateless (Kind="ElasticsearchStateless"): includes Kind in the hash to generate
+//   a different annotation name, avoiding collisions with stateful references.
+//
+// Example scenario where this matters:
+// - Resource has metrics monitoring to Elasticsearch "es-monitoring" (namespace: default)
+// - Resource has logs monitoring to ElasticsearchStateless "es-monitoring" (namespace: default)
+//
+// Without this logic, both would generate the same annotation name, causing one config
+// to overwrite the other.
+func ElasticsearchConfigAnnotationNameWithKind(ref ElasticsearchRef) string {
+	// For backward compatibility, stateful Elasticsearch uses the original hash (without Kind).
+	// Only ElasticsearchStateless includes Kind in the hash to differentiate.
+	if !ref.IsStateless() {
+		return ElasticsearchConfigAnnotationName(ref.ObjectSelector)
+	}
+
+	// Include Kind in the hash for ElasticsearchStateless to avoid collisions with stateful refs.
+	type refWithKind struct {
+		ObjectSelector
+		Kind string
+	}
+	return FormatNameWithID(ElasticsearchConfigAnnotationNameBase+"%s", hash.HashObject(refWithKind{
+		ObjectSelector: ref.ObjectSelector,
+		Kind:           ref.GetKind(),
+	}))
+}
+
 // ElasticsearchStatelessKind is the Kind name for ElasticsearchStateless resources.
 const ElasticsearchStatelessKind = "ElasticsearchStateless"
 
@@ -456,4 +489,18 @@ func KindNamespacedNameFromRef(ref LocalElasticsearchRef) KindNamespacedName {
 		Namespace: ref.Namespace,
 		Name:      ref.Name,
 	}
+}
+
+// NewKindNamespacedName creates a KindNamespacedName from a types.NamespacedName without Kind.
+func NewKindNamespacedName(nsn types.NamespacedName) KindNamespacedName {
+	return KindNamespacedName{Namespace: nsn.Namespace, Name: nsn.Name}
+}
+
+// ToKindNamespacedNames converts a slice of types.NamespacedName to []KindNamespacedName without Kind.
+func ToKindNamespacedNames(nsns []types.NamespacedName) []KindNamespacedName {
+	result := make([]KindNamespacedName, len(nsns))
+	for i, nsn := range nsns {
+		result[i] = KindNamespacedName{Namespace: nsn.Namespace, Name: nsn.Name}
+	}
+	return result
 }

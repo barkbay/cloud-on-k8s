@@ -219,10 +219,11 @@ func addCertificatesAuthorityWatches(
 	localIsStateless, remoteIsStateless bool,
 	remoteNamer escommon.Namer,
 ) error {
+	secretRef := transport.PublicCertsSecretRef(remote, remoteNamer)
 	// Watch the CA secret of Elasticsearch clusters which are involved in a association.
 	err := reconcileClusterAssociation.watches.Secrets.AddHandler(watches.NamedWatch[*corev1.Secret]{
 		Name:    watchName(local, localIsStateless, remote, remoteIsStateless),
-		Watched: []types.NamespacedName{transport.PublicCertsSecretRef(remote, remoteNamer)},
+		Watched: []commonv1.KindNamespacedName{{Namespace: secretRef.Namespace, Name: secretRef.Name}},
 		Watcher: types.NamespacedName{
 			Namespace: local.Namespace,
 			Name:      local.Name,

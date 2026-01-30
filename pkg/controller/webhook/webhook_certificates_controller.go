@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
@@ -113,7 +114,7 @@ func Add(mgr manager.Manager, webhookParams Params, clientset kubernetes.Interfa
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Secret{}, &watches.NamedWatch[*corev1.Secret]{
 		Name:    "webhook-server-cert",
-		Watched: []types.NamespacedName{secret},
+		Watched: []commonv1.KindNamespacedName{{Namespace: secret.Namespace, Name: secret.Name}},
 		Watcher: secret,
 	})); err != nil {
 		return err
@@ -125,7 +126,7 @@ func Add(mgr manager.Manager, webhookParams Params, clientset kubernetes.Interfa
 
 	return c.Watch(source.Kind(mgr.GetCache(), webhook.getType(), &watches.NamedWatch[client.Object]{
 		Name:    "validatingwebhookconfiguration",
-		Watched: []types.NamespacedName{webhookConfiguration},
+		Watched: []commonv1.KindNamespacedName{{Namespace: webhookConfiguration.Namespace, Name: webhookConfiguration.Name}},
 		Watcher: webhookConfiguration,
 	}))
 }

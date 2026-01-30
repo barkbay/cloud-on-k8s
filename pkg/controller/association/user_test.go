@@ -327,6 +327,7 @@ func Test_reconcileEsUser_statelessES(t *testing.T) {
 					Name:      essFixture.Name,
 					Namespace: essFixture.Namespace,
 				},
+				Kind: commonv1.ElasticsearchStatelessKind, // Must set Kind for stateless ES
 			},
 		},
 	}
@@ -405,6 +406,7 @@ func Test_reconcileEsUser_statefulAndStatelessIsolation(t *testing.T) {
 					Name:      essFixture.Name,
 					Namespace: essFixture.Namespace,
 				},
+				Kind: commonv1.ElasticsearchStatelessKind, // Must set Kind for stateless ES
 			},
 		},
 	}

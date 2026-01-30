@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
@@ -165,7 +166,7 @@ func TestDynamicEnqueueRequest_EventHandler(t *testing.T) {
 
 	// Add a watch for the first object
 	require.NoError(t, d.AddHandler(NamedWatch[*corev1.Secret]{
-		Watched: []types.NamespacedName{nsn1},
+		Watched: []commonv1.KindNamespacedName{{Namespace: nsn1.Namespace, Name: nsn1.Name}},
 		Watcher: watching,
 		Name:    "test-watch-1",
 	}))
@@ -205,7 +206,7 @@ func TestDynamicEnqueueRequest_EventHandler(t *testing.T) {
 
 	// register a second watch for the second object
 	require.NoError(t, d.AddHandler(NamedWatch[*corev1.Secret]{
-		Watched: []types.NamespacedName{nsn2},
+		Watched: []commonv1.KindNamespacedName{{Namespace: nsn2.Namespace, Name: nsn2.Name}},
 		Watcher: watching,
 		Name:    "test-watch-2",
 	}))
@@ -240,7 +241,7 @@ func TestDynamicEnqueueRequest_EventHandler(t *testing.T) {
 	// let's combine both objects in a single watch
 	require.NoError(t, d.AddHandler(NamedWatch[*corev1.Secret]{
 		Name:    "test-watch-1",
-		Watched: []types.NamespacedName{nsn1, nsn2},
+		Watched: []commonv1.KindNamespacedName{{Namespace: nsn1.Namespace, Name: nsn1.Name}, {Namespace: nsn2.Namespace, Name: nsn2.Name}},
 		Watcher: watching,
 	}))
 
@@ -260,7 +261,7 @@ func TestDynamicEnqueueRequest_EventHandler(t *testing.T) {
 
 	// going back to watching object 1 only
 	require.NoError(t, d.AddHandler(NamedWatch[*corev1.Secret]{
-		Watched: []types.NamespacedName{nsn1},
+		Watched: []commonv1.KindNamespacedName{{Namespace: nsn1.Namespace, Name: nsn1.Name}},
 		Watcher: watching,
 		Name:    "test-watch-1",
 	}))
@@ -298,7 +299,7 @@ func TestDynamicEnqueueRequest_EventHandler(t *testing.T) {
 	// for a single event
 	// add a named watch on object 2
 	require.NoError(t, d.AddHandler(NamedWatch[*corev1.Secret]{
-		Watched: []types.NamespacedName{nsn2},
+		Watched: []commonv1.KindNamespacedName{{Namespace: nsn2.Namespace, Name: nsn2.Name}},
 		Watcher: watching,
 		Name:    "test-watch-2",
 	}))
@@ -401,4 +402,85 @@ func getRESTMapper() meta.RESTMapper {
 	}
 
 	return restmapper.NewDiscoveryRESTMapper(resources)
+}
+
+func TestNamedWatch_KindMatching(t *testing.T) {
+	// Test that watches with Kind specified only match objects of that Kind
+	// Uses the scheme's apiutil.GVKForObject for Kind resolution
+	nsn := types.NamespacedName{
+		Namespace: "default",
+		Name:      "test-resource",
+	}
+
+	watching := types.NamespacedName{
+		Namespace: "default",
+		Name:      "watcher",
+	}
+
+	// Create a secret
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: nsn.Namespace,
+			Name:      nsn.Name,
+		},
+	}
+
+	t.Run("watch with matching Kind triggers reconcile", func(t *testing.T) {
+		w := NamedWatch[*corev1.Secret]{
+			Name:    "test-watch",
+			Watched: []commonv1.KindNamespacedName{{Namespace: nsn.Namespace, Name: nsn.Name, Kind: "Secret"}},
+			Watcher: watching,
+			Scheme:  scheme.Scheme,
+		}
+		reqs := w.toReconcileRequest(secret)
+		require.Len(t, reqs, 1)
+		require.Equal(t, watching, reqs[0].NamespacedName)
+	})
+
+	t.Run("watch with non-matching Kind does not trigger reconcile", func(t *testing.T) {
+		w := NamedWatch[*corev1.Secret]{
+			Name:    "test-watch",
+			Watched: []commonv1.KindNamespacedName{{Namespace: nsn.Namespace, Name: nsn.Name, Kind: "ConfigMap"}},
+			Watcher: watching,
+			Scheme:  scheme.Scheme,
+		}
+		reqs := w.toReconcileRequest(secret)
+		require.Len(t, reqs, 0)
+	})
+
+	t.Run("watch without Kind specified triggers reconcile for any Kind", func(t *testing.T) {
+		w := NamedWatch[*corev1.Secret]{
+			Name:    "test-watch",
+			Watched: []commonv1.KindNamespacedName{{Namespace: nsn.Namespace, Name: nsn.Name}},
+			Watcher: watching,
+			Scheme:  scheme.Scheme,
+		}
+		reqs := w.toReconcileRequest(secret)
+		require.Len(t, reqs, 1)
+		require.Equal(t, watching, reqs[0].NamespacedName)
+	})
+
+	t.Run("watch with empty Kind string triggers reconcile for any Kind", func(t *testing.T) {
+		w := NamedWatch[*corev1.Secret]{
+			Name:    "test-watch",
+			Watched: []commonv1.KindNamespacedName{{Namespace: nsn.Namespace, Name: nsn.Name, Kind: ""}},
+			Watcher: watching,
+			Scheme:  scheme.Scheme,
+		}
+		reqs := w.toReconcileRequest(secret)
+		require.Len(t, reqs, 1)
+		require.Equal(t, watching, reqs[0].NamespacedName)
+	})
+
+	t.Run("watch without Kind matches regardless of scheme (no Kind filtering needed)", func(t *testing.T) {
+		w := NamedWatch[*corev1.Secret]{
+			Name:    "test-watch",
+			Watched: []commonv1.KindNamespacedName{{Namespace: nsn.Namespace, Name: nsn.Name}},
+			Watcher: watching,
+			// No Scheme needed when Kind is empty
+		}
+		// No Kind filter, so it should match
+		reqs := w.toReconcileRequest(secret)
+		require.Len(t, reqs, 1)
+	})
 }

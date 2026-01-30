@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -16,12 +18,22 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 )
 
+// Watch names below are based on the associated resource (e.g., Kibana), not the referenced resource (e.g., Elasticsearch).
+// This means watch names don't need to include Kind because:
+// 1. Each association type (es-monitoring, ess-monitoring, kb-es, etc.) has its own controller with separate DynamicWatches
+// 2. A single watch can contain multiple KindNamespacedName entries in its Watched slice
+// 3. Kind filtering happens at event-handler time via apiutil.GVKForObject, not at watch registration time
+//
+// Example: If both Elasticsearch "quickstart" and ElasticsearchStateless "quickstart" exist with monitoring associations,
+// they are handled by different controllers (es-monitoring vs ess-monitoring), each with its own watches instance.
+// Even though the watch names are identical, there's no collision because they're in separate DynamicWatches.
+
 // referencedResourceWatchName is the name of the watch set on the referenced resource.
 func referencedResourceWatchName(associated types.NamespacedName) string {
 	return fmt.Sprintf("%s-%s-referenced-resource-watch", associated.Namespace, associated.Name)
 }
 
-// referencedResourceWatchName is the name of the watch set on Secret containing the CA of the referenced resource.
+// referencedResourceCASecretWatchName is the name of the watch set on Secret containing the CA of the referenced resource.
 func referencedResourceCASecretWatchName(associated types.NamespacedName) string {
 	return fmt.Sprintf("%s-%s-referenced-resource-ca-secret-watch", associated.Namespace, associated.Name)
 }
@@ -44,11 +56,15 @@ func additionalSecretWatchName(associated types.NamespacedName) string {
 }
 
 // reconcileWatches sets up dynamic watches for:
-// * the referenced resource(s) managed or not by ECK (e.g. Elasticsearch for Kibana -> Elasticsearch associations)
-// * the CA secret of the referenced resource in the referenced resource namespace
-// * the referenced service to access the referenced resource
-// * the referenced secret to access the referenced resource
-// * if there's an ES user to create, watch the user Secret in ES namespace
+//   - the referenced resource(s) managed or not by ECK (e.g. Elasticsearch or ElasticsearchStateless for Kibana -> ES associations).
+//     For managed resources, ReconcileWatchWithKind is used to include the Kind in each watched entry. This ensures that when
+//     both Elasticsearch "foo" and ElasticsearchStateless "foo" exist, only changes to the specifically referenced Kind trigger
+//     a reconciliation. The Kind is resolved at event time using apiutil.GVKForObject with the scheme.
+//   - the CA secret of the referenced resource in the referenced resource namespace
+//   - the referenced service to access the referenced resource
+//   - the referenced secret to access the referenced resource
+//   - if there's an ES user to create, watch the user Secret in ES namespace
+//
 // All watches for all given associations are set under the same watch name and replaced with each reconciliation.
 // The given associations are expected to be of the same type (e.g. Kibana -> Elasticsearch, not Kibana -> Enterprise Search).
 func (r *Reconciler) reconcileWatches(ctx context.Context, associated types.NamespacedName, associations []commonv1.Association) error {
@@ -56,9 +72,16 @@ func (r *Reconciler) reconcileWatches(ctx context.Context, associated types.Name
 	unmanagedElasticRef := filterUnmanagedElasticRef(associations)
 
 	// we have 2 modes (exclusive) for the referenced resource: managed or not managed by ECK and referencedResourceWatchName is shared between both.
-	// either watch the referenced resource managed by ECK
-	if err := ReconcileWatch(associated, managedElasticRef, r.watches.ReferencedResources, referencedResourceWatchName(associated), func(association commonv1.Association) types.NamespacedName {
-		return association.AssociationRef().NamespacedName()
+	// either watch the referenced resource managed by ECK (with Kind for precise matching)
+	if err := ReconcileWatchWithKind(associated, managedElasticRef, r.watches.ReferencedResources, referencedResourceWatchName(associated), r.scheme, func(association commonv1.Association) commonv1.KindNamespacedName {
+		ref := association.AssociationRef()
+		return commonv1.KindNamespacedName{
+			// Kind is set to distinguish between Elasticsearch and ElasticsearchStateless when both exist
+			// with the same name. Without Kind, a change to either would trigger reconciliation.
+			Kind:      association.AssociationRefKind(),
+			Namespace: ref.Namespace,
+			Name:      ref.NameOrSecretName(),
+		}
 	}); err != nil {
 		return err
 	}
@@ -104,25 +127,7 @@ func (r *Reconciler) reconcileWatches(ctx context.Context, associated types.Name
 	}
 
 	if r.AdditionalSecrets != nil {
-		if err := reconcileGenericWatch(associated, managedElasticRef, r.watches.Secrets, additionalSecretWatchName(associated), func() ([]types.NamespacedName, error) {
-			var toWatch []types.NamespacedName
-			for _, association := range associations {
-				secs, err := r.AdditionalSecrets(ctx, r.Client, association)
-				if err != nil {
-					return nil, err
-				}
-				// Watch the source secrets
-				toWatch = append(toWatch, secs...)
-				// Also watch the target secrets
-				for _, sec := range secs {
-					toWatch = append(toWatch, types.NamespacedName{
-						Name:      sec.Name,
-						Namespace: association.GetNamespace(),
-					})
-				}
-			}
-			return toWatch, nil
-		}); err != nil {
+		if err := reconcileAdditionalSecretsWatch(ctx, r, associated, associations); err != nil {
 			return err
 		}
 	}
@@ -130,32 +135,42 @@ func (r *Reconciler) reconcileWatches(ctx context.Context, associated types.Name
 	return nil
 }
 
-func reconcileGenericWatch[T client.Object](
-	associated types.NamespacedName,
-	associations []commonv1.Association,
-	dynamicRequest *watches.DynamicEnqueueRequest[T],
-	watchName string,
-	watchedFunc func() ([]types.NamespacedName, error),
-) error {
-	if len(associations) == 0 {
-		// clean up if there are none
-		RemoveWatch(dynamicRequest, watchName)
+func reconcileAdditionalSecretsWatch(ctx context.Context, r *Reconciler, associated types.NamespacedName, associations []commonv1.Association) error {
+	managedElasticRef := filterManagedElasticRef(associations)
+	if len(managedElasticRef) == 0 {
+		RemoveWatch(r.watches.Secrets, additionalSecretWatchName(associated))
 		return nil
 	}
 
-	watched, err := watchedFunc()
-	if err != nil {
-		return err
+	var toWatch []commonv1.KindNamespacedName
+	for _, association := range associations {
+		secs, err := r.AdditionalSecrets(ctx, r.Client, association)
+		if err != nil {
+			return err
+		}
+		// Watch the source secrets
+		for _, sec := range secs {
+			toWatch = append(toWatch, commonv1.KindNamespacedName{Namespace: sec.Namespace, Name: sec.Name})
+		}
+		// Also watch the target secrets
+		for _, sec := range secs {
+			toWatch = append(toWatch, commonv1.KindNamespacedName{
+				Name:      sec.Name,
+				Namespace: association.GetNamespace(),
+			})
+		}
 	}
-	return dynamicRequest.AddHandler(watches.NamedWatch[T]{
-		Name:    watchName,
-		Watched: watched,
+
+	return r.watches.Secrets.AddHandler(watches.NamedWatch[*corev1.Secret]{
+		Name:    additionalSecretWatchName(associated),
+		Watched: toWatch,
 		Watcher: associated,
 	})
 }
 
 // ReconcileWatch sets or removes `watchName` watch in `dynamicRequest` based on `associated` and `associations` and
 // `watchedFunc`. No watch is added if watchedFunc(association) refers to an empty namespaced name.
+// This version does not include Kind filtering - use ReconcileWatchWithKind when Kind disambiguation is needed.
 func ReconcileWatch[T client.Object](
 	associated types.NamespacedName,
 	associations []commonv1.Association,
@@ -163,17 +178,56 @@ func ReconcileWatch[T client.Object](
 	watchName string,
 	watchedFunc func(association commonv1.Association) types.NamespacedName,
 ) error {
-	return reconcileGenericWatch(associated, associations, dynamicRequest, watchName, func() ([]types.NamespacedName, error) {
-		emptyNamespacedName := types.NamespacedName{}
+	if len(associations) == 0 {
+		RemoveWatch(dynamicRequest, watchName)
+		return nil
+	}
 
-		toWatch := make([]types.NamespacedName, 0, len(associations))
-		for _, association := range associations {
-			watchedNamespacedName := watchedFunc(association)
-			if watchedNamespacedName != emptyNamespacedName {
-				toWatch = append(toWatch, watchedFunc(association))
-			}
+	toWatch := make([]commonv1.KindNamespacedName, 0, len(associations))
+	for _, association := range associations {
+		watched := watchedFunc(association)
+		if watched.Name != "" {
+			toWatch = append(toWatch, commonv1.NewKindNamespacedName(watched))
 		}
-		return toWatch, nil
+	}
+
+	return dynamicRequest.AddHandler(watches.NamedWatch[T]{
+		Name:    watchName,
+		Watched: toWatch,
+		Watcher: associated,
+	})
+}
+
+// ReconcileWatchWithKind sets or removes `watchName` watch in `dynamicRequest` based on `associated` and `associations` and
+// `watchedFunc`. No watch is added if watchedFunc(association) refers to an empty name.
+// This version includes Kind in the watch for precise matching when multiple resource types may share the same name/namespace.
+// The scheme is required for Kind resolution using apiutil.GVKForObject.
+func ReconcileWatchWithKind[T client.Object](
+	associated types.NamespacedName,
+	associations []commonv1.Association,
+	dynamicRequest *watches.DynamicEnqueueRequest[T],
+	watchName string,
+	scheme *runtime.Scheme,
+	watchedFunc func(association commonv1.Association) commonv1.KindNamespacedName,
+) error {
+	if len(associations) == 0 {
+		RemoveWatch(dynamicRequest, watchName)
+		return nil
+	}
+
+	toWatch := make([]commonv1.KindNamespacedName, 0, len(associations))
+	for _, association := range associations {
+		watched := watchedFunc(association)
+		if watched.Name != "" {
+			toWatch = append(toWatch, watched)
+		}
+	}
+
+	return dynamicRequest.AddHandler(watches.NamedWatch[T]{
+		Name:    watchName,
+		Watched: toWatch,
+		Watcher: associated,
+		Scheme:  scheme,
 	})
 }
 

@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/operator"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
@@ -73,7 +74,7 @@ func TestDynamicEnqueueRequest(t *testing.T) {
 
 	// Add a named watch for the first object
 	assert.NoError(t, eventHandler.AddHandler(watches.NamedWatch[*corev1.Secret]{
-		Watched: []types.NamespacedName{watched},
+		Watched: []commonv1.KindNamespacedName{{Namespace: watched.Namespace, Name: watched.Name}},
 		Watcher: watching,
 		Name:    "test-watch-1",
 	}))

@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
@@ -22,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	autoscalingv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoscaling/v1alpha1"
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1alpha1"
 	escommon "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/common"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/stateful/v1"
@@ -76,9 +78,11 @@ func (r baseReconcileAutoscaling) withRecorder(recorder record.EventRecorder) ba
 
 // ReconcileElasticsearchAutoscaler reconciles autoscaling policies and Elasticsearch resources specifications based on
 // Elasticsearch autoscaling API response.
+// NOTE: Autoscaling only supports stateful Elasticsearch (esv1.Elasticsearch), not ElasticsearchStateless.
 type ReconcileElasticsearchAutoscaler struct {
 	baseReconcileAutoscaling
 	Watches watches.DynamicWatches
+	scheme  *runtime.Scheme
 }
 
 // NewReconciler returns a new autoscaling reconcile.Reconciler
@@ -94,6 +98,7 @@ func NewReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 	return &ReconcileElasticsearchAutoscaler{
 		baseReconcileAutoscaling: reconcileAutoscaling.withRecorder(mgr.GetEventRecorderFor(ControllerName)),
 		Watches:                  watches.NewDynamicWatches(),
+		scheme:                   mgr.GetScheme(),
 	}
 }
 
@@ -118,12 +123,21 @@ func (r *ReconcileElasticsearchAutoscaler) Reconcile(ctx context.Context, reques
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
 
-	// Ensure we watch the associated Elasticsearch
+	// Ensure we watch the associated Elasticsearch.
+	// NOTE: Autoscaling only supports stateful Elasticsearch (esv1.Elasticsearch), not ElasticsearchStateless.
+	// We explicitly set the Kind to esv1.Kind to ensure that only changes to stateful Elasticsearch resources
+	// trigger a reconciliation. If both Elasticsearch "foo" and ElasticsearchStateless "foo" exist, only
+	// changes to the stateful one will be processed.
 	esNamespacedName := types.NamespacedName{Name: esa.Spec.ElasticsearchRef.Name, Namespace: request.Namespace}
 	if err := r.Watches.ReferencedResources.AddHandler(watches.NamedWatch[client.Object]{
-		Name:    dynamicWatchName(request),
-		Watched: []types.NamespacedName{esNamespacedName},
+		Name: dynamicWatchName(request),
+		Watched: []commonv1.KindNamespacedName{{
+			Kind:      esv1.Kind, // Only watch stateful Elasticsearch, not ElasticsearchStateless
+			Namespace: esNamespacedName.Namespace,
+			Name:      esNamespacedName.Name,
+		}},
 		Watcher: request.NamespacedName,
+		Scheme:  r.scheme,
 	}); err != nil {
 		return reconcile.Result{}, tracing.CaptureError(ctx, err)
 	}
@@ -146,7 +160,10 @@ func (r *ReconcileElasticsearchAutoscaler) Reconcile(ctx context.Context, reques
 		return licenseCheckRequeue, err
 	}
 
-	// Fetch the Elasticsearch resource
+	// Fetch the Elasticsearch resource.
+	// NOTE: We only fetch stateful Elasticsearch (esv1.Elasticsearch). ElasticsearchStateless is not supported
+	// by the autoscaling controller. If a user references an ElasticsearchStateless resource, this will return
+	// NotFound and the autoscaler will be reported as inactive.
 	var es esv1.Elasticsearch
 	if err := r.Get(ctx, esNamespacedName, &es); err != nil {
 		if apierrors.IsNotFound(err) {

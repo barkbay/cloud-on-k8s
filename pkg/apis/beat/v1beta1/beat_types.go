@@ -423,7 +423,10 @@ func (beatmon *BeatMonitoringAssociation) Associated() commonv1.Associated {
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(beatmon.ref.ObjectSelector)
+	// Use ElasticsearchConfigAnnotationNameWithKind to include Kind in the hash.
+	// This ensures unique annotation names when both Elasticsearch and ElasticsearchStateless
+	// resources with the same name/namespace are referenced for monitoring.
+	return commonv1.ElasticsearchConfigAnnotationNameWithKind(beatmon.ref)
 }
 
 func (beatmon *BeatMonitoringAssociation) AssociationType() commonv1.AssociationType {

@@ -30,7 +30,7 @@ func ReconcileCustomCertWatch(
 	// user provided certificates.
 	httpCertificateWatch := watches.NamedWatch[*corev1.Secret]{
 		Name: watchKey,
-		Watched: []types.NamespacedName{{
+		Watched: []commonv1.KindNamespacedName{{
 			Namespace: owner.Namespace,
 			Name:      tlsSecret.SecretName,
 		}},

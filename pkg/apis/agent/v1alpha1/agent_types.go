@@ -408,7 +408,10 @@ func (aea *AgentESAssociation) AssociationRefKind() string {
 }
 
 func (aea *AgentESAssociation) AssociationConfAnnotationName() string {
-	return commonv1.ElasticsearchConfigAnnotationName(aea.objectSelector())
+	// Use ElasticsearchConfigAnnotationNameWithKind to include Kind in the hash.
+	// This ensures unique annotation names when both Elasticsearch and ElasticsearchStateless
+	// resources with the same name/namespace are referenced.
+	return commonv1.ElasticsearchConfigAnnotationNameWithKind(aea.ref)
 }
 
 func (aea *AgentESAssociation) AssociationConf() (*commonv1.AssociationConf, error) {

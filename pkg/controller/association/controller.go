@@ -32,6 +32,7 @@ func AddAssociationController(
 		accessReviewer:  accessReviewer,
 		watches:         watches.NewDynamicWatches(),
 		recorder:        mgr.GetEventRecorderFor(controllerName),
+		scheme:          mgr.GetScheme(),
 		Parameters:      params,
 	}
 	c, err := common.NewController(mgr, controllerName, r, params)
