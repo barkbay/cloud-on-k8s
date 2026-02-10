@@ -256,5 +256,6 @@ func ElasticsearchPodURL(pod corev1.Pod) string {
 	if hasSsetLabel && hasSchemeLabel {
 		return fmt.Sprintf("%s://%s.%s.%s:%d", scheme, pod.Name, sset, pod.Namespace, network.HTTPPort)
 	}
-	return ""
+	// Stateless: Use Pod IP
+	return fmt.Sprintf("%s://%s:%d", scheme, pod.Status.PodIP, network.HTTPPort)
 }
