@@ -313,6 +313,96 @@ func Test_reconcileSecureSettings(t *testing.T) {
 	}
 }
 
+func Test_BuildSecureSettingsData(t *testing.T) {
+	secret1 := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "s3-creds",
+		},
+		Data: map[string][]byte{
+			"s3.client.default.access_key": []byte("AKIA123"),
+			"s3.client.default.secret_key": []byte("secret123"),
+		},
+	}
+	secret2 := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "jwt-secret",
+		},
+		Data: map[string][]byte{
+			"xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret": []byte("800522"),
+		},
+	}
+
+	kb := &kbv1.Kibana{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kb",
+			Namespace: "ns",
+		},
+		Spec: kbv1.KibanaSpec{
+			SecureSettings: []commonv1.SecretSource{
+				{SecretName: "s3-creds"},
+				{SecretName: "jwt-secret"},
+			},
+		},
+	}
+
+	recorder := record.NewFakeRecorder(100)
+	client := k8s.NewFakeClient(&secret1, &secret2)
+
+	data, err := BuildSecureSettingsData(context.Background(), client, recorder, kb, WatchedSecretNames(kb))
+	require.NoError(t, err)
+
+	expected := map[string]any{
+		"string_secrets": map[string]any{
+			"s3": map[string]any{
+				"client": map[string]any{
+					"default": map[string]any{
+						"access_key": "AKIA123",
+						"secret_key": "secret123",
+					},
+				},
+			},
+			"xpack": map[string]any{
+				"security": map[string]any{
+					"authc": map[string]any{
+						"realms": map[string]any{
+							"jwt": map[string]any{
+								"jwt1": map[string]any{
+									"client_authentication": map[string]any{
+										"shared_secret": "800522",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, data)
+}
+
+func Test_BuildSecureSettingsData_empty(t *testing.T) {
+	kb := &kbv1.Kibana{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kb",
+			Namespace: "ns",
+		},
+	}
+
+	recorder := record.NewFakeRecorder(100)
+	client := k8s.NewFakeClient()
+
+	data, err := BuildSecureSettingsData(context.Background(), client, recorder, kb, nil)
+	require.NoError(t, err)
+
+	expected := map[string]any{
+		"string_secrets": map[string]any{},
+	}
+	assert.Equal(t, expected, data)
+}
+
 func Test_retrieveUserSecrets(t *testing.T) {
 	testSecretName := "some-user-secret"
 	testSecret := corev1.Secret{

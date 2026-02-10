@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	commonannotation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/annotation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
@@ -34,11 +35,14 @@ var (
 
 // ReconcileEmptyFileSettingsSecret reconciles an empty File settings Secret for the given Elasticsearch only when there is no Secret.
 // Used by the Elasticsearch controller.
+// clusterSecrets is optional; when non-nil it populates the cluster_secrets field in the file-based settings
+// (used by stateless Elasticsearch to apply secure settings via file settings instead of the keystore init container).
 func ReconcileEmptyFileSettingsSecret(
 	ctx context.Context,
 	c k8s.Client,
 	es esv1.Elasticsearch,
 	createOnly bool,
+	clusterSecrets *commonv1.Config,
 ) error {
 	var currentSecret corev1.Secret
 	err := c.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.FileSettingsSecretName(es.Name)}, &currentSecret)
@@ -53,7 +57,7 @@ func ReconcileEmptyFileSettingsSecret(
 	// extract the metadata that should be propagated to children
 	meta := metadata.Propagate(&es, metadata.Metadata{Labels: label.NewLabels(k8s.ExtractNamespacedName(&es))})
 	// no secret, reconcile a new empty file settings
-	expectedSecret, _, err := NewSettingsSecretWithVersion(k8s.ExtractNamespacedName(&es), es.IsStateless(), nil, nil, nil, meta)
+	expectedSecret, _, err := NewSettingsSecretWithVersion(k8s.ExtractNamespacedName(&es), es.IsStateless(), nil, nil, nil, clusterSecrets, meta)
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func Test_NewSettingsSecret(t *testing.T) {
 
 	// no policy
 	expectedVersion := int64(1)
-	secret, reconciledVersion, err := newSettingsSecret(expectedVersion, false, es, nil, nil, nil, metadata.Metadata{})
+	secret, reconciledVersion, err := newSettingsSecret(expectedVersion, false, es, nil, nil, nil, nil, metadata.Metadata{})
 	assert.NoError(t, err)
 	assert.Equal(t, "esNs", secret.Namespace)
 	assert.Equal(t, "esName-es-file-settings", secret.Name)
@@ -47,7 +47,7 @@ func Test_NewSettingsSecret(t *testing.T) {
 
 	// policy
 	expectedVersion = int64(2)
-	secret, reconciledVersion, err = newSettingsSecret(expectedVersion, false, es, &secret, &policy.Spec.Elasticsearch, policy.GetElasticsearchNamespacedSecureSettings(), metadata.Metadata{})
+	secret, reconciledVersion, err = newSettingsSecret(expectedVersion, false, es, &secret, &policy.Spec.Elasticsearch, policy.GetElasticsearchNamespacedSecureSettings(), nil, metadata.Metadata{})
 	assert.NoError(t, err)
 	assert.Equal(t, "esNs", secret.Namespace)
 	assert.Equal(t, "esName-es-file-settings", secret.Name)
@@ -79,7 +79,7 @@ func Test_SettingsSecret_hasChanged(t *testing.T) {
 	expectedEmptySettings := NewEmptySettings(expectedVersion, false)
 
 	// no policy -> emptySettings
-	secret, reconciledVersion, err := newSettingsSecret(expectedVersion, false, es, nil, nil, nil, metadata.Metadata{})
+	secret, reconciledVersion, err := newSettingsSecret(expectedVersion, false, es, nil, nil, nil, nil, metadata.Metadata{})
 	assert.NoError(t, err)
 	assert.Equal(t, false, hasChanged(secret, expectedEmptySettings))
 	assert.Equal(t, expectedVersion, reconciledVersion)
@@ -127,7 +127,7 @@ func Test_SettingsSecret_setSecureSettings_getSecureSettings(t *testing.T) {
 			},
 		}}
 	
-	secret, _, err := NewSettingsSecretWithVersion(es, false, nil, nil, nil, metadata.Metadata{})
+	secret, _, err := NewSettingsSecretWithVersion(es, false, nil, nil, nil, nil, metadata.Metadata{})
 	assert.NoError(t, err)
 
 	secureSettings, err := getSecureSettings(secret)

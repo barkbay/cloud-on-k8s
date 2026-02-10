@@ -32,14 +32,16 @@ const (
 // Secret and a StackConfigPolicy.
 // The Settings version is updated using the current timestamp only when the Settings have changed.
 // If the new settings from the policy changed compared to the actual from the secret, the settings version is
-// updated
-func NewSettingsSecretWithVersion(es types.NamespacedName, isStateless bool, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
+// updated.
+// clusterSecrets is optional; when non-nil it populates the State.ClusterSecrets field in the file-based settings
+// (used by stateless Elasticsearch to apply secure settings via file settings instead of the keystore init container).
+func NewSettingsSecretWithVersion(es types.NamespacedName, isStateless bool, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, clusterSecrets *commonv1.Config, meta metadata.Metadata) (corev1.Secret, int64, error) {
 	newVersion := time.Now().UnixNano()
-	return newSettingsSecret(newVersion, isStateless, es, currentSecret, esConfigPolicy, namespacedSecretSources, meta)
+	return newSettingsSecret(newVersion, isStateless, es, currentSecret, esConfigPolicy, namespacedSecretSources, clusterSecrets, meta)
 }
 
-// NewSettingsSecret returns a new SettingsSecret for a given Elasticsearch and StackConfigPolicy.
-func newSettingsSecret(version int64, isStateless bool, es types.NamespacedName, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, meta metadata.Metadata) (corev1.Secret, int64, error) {
+// newSettingsSecret returns a new SettingsSecret for a given Elasticsearch and StackConfigPolicy.
+func newSettingsSecret(version int64, isStateless bool, es types.NamespacedName, currentSecret *corev1.Secret, esConfigPolicy *policyv1alpha1.ElasticsearchConfigPolicySpec, namespacedSecretSources []commonv1.NamespacedSecretSource, clusterSecrets *commonv1.Config, meta metadata.Metadata) (corev1.Secret, int64, error) {
 	settings := NewEmptySettings(version, isStateless)
 	// update the settings according to the config policy
 	if esConfigPolicy != nil {
@@ -47,6 +49,10 @@ func newSettingsSecret(version int64, isStateless bool, es types.NamespacedName,
 		if err != nil {
 			return corev1.Secret{}, 0, err
 		}
+	}
+	// override cluster_secrets if provided (used by stateless to apply secure settings via file settings)
+	if clusterSecrets != nil {
+		settings.State.ClusterSecrets = clusterSecrets
 	}
 
 	// do not update version if hash hasn't changed

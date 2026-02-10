@@ -349,7 +349,7 @@ func Test_maybeReconcileEmptyFileSettingsSecret(t *testing.T) {
 
 			c := k8s.NewFakeClient(initObjs...)
 
-			requeue, err := maybeReconcileEmptyFileSettingsSecret(t.Context(), c, tt.licenseChecker, tt.es, operatorNamespace)
+			requeue, err := maybeReconcileEmptyFileSettingsSecret(t.Context(), c, tt.licenseChecker, tt.es, operatorNamespace, nil)
 
 			// Check error expectation
 			if tt.wantErr {

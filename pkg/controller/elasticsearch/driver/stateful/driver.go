@@ -10,10 +10,16 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	commondriver "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/driver"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/shared"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/securitycontext"
 )
 
 // Driver is the stateful Elasticsearch driver implementation using StatefulSets.
@@ -48,10 +54,44 @@ func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 		return results.WithError(err)
 	}
 
+	// Stateful specific: Keystore (init container + volume for secure settings)
+	keystoreResources, err := reconcileKeystore(ctx, d, d.ES, d.Parameters.Version, sharedState.Meta)
+	if err != nil {
+		return results.WithError(err)
+	}
+
 	// Stateful specific: Node specs (StatefulSets, upgrades, downscales)
 	return results.WithResults(d.reconcileNodeSpecs(
 		ctx, sharedState.ESReachable, sharedState.ESClient, d.ReconcileState,
-		*sharedState.ResourcesState, sharedState.KeystoreResources, sharedState.Meta))
+		*sharedState.ResourcesState, keystoreResources, sharedState.Meta))
+}
+
+// reconcileKeystore builds the keystore init container and volume for secure settings.
+// This is only relevant for stateful Elasticsearch; stateless uses file settings cluster_secrets instead.
+func reconcileKeystore(
+	ctx context.Context,
+	d commondriver.Interface,
+	es esv1.Elasticsearch,
+	ver version.Version,
+	meta metadata.Metadata,
+) (*keystore.Resources, error) {
+	keystoreParams := initcontainer.GetKeystoreParams()
+	keystoreSecurityContext := securitycontext.For(ver, true)
+	keystoreParams.SecurityContext = &keystoreSecurityContext
+
+	remoteClusterAPIKeys, err := shared.APIKeyStoreSecretSource(ctx, &es, d.K8sClient())
+	if err != nil {
+		return nil, err
+	}
+	return keystore.ReconcileResources(
+		ctx,
+		d,
+		&es,
+		esv1.ESNamer,
+		meta,
+		keystoreParams,
+		remoteClusterAPIKeys...,
+	)
 }
 
 // names returns the names of the given pods.

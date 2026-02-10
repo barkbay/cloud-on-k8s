@@ -243,7 +243,7 @@ func Test_ReconcileEmptyFileSettingsSecret(t *testing.T) {
 
 	fakeClient := k8s.NewFakeClient()
 
-	err := ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, true)
+	err := ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, true, nil)
 	assert.NoError(t, err)
 
 	var secret corev1.Secret
@@ -258,7 +258,7 @@ func Test_ReconcileEmptyFileSettingsSecret(t *testing.T) {
 	assert.Empty(t, settings.State.SLM.Data)
 
 	// reconcile again with create only: secret is not reconciled
-	err = ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, true)
+	err = ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, true, nil)
 	assert.NoError(t, err)
 
 	var secret2 corev1.Secret
@@ -268,7 +268,7 @@ func Test_ReconcileEmptyFileSettingsSecret(t *testing.T) {
 	assert.Equal(t, "1", secret2.ResourceVersion)
 
 	// reconcile again without create only: secret is reconciled but its content hasn't changed
-	err = ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, false)
+	err = ReconcileEmptyFileSettingsSecret(context.Background(), fakeClient, es, false, nil)
 	assert.NoError(t, err)
 
 	var secret3 corev1.Secret

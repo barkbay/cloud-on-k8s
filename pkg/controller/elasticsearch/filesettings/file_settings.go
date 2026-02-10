@@ -39,6 +39,7 @@ type SettingsMetadata struct {
 // This is where the configuration of Elasticsearch objects resides.
 type SettingsState struct {
 	ClusterSettings        *commonv1.Config `json:"cluster_settings,omitempty"`
+	ClusterSecrets         *commonv1.Config `json:"cluster_secrets,omitempty"`
 	SnapshotRepositories   *commonv1.Config `json:"snapshot_repositories,omitempty"`
 	SLM                    *commonv1.Config `json:"slm,omitempty"`
 	RoleMappings           *commonv1.Config `json:"role_mappings,omitempty"`

@@ -342,7 +342,7 @@ func (r *ReconcileStackConfigPolicy) reconcileElasticsearchResources(ctx context
 		// extract the metadata that should be propagated to children
 		meta := metadata.Propagate(&es, metadata.Metadata{Labels: eslabel.NewLabels(k8s.ExtractNamespacedName(&es))})
 		// create the expected Settings Secret
-		expectedSecret, expectedVersion, err := filesettings.NewSettingsSecretWithVersion(esNsn, es.IsStateless(), &actualSettingsSecret, &esConfigPolicyFinal.Spec, esConfigPolicyFinal.SecretSources, meta)
+		expectedSecret, expectedVersion, err := filesettings.NewSettingsSecretWithVersion(esNsn, es.IsStateless(), &actualSettingsSecret, &esConfigPolicyFinal.Spec, esConfigPolicyFinal.SecretSources, nil, meta)
 		if err != nil {
 			return results.WithError(err), status
 		}
@@ -658,7 +658,7 @@ func resetOrphanSoftOwnedFileSettingSecrets(
 					"es_namespace", namespacedName.Namespace, "es_name", namespacedName.Name,
 					"owner_namespace", softOwner.Namespace, "owner_name", softOwner.Name)
 
-				if err := filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, es, false); err != nil && !apierrors.IsNotFound(err) {
+				if err := filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, es, false, nil); err != nil && !apierrors.IsNotFound(err) {
 					return err
 				}
 			} else {

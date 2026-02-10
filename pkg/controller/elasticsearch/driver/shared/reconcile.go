@@ -30,6 +30,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/bootstrap"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/cleanup"
@@ -37,12 +38,10 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/configmap"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/filesettings"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/license"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/remotecluster"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/securitycontext"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/stackmon"
@@ -299,7 +298,17 @@ func ReconcileSharedResources(
 
 	// File settings
 	if params.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
-		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, &es, params.OperatorParameters.OperatorNamespace)
+		// For stateless, build cluster_secrets from secure settings so they are applied via file-based settings
+		// instead of the keystore init container.
+		var clusterSecrets *commonv1.Config
+		if es.IsStateless() {
+			clusterSecrets, err = buildClusterSecrets(ctx, d, &es, client)
+			if err != nil {
+				esClient.Close()
+				return nil, results.WithError(err)
+			}
+		}
+		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, &es, params.OperatorParameters.OperatorNamespace, clusterSecrets)
 		if err != nil {
 			esClient.Close()
 			return nil, results.WithError(err)
@@ -311,30 +320,6 @@ func ReconcileSharedResources(
 				),
 			)
 		}
-	}
-
-	// Keystore
-	keystoreParams := initcontainer.GetKeystoreParams()
-	keystoreSecurityContext := securitycontext.For(params.Version, true)
-	keystoreParams.SecurityContext = &keystoreSecurityContext
-
-	remoteClusterAPIKeys, err := apiKeyStoreSecretSource(ctx, &es, client)
-	if err != nil {
-		esClient.Close()
-		return nil, results.WithError(err)
-	}
-	keystoreResources, err := keystore.ReconcileResources(
-		ctx,
-		d,
-		&es,
-		esv1.ESNamer,
-		meta,
-		keystoreParams,
-		remoteClusterAPIKeys...,
-	)
-	if err != nil {
-		esClient.Close()
-		return nil, results.WithError(err)
 	}
 
 	// Cluster UUID
@@ -365,11 +350,10 @@ func ReconcileSharedResources(
 	}
 
 	return &ReconcileState{
-		Meta:              meta,
-		ResourcesState:    resourcesState,
-		ESClient:          esClient,
-		ESReachable:       esReachable,
-		KeystoreResources: keystoreResources,
+		Meta:           meta,
+		ResourcesState: resourcesState,
+		ESClient:       esClient,
+		ESReachable:    esReachable,
 	}, results
 }
 
@@ -379,7 +363,8 @@ func ReconcileSharedResources(
 // targets this cluster returns true to requeue and doesn't create the empty file-settings secret. If no
 // StackConfigPolicy targets this cluster it creates an empty file-settings secret. Note: This logic here prevents
 // the race condition described in https://github.com/elastic/cloud-on-k8s/issues/8912.
-func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es *esv1.Elasticsearch, operatorNamespace string) (bool, error) {
+// clusterSecrets is optional; when non-nil it populates the cluster_secrets field in the file-based settings.
+func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es *esv1.Elasticsearch, operatorNamespace string, clusterSecrets *commonv1.Config) (bool, error) {
 	// Check if file-settings secret already exists
 	var currentSecret corev1.Secret
 	if err := c.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.FileSettingsSecretName(es.Name)}, &currentSecret); err == nil {
@@ -396,7 +381,7 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 	if !enabled {
 		// If the license is not enabled, we reconcile the empty file-settings secret
-		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
+		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true, clusterSecrets)
 	}
 
 	// Get all StackConfigPolicies in the cluster
@@ -428,11 +413,11 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 
 	// No policies target this cluster, so ES controller should create the empty secret
-	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
+	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true, clusterSecrets)
 }
 
-// apiKeyStoreSecretSource returns the Secret that holds the remote API keys.
-func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
+// APIKeyStoreSecretSource returns the Secret that holds the remote API keys.
+func APIKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.Client) ([]commonv1.NamespacedSecretSource, error) {
 	secretName := types.NamespacedName{
 		Name:      esv1.RemoteAPIKeysSecretName(es.Name),
 		Namespace: es.Namespace,
@@ -449,6 +434,49 @@ func apiKeyStoreSecretSource(ctx context.Context, es *esv1.Elasticsearch, c k8s.
 			SecretName: secretName.Name,
 		},
 	}, nil
+}
+
+// buildClusterSecrets gathers secure settings secret sources for the given Elasticsearch resource,
+// sets up watches so reconciliation is triggered when those secrets change, retrieves the secret data,
+// and returns it as a *commonv1.Config suitable for populating SettingsState.ClusterSecrets.
+// This is only used for stateless Elasticsearch clusters.
+func buildClusterSecrets(
+	ctx context.Context,
+	d commondriver.Interface,
+	es *esv1.Elasticsearch,
+	client k8s.Client,
+) (*commonv1.Config, error) {
+	// Gather all secret sources (same sources as the keystore)
+	secretSources := keystore.WatchedSecretNames(es)
+	remoteAPIKeys, err := APIKeyStoreSecretSource(ctx, es, client)
+	if err != nil {
+		return nil, err
+	}
+	secretSources = append(secretSources, remoteAPIKeys...)
+	policySecretSources, err := stackconfigpolicy.GetSecureSettingsSecretSourcesForResources(ctx, client, es, "Elasticsearch")
+	if err != nil {
+		return nil, err
+	}
+	secretSources = append(secretSources, policySecretSources...)
+
+	// Set up watches so reconciliation is triggered when those secrets change.
+	watcher := k8s.ExtractNamespacedName(es)
+	if err := watches.WatchUserProvidedNamespacedSecrets(
+		watcher,
+		d.DynamicWatches(),
+		keystore.SecureSettingsWatchName(watcher),
+		secretSources,
+	); err != nil {
+		return nil, err
+	}
+
+	// Retrieve and aggregate secret data.
+	data, err := keystore.BuildSecureSettingsData(ctx, client, d.Recorder(), es, secretSources)
+	if err != nil {
+		return nil, err
+	}
+
+	return &commonv1.Config{Data: data}, nil
 }
 
 // esReachableConditionMessage returns a message describing the Elasticsearch reachability condition.

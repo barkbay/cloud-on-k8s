@@ -43,5 +43,6 @@ func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 	)
 
 	// Stateless-specific: reconcile Deployments and tiers
-	return results.WithResults(d.reconcileTiers(ctx, d.Expectations, shared.Meta, shared.KeystoreResources))
+	// Stateless does not use the keystore init container; secure settings are applied via file settings cluster_secrets.
+	return results.WithResults(d.reconcileTiers(ctx, d.Expectations, shared.Meta, nil))
 }
