@@ -7,6 +7,8 @@ package settings
 import (
 	"context"
 
+	"gopkg.in/yaml.v3"
+
 	pkgerrors "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,9 +78,11 @@ func GetESConfigSecret(client k8s.Client, namespace string, ssetName string) (co
 	return secret, nil
 }
 
-func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, meta metadata.Metadata) corev1.Secret {
+// TODO: REMOVE operatorPrivilegesSettings BEFORE RELEASE
+func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, meta metadata.Metadata, operatorPrivilegesSettings OperatorPrivilegesSettings) corev1.Secret {
 	mergedMeta := meta.Merge(metadata.Metadata{Labels: label.NewConfigLabels(k8s.ExtractNamespacedName(&es), ssetName)})
-	return corev1.Secret{
+
+	configSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   es.Namespace,
 			Name:        ConfigSecretName(ssetName),
@@ -89,15 +93,27 @@ func ConfigSecret(es esv1.Elasticsearch, ssetName string, configData []byte, met
 			ConfigFileName: configData,
 		},
 	}
+
+	if es.IsStateless() {
+		operatorSettingsData, err := yaml.Marshal(&operatorPrivilegesSettings)
+		if err != nil {
+			// TODO: TO BE REMOVED BEFORE RELEASE.
+			panic(err)
+		}
+		configSecret.Data[OperatorUsersSettingsFileName] = operatorSettingsData
+	}
+
+	return configSecret
 }
 
 // ReconcileConfig ensures the ES config for the pod is set in the apiserver.
-func ReconcileConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsearch, ssetName string, config CanonicalConfig, meta metadata.Metadata) error {
+// TODO: REMOVE operatorPrivilegesSettings BEFORE RELEASE
+func ReconcileConfig(ctx context.Context, client k8s.Client, es esv1.Elasticsearch, ssetName string, config CanonicalConfig, meta metadata.Metadata, operatorPrivilegesSettings OperatorPrivilegesSettings) error {
 	rendered, err := config.Render()
 	if err != nil {
 		return err
 	}
-	expected := ConfigSecret(es, ssetName, rendered, meta)
+	expected := ConfigSecret(es, ssetName, rendered, meta, operatorPrivilegesSettings)
 	_, err = reconciler.ReconcileSecret(ctx, client, expected, &es)
 	return err
 }

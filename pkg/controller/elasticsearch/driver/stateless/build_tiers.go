@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/user"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -30,6 +31,10 @@ type TierResources struct {
 	meta       metadata.Metadata
 	deployment *appsv1.Deployment
 	config     settings.CanonicalConfig
+
+	// operatorPrivilegesSettings contains the settings related to the operator privileges that should be applied to the tier. These settings are used to generate the file-based operator privileges settings that will be mounted in the tier pods and grant the necessary privileges to the operator user.
+	// TODO: TO BE REMOVED BEFORE RELEASE
+	operatorPrivilegesSettings settings.OperatorPrivilegesSettings
 }
 
 func (d *Driver) buildTierResources(
@@ -63,6 +68,21 @@ func (d *Driver) buildTierResources(
 			errs = append(errs, err)
 			continue
 		}
+
+		// TODO: TO BE REMOVED BEFORE RELEASE.
+		operatorPrivilegesSettings, err := settings.NewOperatorPrivilegesSettings(
+			[]settings.OperatorAccount{
+				{
+					Names:     []string{user.ControllerUserName},
+					RealmType: settings.OperatorRealmTypeFile,
+				},
+			})
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		// TODO: END OF TODO
+
 		cfg, err := settings.NewMergedESConfig(
 			d.ES.Name, true, ver,
 			d.OperatorParameters.IPFamily,
@@ -152,9 +172,10 @@ func (d *Driver) buildTierResources(
 		}
 		expected = WithTemplateHash(expected)
 		deployments[tier] = &TierResources{
-			meta:       meta,
-			deployment: &expected,
-			config:     cfg,
+			meta:                       meta,
+			deployment:                 &expected,
+			config:                     cfg,
+			operatorPrivilegesSettings: operatorPrivilegesSettings,
 		}
 	}
 	return deployments, errors.Join(errs...)

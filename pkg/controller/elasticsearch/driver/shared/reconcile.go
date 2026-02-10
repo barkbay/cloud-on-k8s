@@ -234,45 +234,50 @@ func ReconcileSharedResources(
 		params.ReconcileState.ReportCondition(esv1.ElasticsearchIsReachable, corev1.ConditionFalse, esReachableConditionMessage(internalService, hasEndpoints, hasKnownHealthState))
 	}
 
-	// License check
-	var currentLicense esclient.License
-	if esReachable {
-		currentLicense, err = license.CheckElasticsearchLicense(ctx, esClient)
-		var e *license.GetLicenseError
-		if errors.As(err, &e) {
-			if !e.SupportedDistribution {
-				msg := "Unsupported Elasticsearch distribution"
-				// unsupported distribution, let's update the phase to "invalid" and stop the reconciliation
-				params.ReconcileState.
-					UpdateWithPhase(esv1.ElasticsearchResourceInvalid).
-					AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-				esClient.Close()
-				return nil, results.WithError(errors.Wrap(err, strings.ToLower(msg[0:1])+msg[1:]))
+	// License check and reconciliation
+	// TODO: TO BE REMOVED BEFORE RELEASE
+	// License management APIs are not available in stateless (serverless) mode.
+	// Reason:uri [/_license/start_basic?acknowledge=true&error_trace=true] with method [POST] exists but is not available when running in serverless mode
+	if !es.IsStateless() {
+		var currentLicense esclient.License
+		if esReachable {
+			currentLicense, err = license.CheckElasticsearchLicense(ctx, esClient)
+			var e *license.GetLicenseError
+			if errors.As(err, &e) {
+				if !e.SupportedDistribution {
+					msg := "Unsupported Elasticsearch distribution"
+					// unsupported distribution, let's update the phase to "invalid" and stop the reconciliation
+					params.ReconcileState.
+						UpdateWithPhase(esv1.ElasticsearchResourceInvalid).
+						AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
+					esClient.Close()
+					return nil, results.WithError(errors.Wrap(err, strings.ToLower(msg[0:1])+msg[1:]))
+				}
+				// update esReachable to bypass steps that requires ES up in order to not block reconciliation for long periods
+				esReachable = e.EsReachable
 			}
-			// update esReachable to bypass steps that requires ES up in order to not block reconciliation for long periods
-			esReachable = e.EsReachable
-		}
-		if err != nil {
-			msg := "Could not verify license, re-queuing"
-			log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
-			params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
-			results.WithReconciliationState(DefaultRequeue.WithReason(msg))
-		}
-	}
-
-	// Reconcile the Elasticsearch license (even if we assume the cluster might not respond to requests to cover the case of
-	// expired licenses where all health API responses are 403)
-	if hasEndpoints {
-		err = license.Reconcile(ctx, client, es, esClient, currentLicense)
-		if err != nil {
-			msg := "Could not reconcile cluster license, re-queuing"
-			// only log an event if Elasticsearch is in a state where success of this API call can be expected. The API call itself
-			// will be logged by the client
-			if hasKnownHealthState {
+			if err != nil {
+				msg := "Could not verify license, re-queuing"
 				log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
 				params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
+				results.WithReconciliationState(DefaultRequeue.WithReason(msg))
 			}
-			results.WithReconciliationState(DefaultRequeue.WithReason(msg))
+		}
+
+		// Reconcile the Elasticsearch license (even if we assume the cluster might not respond to requests to cover the case of
+		// expired licenses where all health API responses are 403)
+		if hasEndpoints {
+			err = license.Reconcile(ctx, client, es, esClient, currentLicense)
+			if err != nil {
+				msg := "Could not reconcile cluster license, re-queuing"
+				// only log an event if Elasticsearch is in a state where success of this API call can be expected. The API call itself
+				// will be logged by the client
+				if hasKnownHealthState {
+					log.Info(msg, "err", err, "namespace", es.Namespace, "es_name", es.Name)
+					params.ReconcileState.AddEvent(corev1.EventTypeWarning, events.EventReasonUnexpected, fmt.Sprintf("%s: %s", msg, err.Error()))
+				}
+				results.WithReconciliationState(DefaultRequeue.WithReason(msg))
+			}
 		}
 	}
 

@@ -55,6 +55,7 @@ func (d *Driver) reconcileTiers(
 			tierResources.deployment.Name,
 			tierResources.config,
 			tierResources.meta,
+			tierResources.operatorPrivilegesSettings,
 		); err != nil {
 			results.WithError(err)
 			continue
