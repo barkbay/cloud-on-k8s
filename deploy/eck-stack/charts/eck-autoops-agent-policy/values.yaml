@@ -18,7 +18,7 @@
 
 # Version of AutoOps Agent Policy.
 #
-version: 9.3.0-SNAPSHOT
+version: 9.4.0-SNAPSHOT
 
 # Labels that will be applied to AutoOps Agent Policy.
 #
@@ -78,6 +78,14 @@ resourceSelector:
   matchLabels:
     autoops: enabled
 
+# NamespaceSelector is a namespace selector for the resources to be configured.
+# Any Elasticsearch instances belonging to the selected namespaces will be configured to send data to AutoOps.
+# If not specified, all namespaces are selected.
+#
+# namespaceSelector:
+#   matchLabels:
+#     kubernetes.io/metadata.name: team-a
+
 # ServiceAccountName is used for RBAC checks when accessing Elasticsearch clusters
 # in different namespaces. The policy can only target Elasticsearch clusters that
 # the specified service account has permission to access (via 'get' verb).
@@ -85,3 +93,19 @@ resourceSelector:
 #
 # serviceAccountName: ""
 
+
+# extraObjects allows injecting additional Kubernetes resources into the chart.
+# These resources will be created/deleted alongside the chart release.
+# The value is a list of strings, each string is a YAML manifest.
+# Helm templating is supported within each manifest.
+# Example:
+# extraObjects:
+#   - |
+#     apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: {{ include "autoops.fullname" . }}-extra-config
+#       namespace: {{ .Release.Namespace }}
+#     data:
+#       key: value
+extraObjects: []

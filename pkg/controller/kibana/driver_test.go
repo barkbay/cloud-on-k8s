@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -46,7 +47,7 @@ func Test_getStrategyType(t *testing.T) {
 	// creates `count` of pods belonging to `kbName` Kibana and to `rs-kbName-version` ReplicaSet
 	getPods := func(kbName string, podCount int, version string) []client.Object {
 		var result []client.Object
-		for i := 0; i < podCount; i++ {
+		for i := range podCount {
 			result = append(result, &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					OwnerReferences: []metav1.OwnerReference{
@@ -351,6 +352,9 @@ func TestDriverDeploymentParams(t *testing.T) {
 				p.PodTemplateSpec.Labels["kibana.k8s.elastic.co/version"] = "7.17.0"
 				p.PodTemplateSpec.Spec.SecurityContext = &corev1.PodSecurityContext{
 					FSGroup: ptr.To[int64](1000),
+					SeccompProfile: &corev1.SeccompProfile{
+						Type: corev1.SeccompProfileTypeRuntimeDefault,
+					},
 				}
 				return p
 			}(),
@@ -688,9 +692,7 @@ func expectedDeploymentParams() deployment.Params {
 func expectedDeploymentWithPolicyAnnotations(policyAnnotations map[string]string) deployment.Params {
 	deploymentParams := expectedDeploymentParams()
 
-	for k, v := range policyAnnotations {
-		deploymentParams.PodTemplateSpec.Annotations[k] = v
-	}
+	maps.Copy(deploymentParams.PodTemplateSpec.Annotations, policyAnnotations)
 	return deploymentParams
 }
 

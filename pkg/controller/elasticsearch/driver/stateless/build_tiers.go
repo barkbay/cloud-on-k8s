@@ -32,7 +32,7 @@ type TierResources struct {
 	config     settings.CanonicalConfig
 }
 
-func (sd *statelessDriver) buildTierResources(
+func (d *Driver) buildTierResources(
 	ctx context.Context,
 	meta metadata.Metadata,
 	ver version.Version,
@@ -45,7 +45,7 @@ func (sd *statelessDriver) buildTierResources(
 			label.TierLabelName: string(tier),
 		}})
 
-		tierSpec, err := sd.ES.GetTierSpec(tier)
+		tierSpec, err := d.ES.GetTierSpec(tier)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -58,18 +58,18 @@ func (sd *statelessDriver) buildTierResources(
 		}
 
 		// Get Policy config
-		policyConfig, err := nodespec.GetPolicyConfig(ctx, sd.Client, sd.ES)
+		policyConfig, err := nodespec.GetPolicyConfig(ctx, d.Client, d.ES)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		cfg, err := settings.NewMergedESConfig(
-			sd.ES.Name, true, ver,
-			sd.OperatorParameters.IPFamily,
-			sd.ES.Spec.HTTP, userCfg,
+			d.ES.Name, true, ver,
+			d.OperatorParameters.IPFamily,
+			d.ES.Spec.HTTP, userCfg,
 			policyConfig.ElasticsearchConfig,
 			false, /* Spec.RemoteClusterServer.Enabled */
-			sd.OperatorParameters.SetDefaultSecurityContext,
+			d.OperatorParameters.SetDefaultSecurityContext,
 		)
 		if err != nil {
 			errs = append(errs, err)
@@ -77,31 +77,31 @@ func (sd *statelessDriver) buildTierResources(
 		}
 
 		// Add stateless specific config
-		cfg, err = settings.WithStatelessConfig(tier, sd.ES.Spec.StatelessSpec.StatelessConfig.ObjectStore, cfg)
+		cfg, err = settings.WithStatelessConfig(tier, d.ES.Spec.StatelessSpec.StatelessConfig.ObjectStore, cfg)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		deploymentName := esv1.PodsControllerResourceName(sd.ES.Name, string(tier))
-		if err := settings.ReconcileConfig(ctx, sd.Client, sd.ES, deploymentName, cfg, meta); err != nil {
+		deploymentName := esv1.PodsControllerResourceName(d.ES.Name, string(tier))
+		if err := settings.ReconcileConfig(ctx, d.Client, d.ES, deploymentName, cfg, meta); err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// deploymentSelector is used to match the deploymentSelector pods
-		deploymentSelector := label.NewDeploymentLabels(k8s.ExtractNamespacedName(&sd.ES), deploymentName)
+		deploymentSelector := label.NewDeploymentLabels(k8s.ExtractNamespacedName(&d.ES), deploymentName)
 		mergedMeta := meta.Merge(metadata.Metadata{Labels: deploymentSelector})
 
 		// Pod template
 		podTemplateSpec, err := nodespec.BuildPodTemplateSpec(
 			ctx,
-			sd.Client,
-			sd.ES,
+			d.Client,
+			d.ES,
 			tierSpec.AsNamedTierSpec(tier),
 			cfg,
 			keystoreResources,
-			sd.OperatorParameters.SetDefaultSecurityContext,
+			d.OperatorParameters.SetDefaultSecurityContext,
 			policyConfig,
 			meta,
 		)
@@ -139,7 +139,7 @@ func (sd *statelessDriver) buildTierResources(
 		expected := appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        deploymentName,
-				Namespace:   sd.ES.Namespace,
+				Namespace:   d.ES.Namespace,
 				Labels:      mergedMeta.Labels,
 				Annotations: mergedMeta.Annotations,
 			},

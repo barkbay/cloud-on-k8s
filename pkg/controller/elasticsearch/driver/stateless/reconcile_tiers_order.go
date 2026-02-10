@@ -19,14 +19,14 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/slices"
 )
 
-func (sd *statelessDriver) observedDeployments(ctx context.Context) ([]*appsv1.Deployment, error) {
+func (d *Driver) observedDeployments(ctx context.Context) ([]*appsv1.Deployment, error) {
 	observedDeployments := make([]*appsv1.Deployment, 0, len(esv1.AllElasticsearchTierNames))
 	for _, tier := range esv1.AllElasticsearchTierNames {
-		deploymentName := esv1.PodsControllerResourceName(sd.ES.Name, string(tier))
+		deploymentName := esv1.PodsControllerResourceName(d.ES.Name, string(tier))
 		deployment := &appsv1.Deployment{}
-		err := sd.Client.Get(
+		err := d.Client.Get(
 			ctx,
-			client.ObjectKey{Namespace: sd.ES.Namespace, Name: deploymentName},
+			client.ObjectKey{Namespace: d.ES.Namespace, Name: deploymentName},
 			deployment,
 		)
 		if err != nil {
@@ -45,12 +45,12 @@ func (sd *statelessDriver) observedDeployments(ctx context.Context) ([]*appsv1.D
 // * the cluster is not yet bootstrapped (we need index nodes right away to form a cluster)
 // * all deployments are unavailable and there is therefore no point in optimising the rollout
 // * all deployments with master role are unavailable which means the cluster as a whole is unavailable
-func (sd *statelessDriver) shouldGroupDeploymentReconciliation(
+func (d *Driver) shouldGroupDeploymentReconciliation(
 	ctx context.Context,
 	observedDeployments []*appsv1.Deployment,
 	expectedDeployments []*appsv1.Deployment,
 ) bool {
-	isClusterBootstrapped := bootstrap.AnnotatedForBootstrap(sd.ES)
+	isClusterBootstrapped := bootstrap.AnnotatedForBootstrap(d.ES)
 	log := crlog.FromContext(ctx)
 	switch {
 	case !isClusterBootstrapped:

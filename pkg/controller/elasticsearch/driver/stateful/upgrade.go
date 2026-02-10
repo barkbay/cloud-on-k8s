@@ -18,6 +18,7 @@ import (
 	sset "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/shared"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/reconcile"
@@ -27,7 +28,7 @@ import (
 	ulog "github.com/elastic/cloud-on-k8s/v3/pkg/utils/log"
 )
 
-func (d *defaultDriver) handleUpgrades(
+func (d *Driver) handleUpgrades(
 	ctx context.Context,
 	esClient esclient.Client,
 	esState ESState,
@@ -45,7 +46,7 @@ func (d *defaultDriver) handleUpgrades(
 	}
 	if !ok {
 		reason := fmt.Sprintf("Nodes upgrade: %s", reason)
-		return results.WithReconciliationState(defaultRequeue.WithReason(reason))
+		return results.WithReconciliationState(shared.DefaultRequeue.WithReason(reason))
 	}
 
 	// Get the pods to upgrade
@@ -117,11 +118,11 @@ func (d *defaultDriver) handleUpgrades(
 	}
 	if len(deletedPods) > 0 {
 		// Some Pods have just been deleted, we don't need to try to enable shards allocation.
-		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade in progress"))
+		return results.WithReconciliationState(shared.DefaultRequeue.WithReason("Nodes upgrade in progress"))
 	}
 	if len(podsToUpgrade) > len(deletedPods) {
 		// Some Pods have not been updated, ensure that we retry later
-		results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade in progress"))
+		results.WithReconciliationState(shared.DefaultRequeue.WithReason("Nodes upgrade in progress"))
 	}
 	return results
 }
@@ -146,7 +147,7 @@ type upgradeCtx struct {
 
 func newUpgrade(
 	ctx context.Context,
-	d *defaultDriver,
+	d *Driver,
 	statefulSets es_sset.StatefulSetList,
 	resourcesList nodespec.ResourcesList,
 	esClient esclient.Client,
@@ -319,7 +320,7 @@ func doFlush(ctx context.Context, es esv1.Elasticsearch, esClient esclient.Clien
 	}
 }
 
-func (d *defaultDriver) maybeCompleteNodeUpgrades(
+func (d *Driver) maybeCompleteNodeUpgrades(
 	ctx context.Context,
 	esClient esclient.Client,
 	esState ESState,
@@ -334,7 +335,7 @@ func (d *defaultDriver) maybeCompleteNodeUpgrades(
 	}
 	if !done {
 		reason := fmt.Sprintf("Completing node upgrade: %s", reason)
-		return results.WithReconciliationState(defaultRequeue.WithReason(reason))
+		return results.WithReconciliationState(shared.DefaultRequeue.WithReason(reason))
 	}
 
 	statefulSets, err := es_sset.RetrieveActualStatefulSets(d.Client, k8s.ExtractNamespacedName(&d.ES))
@@ -374,7 +375,7 @@ func (d *defaultDriver) maybeCompleteNodeUpgrades(
 			"namespace", d.ES.Namespace,
 			"es_name", d.ES.Name,
 		)
-		return results.WithReconciliationState(defaultRequeue.WithReason("Nodes upgrade: some nodes are not back in the cluster yet"))
+		return results.WithReconciliationState(shared.DefaultRequeue.WithReason("Nodes upgrade: some nodes are not back in the cluster yet"))
 	}
 
 	// we still have to enable shard allocation in cases where we just upgraded from
@@ -391,7 +392,7 @@ func (d *defaultDriver) maybeCompleteNodeUpgrades(
 	return results
 }
 
-func (d *defaultDriver) maybeEnableShardsAllocation(
+func (d *Driver) maybeEnableShardsAllocation(
 	ctx context.Context,
 	esClient esclient.Client,
 	esState ESState,

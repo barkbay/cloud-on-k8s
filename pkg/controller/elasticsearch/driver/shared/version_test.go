@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package common
+package shared
 
 import (
 	"testing"
@@ -105,11 +105,8 @@ func Test_lowestHighestSupportedVersions_VerifySupportsExistingPods(t *testing.T
 				Min: tt.fields.min,
 				Max: tt.fields.max,
 			}
-			d := DefaultDriverParameters{
-				SupportedVersions: lh,
-			}
-			if err := d.verifySupportsExistingPods(tt.args.pods); (err != nil) != tt.wantErr {
-				t.Errorf("verifySupportsExistingPods() error = %v, wantErr %v", err, tt.wantErr)
+			if err := VerifySupportsExistingPods(tt.args.pods, lh); (err != nil) != tt.wantErr {
+				t.Errorf("VerifySupportsExistingPods() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

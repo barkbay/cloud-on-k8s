@@ -16,22 +16,23 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
-// ExpectedGenerations stores StatefulSets generations that are expected in the cache,
-// following a StatefulSet update. It allows making sure we're not working with an
-// out-of-date version of the StatefulSet resource we previously updated.
+// ExpectedGenerations stores resource generations that are expected in the cache,
+// following a resource update. It allows making sure we're not working with an
+// out-of-date version of a resource we previously updated.
 type ExpectedGenerations struct {
 	object      client.Object
 	client      k8s.Client
-	generations map[types.NamespacedName]ResourceGeneration // per StatefulSet
+	generations map[types.NamespacedName]ResourceGeneration
 }
 
-// ResourceGeneration wraps UID and Generation for a given StatefulSet.
+// ResourceGeneration wraps UID and Generation for a given resource.
 type ResourceGeneration struct {
 	UID        types.UID
 	Generation int64
 }
 
 // NewExpectedGenerations returns an initialized ExpectedGenerations.
+// The object parameter serves as a template for empty object creation, using DeepCopyObject() before retrieving objects from the API server.
 func NewExpectedGenerations(client k8s.Client, object client.Object) *ExpectedGenerations {
 	return &ExpectedGenerations{
 		object:      object,
@@ -41,7 +42,7 @@ func NewExpectedGenerations(client k8s.Client, object client.Object) *ExpectedGe
 }
 
 // ExpectGeneration registers the Generation of the given object as expected.
-// The object we receive as argument here is the "updated" StatefulSet.
+// The object we receive as argument here is the "updated" resource.
 // We expect to see its generation (at least) in PendingGenerations().
 func (e *ExpectedGenerations) ExpectGeneration(object metav1.Object) {
 	resource := types.NamespacedName{Namespace: object.GetNamespace(), Name: object.GetName()}
@@ -51,8 +52,8 @@ func (e *ExpectedGenerations) ExpectGeneration(object metav1.Object) {
 	}
 }
 
-// PendingGenerations compares expected StatefulSets generations with the ones we have in the cache,
-// and returns the list of StatefulSets for which the generation has not been updated yet.
+// PendingGenerations compares expected resource generations with the ones we have in the cache,
+// and returns the list of resources for which the generation has not been updated yet.
 // Expectations are cleared once they are matched.
 func (e *ExpectedGenerations) PendingGenerations() ([]string, error) {
 	var pendingObjects []string
@@ -71,7 +72,7 @@ func (e *ExpectedGenerations) PendingGenerations() ([]string, error) {
 	return pendingObjects, nil
 }
 
-// generationSatisfied returns true if the generation of the cached StatefulSet matches what is expected.
+// generationSatisfied returns true if the generation of the cached resource matches what is expected.
 func (e *ExpectedGenerations) generationSatisfied(name types.NamespacedName, expected ResourceGeneration) (bool, error) {
 	object, ok := e.object.DeepCopyObject().(client.Object)
 	if !ok {
@@ -80,20 +81,25 @@ func (e *ExpectedGenerations) generationSatisfied(name types.NamespacedName, exp
 	err := e.client.Get(context.Background(), name, object)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// StatefulSet does not exist anymore
+			// Resource does not exist anymore
 			return true, nil
 		}
 		return false, err
 	}
 	if object.GetUID() != expected.UID {
-		// StatefulSet was replaced by another one with the same name
+		// Resource was replaced by another one with the same name
 		return true, nil
 	}
 	if object.GetGeneration() >= expected.Generation {
-		// StatefulSet generation matches our expectations
+		// Resource generation matches our expectations
 		return true, nil
 	}
 	return false, nil
+}
+
+// ObjectType returns the type of objects this ExpectedGenerations tracks.
+func (e *ExpectedGenerations) ObjectType() string {
+	return fmt.Sprintf("%T", e.object)
 }
 
 // GetGenerations returns the map of generations, for testing purposes mostly.

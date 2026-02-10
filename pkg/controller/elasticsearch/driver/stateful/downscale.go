@@ -21,6 +21,7 @@ import (
 	sset "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates/transport"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/shared"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
@@ -79,14 +80,14 @@ func HandleDownscale(
 		}
 		if requeue {
 			// retry downscaling this statefulset later
-			results.WithReconciliationState(defaultRequeue.WithReason("Downscale in progress"))
+			results.WithReconciliationState(shared.DefaultRequeue.WithReason("Downscale in progress"))
 		}
 	}
 
 	// Ensure that the status mention the delayed nodes
 	if delayedLeavingNodes, _ := stringsutil.Difference(desiredLeavingNodes, leavingNodes); len(delayedLeavingNodes) > 0 {
 		sort.Strings(delayedLeavingNodes)
-		results.WithReconciliationState(defaultRequeue.WithReason(fmt.Sprintf("Downscale in progress, delayed nodes: %s", delayedLeavingNodes)))
+		results.WithReconciliationState(shared.DefaultRequeue.WithReason(fmt.Sprintf("Downscale in progress, delayed nodes: %s", delayedLeavingNodes)))
 	}
 	return results
 }

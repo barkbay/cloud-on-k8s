@@ -31,7 +31,6 @@ import (
 	"k8s.io/utils/ptr"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	drivercommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/common"
 
 	commonv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/common/v1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
@@ -39,6 +38,8 @@ import (
 	common "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/shared"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/hints"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/reconcile"
@@ -46,7 +47,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
-func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
+func Test_Driver_updateDesiredNodes(t *testing.T) {
 	type args struct {
 		esReachable       bool
 		esClientError     bool
@@ -85,7 +86,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2222m", "3141m").
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "1Gi").pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -98,7 +99,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withCPU("", "1"). // Setting only limits is also fine.
 					withMemory("", "4Gi").
 					withStorage("10Gi", "50Gi").pvcCreated(true).
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -131,7 +132,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2222m", "3141m").
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "1Gi").pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -144,7 +145,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withCPU("", "1"). // Setting only limits is also fine.
 					withMemory("", "4Gi").
 					withStorage("10Gi", "50Gi").pvcCreated(true).
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -173,7 +174,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2222m", "3141m").
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "1Gi").pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -186,7 +187,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withCPU("", "1"). // Setting only limits is also fine.
 					withMemory("", "4Gi").
 					withStorage("10Gi", "50Gi").pvcCreated(true).
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -215,7 +216,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2222m", "3141m").
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "1Gi").pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -228,7 +229,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withCPU("", "1").
 					withMemory("", "4Gi").
 					withStorage("10Gi", "50Gi").pvcCreated(true).
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -239,7 +240,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 			),
 			want: want{
 				result: wantResult{
-					requeueAfter: defaultRequeue.RequeueAfter,
+					requeueAfter: shared.DefaultRequeue.RequeueAfter,
 					reason:       "Waiting for Elasticsearch to be available to update the desired nodes API",
 				},
 				condition: &wantCondition{
@@ -260,7 +261,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "").
 						pvcCreated(false). // PVC does not exist yet
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -274,7 +275,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withMemory("", "4Gi").
 					withStorage("50Gi", "").
 					pvcCreated(false). // PVC does not exist yet
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -285,7 +286,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 			),
 			want: want{
 				result: wantResult{
-					requeueAfter: defaultRequeue.RequeueAfter, // requeue is expected to get a more accurate storage capacity from the PVC status later
+					requeueAfter: shared.DefaultRequeue.RequeueAfter, // requeue is expected to get a more accurate storage capacity from the PVC status later
 					reason:       "Storage capacity is not available in all PVC statuses, requeue to refine the capacity reported in the desired nodes API",
 				},
 				testdata: "happy_path.json",
@@ -306,7 +307,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2222m", "3141m").
 						withMemory("2333Mi", "2333Mi").
 						withStorage("1Gi", "" /* No capacity in PVC status */).pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"node.roles":              []string{"master"},
 							"node.name":               "${POD_NAME}",
 							"path.data":               "/usr/share/elasticsearch/data",
@@ -319,7 +320,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 					withCPU("", "1").
 					withMemory("", "4Gi").
 					withStorage("50Gi", "" /* No capacity in PVC status */).pvcCreated(true).
-					withNodeCfg(map[string]interface{}{
+					withNodeCfg(map[string]any{
 						"node.roles":              []string{"data", "ingest"},
 						"node.name":               "${POD_NAME}",
 						"path.data":               "/usr/share/elasticsearch/data",
@@ -330,7 +331,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 			),
 			want: want{
 				result: wantResult{
-					requeueAfter: defaultRequeue.RequeueAfter, // requeue is expected to get a more accurate storage capacity from the PVC status later
+					requeueAfter: shared.DefaultRequeue.RequeueAfter, // requeue is expected to get a more accurate storage capacity from the PVC status later
 					reason:       "Storage capacity is not available in all PVC statuses, requeue to refine the capacity reported in the desired nodes API",
 				},
 				testdata: "happy_path.json",
@@ -351,7 +352,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("2", "4").
 						withMemory("2Gi", "2Gi").
 						withStorage("1Gi", "1Gi").
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"path.data": []string{"/usr/share/elasticsearch/data1", "/usr/share/elasticsearch/data2"},
 						}),
 				),
@@ -377,7 +378,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withMemory("2Gi", "2Gi").
 						withStorage("1Gi", "1Gi").
 						pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"path.data": "/usr/share/elasticsearch/data",
 						}),
 				),
@@ -405,7 +406,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withMemory("2Gi", "2Gi").
 						withStorage("1Gi", "1Gi").
 						pvcCreated(true).
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"path.data": "/usr/share/elasticsearch/data",
 						}),
 				),
@@ -431,7 +432,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 						withCPU("0", "").
 						withMemory("0", "0").
 						withStorage("1Gi", "1Gi").
-						withNodeCfg(map[string]interface{}{
+						withNodeCfg(map[string]any{
 							"path.data": "/usr/share/elasticsearch/data",
 						}),
 				),
@@ -482,7 +483,7 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 				),
 			want: want{
 				result: wantResult{
-					requeueAfter: defaultRequeue.RequeueAfter,
+					requeueAfter: shared.DefaultRequeue.RequeueAfter,
 				},
 				deleteCalled: false, // Elasticsearch is not reachable, client cannot be called
 				condition: &wantCondition{
@@ -534,11 +535,11 @@ func Test_defaultDriver_updateDesiredNodes(t *testing.T) {
 				k8sClient = k8s.NewFakeClient(existingResources...)
 			}
 
-			d := NewDriver(&drivercommon.DefaultDriverParameters{
+			d := &Driver{BaseDriver: driver.BaseDriver{Parameters: driver.Parameters{
 				ReconcileState: reconcileState,
 				ES:             es,
 				Client:         k8sClient,
-			})
+			}}}
 
 			wantClient := wantClient{}
 			if tt.want.testdata != "" {
@@ -700,7 +701,7 @@ func (esb esBuilder) withNodeSet(fn fakeNodeSet) esBuilder {
 type fakeNodeSet struct {
 	name                       string
 	count                      int32
-	nodeConfig                 map[string]interface{}
+	nodeConfig                 map[string]any
 	cpuRequest, cpuLimit       *resource.Quantity
 	memoryRequest, memoryLimit *resource.Quantity
 
@@ -753,7 +754,7 @@ func nodeSet(name string, count int32) fakeNodeSet {
 	}
 }
 
-func (fn fakeNodeSet) withNodeCfg(cfg map[string]interface{}) fakeNodeSet {
+func (fn fakeNodeSet) withNodeCfg(cfg map[string]any) fakeNodeSet {
 	fn.nodeConfig = cfg
 	return fn
 }

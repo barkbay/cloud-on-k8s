@@ -108,7 +108,7 @@ func (e *Expectations) Satisfied() (bool, string, error) {
 		return false, "", err
 	}
 	if len(pendingGenerations) > 0 {
-		return false, fmt.Sprintf("%T not reconciled yet: %s", e.object, strings.Join(pendingGenerations, ",")), nil
+		return false, fmt.Sprintf("%s not reconciled yet: %s", e.ExpectedGenerations.ObjectType(), strings.Join(pendingGenerations, ",")), nil
 	}
 	return true, "", nil
 }

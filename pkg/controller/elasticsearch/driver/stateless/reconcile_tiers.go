@@ -19,7 +19,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 )
 
-func (sd *statelessDriver) reconcileTiers(
+func (d *Driver) reconcileTiers(
 	ctx context.Context,
 	expectations *expectations.Expectations,
 	meta metadata.Metadata,
@@ -28,7 +28,7 @@ func (sd *statelessDriver) reconcileTiers(
 	results := reconciler.NewResult(ctx)
 
 	// check if actual Deployments match our expectations before applying any change
-	ok, reason, err := sd.expectationsSatisfied(ctx)
+	ok, reason, err := d.expectationsSatisfied(ctx)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -36,12 +36,12 @@ func (sd *statelessDriver) reconcileTiers(
 		return results.WithReconciliationState(reconciler.Requeue.WithReason(reason))
 	}
 
-	ver, err := version.Parse(sd.ES.Spec.Version)
+	ver, err := version.Parse(d.ES.Spec.Version)
 	if err != nil {
 		return results.WithError(err)
 	}
 
-	buildTierResources, err := sd.buildTierResources(ctx, meta, ver, keystoreResources)
+	buildTierResources, err := d.buildTierResources(ctx, meta, ver, keystoreResources)
 	if err != nil {
 		return results.WithError(err)
 	}
@@ -50,8 +50,8 @@ func (sd *statelessDriver) reconcileTiers(
 		// Reconcile the config first
 		if err := settings.ReconcileConfig(
 			ctx,
-			sd.Client,
-			sd.ES,
+			d.Client,
+			d.ES,
 			tierResources.deployment.Name,
 			tierResources.config,
 			tierResources.meta,
@@ -65,8 +65,8 @@ func (sd *statelessDriver) reconcileTiers(
 		expected := tierResources.deployment
 		results.WithError(reconciler.ReconcileResource(reconciler.Params{
 			Context:    ctx,
-			Client:     sd.Client,
-			Owner:      &sd.ES,
+			Client:     d.Client,
+			Owner:      &d.ES,
 			Expected:   expected,
 			Reconciled: reconciled,
 			NeedsUpdate: func() bool {

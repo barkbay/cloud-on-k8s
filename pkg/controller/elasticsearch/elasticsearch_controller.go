@@ -38,7 +38,7 @@ import (
 	commonversion "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/watches"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/certificates/transport"
-	drivercommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/common"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/stateful"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/stateless"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
@@ -92,6 +92,12 @@ func addWatches(mgr manager.Manager, c controller.Controller, r *ReconcileElasti
 	// Watch StatefulSets
 	if err := c.Watch(
 		source.Kind(mgr.GetCache(), &appsv1.StatefulSet{}, handler.TypedEnqueueRequestForOwner[*appsv1.StatefulSet](mgr.GetScheme(), mgr.GetRESTMapper(), &esv1.Elasticsearch{}, handler.OnlyControllerOwner()))); err != nil {
+		return err
+	}
+
+	// Watch Deployments (stateless Elasticsearch)
+	if err := c.Watch(
+		source.Kind(mgr.GetCache(), &appsv1.Deployment{}, handler.TypedEnqueueRequestForOwner[*appsv1.Deployment](mgr.GetScheme(), mgr.GetRESTMapper(), &esv1.Elasticsearch{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
 
@@ -299,19 +305,19 @@ func (r *ReconcileElasticsearch) internalReconcile(
 		expectations = r.statefulExpectations.ForCluster(k8s.ExtractNamespacedName(&es))
 	}
 
-	defaultDriverParameters := drivercommon.NewDefaultDriverParameters(
-		r.Parameters,
-		es,
-		reconcileState,
-		r.Client,
-		r.recorder,
-		ver,
-		expectations,
-		r.esObservers,
-		r.dynamicWatches,
-		*supported,
-		r.licenseChecker,
-	)
+	defaultDriverParameters := driver.Parameters{
+		OperatorParameters: r.Parameters,
+		ES:                 es,
+		ReconcileState:     reconcileState,
+		Client:             r.Client,
+		Recorder:           r.recorder,
+		Version:            ver,
+		Expectations:       expectations,
+		Observers:          r.esObservers,
+		DynamicWatches:    r.dynamicWatches,
+		SupportedVersions:  *supported,
+		LicenseChecker:    r.licenseChecker,
+	}
 
 	if es.IsStateless() {
 		return stateless.NewDriver(defaultDriverParameters).Reconcile(ctx)

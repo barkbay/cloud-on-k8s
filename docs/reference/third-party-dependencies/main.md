@@ -8,7 +8,7 @@ applies_to:
 ---
 % Generated documentation. Please do not edit.
 
-# Third-party dependencies for Elastic Cloud on Kubernetes[k8s-dependencies]
+# Third-party dependencies for Elastic Cloud on Kubernetes [k8s-dependencies]
 
 This page lists the third-party dependencies used to build {{eck}} from the main branch.
 
@@ -35,7 +35,6 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [github.com/hashicorp/golang-lru/v2](https://github.com/hashicorp/golang-lru) | v2.0.7 | MPL-2.0 |
 | [github.com/hashicorp/vault/api](https://github.com/hashicorp/vault) | v1.22.0 | MPL-2.0 |
 | [github.com/magiconair/properties](https://github.com/magiconair/properties) | v1.8.10 | BSD-2-Clause |
-| [github.com/openkruise/kruise-api](https://github.com/openkruise/kruise-api) | v1.8.0 | Apache-2.0 |
 | [github.com/pkg/errors](https://github.com/pkg/errors) | v0.9.1 | BSD-2-Clause |
 | [github.com/pmezard/go-difflib](https://github.com/pmezard/go-difflib) | v1.0.1-0.20181226105442-5d4384ee4fb2 | BSD-3-Clause |
 | [github.com/prometheus/client_golang](https://github.com/prometheus/client_golang) | v1.23.2 | Apache-2.0 |
@@ -44,13 +43,13 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [github.com/spf13/pflag](https://github.com/spf13/pflag) | v1.0.10 | BSD-3-Clause |
 | [github.com/spf13/viper](https://github.com/spf13/viper) | v1.21.0 | MIT |
 | [github.com/stretchr/testify](https://github.com/stretchr/testify) | v1.11.1 | MIT |
-| [go.elastic.co/apm/module/apmelasticsearch/v2](https://go.elastic.co/apm/module/apmelasticsearch/v2) | v2.7.2 | Apache-2.0 |
-| [go.elastic.co/apm/module/apmhttp/v2](https://go.elastic.co/apm/module/apmhttp/v2) | v2.7.2 | Apache-2.0 |
-| [go.elastic.co/apm/module/apmzap/v2](https://go.elastic.co/apm/module/apmzap/v2) | v2.7.2 | Apache-2.0 |
-| [go.elastic.co/apm/v2](https://go.elastic.co/apm/v2) | v2.7.2 | Apache-2.0 |
+| [go.elastic.co/apm/module/apmelasticsearch/v2](https://go.elastic.co/apm/module/apmelasticsearch/v2) | v2.7.3 | Apache-2.0 |
+| [go.elastic.co/apm/module/apmhttp/v2](https://go.elastic.co/apm/module/apmhttp/v2) | v2.7.3 | Apache-2.0 |
+| [go.elastic.co/apm/module/apmzap/v2](https://go.elastic.co/apm/module/apmzap/v2) | v2.7.3 | Apache-2.0 |
+| [go.elastic.co/apm/v2](https://go.elastic.co/apm/v2) | v2.7.3 | Apache-2.0 |
 | [go.uber.org/automaxprocs](https://go.uber.org/automaxprocs) | v1.6.0 | MIT |
 | [go.uber.org/zap](https://go.uber.org/zap) | v1.27.1 | MIT |
-| [golang.org/x/crypto](https://golang.org/x/crypto) | v0.47.0 | BSD-3-Clause |
+| [golang.org/x/crypto](https://golang.org/x/crypto) | v0.48.0 | BSD-3-Clause |
 | [golang.org/x/exp](https://golang.org/x/exp) | v0.0.0-20240808152545-0cdaa3abc0fa | BSD-3-Clause |
 | [gopkg.in/yaml.v3](https://gopkg.in/yaml.v3) | v3.0.1 | MIT |
 | [k8s.io/api](https://github.com/kubernetes/api) | v0.35.0 | Apache-2.0 |
@@ -58,7 +57,7 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [k8s.io/client-go](https://github.com/kubernetes/client-go) | v0.35.0 | Apache-2.0 |
 | [k8s.io/klog/v2](https://github.com/kubernetes/klog) | v2.130.1 | Apache-2.0 |
 | [k8s.io/utils](https://github.com/kubernetes/utils) | v0.0.0-20251002143259-bc988d571ff4 | Apache-2.0 |
-| [sigs.k8s.io/controller-runtime](https://sigs.k8s.io/controller-runtime) | v0.22.4 | Apache-2.0 |
+| [sigs.k8s.io/controller-runtime](https://sigs.k8s.io/controller-runtime) | v0.23.1 | Apache-2.0 |
 | [sigs.k8s.io/controller-tools](https://sigs.k8s.io/controller-tools) | v0.20.0 | Apache-2.0 |
 
 
@@ -82,7 +81,7 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [github.com/elastic/go-sysinfo](https://github.com/elastic/go-sysinfo) | v1.15.2 | Apache-2.0 |
 | [github.com/elastic/go-windows](https://github.com/elastic/go-windows) | v1.0.2 | Apache-2.0 |
 | [github.com/emicklei/go-restful/v3](https://github.com/emicklei/go-restful) | v3.12.2 | MIT |
-| [github.com/evanphx/json-patch](https://github.com/evanphx/json-patch) | v5.6.0+incompatible | BSD-3-Clause |
+| [github.com/evanphx/json-patch](https://github.com/evanphx/json-patch) | v0.5.2 | BSD-3-Clause |
 | [github.com/evanphx/json-patch/v5](https://github.com/evanphx/json-patch) | v5.9.11 | BSD-3-Clause |
 | [github.com/fatih/color](https://github.com/fatih/color) | v1.18.0 | MIT |
 | [github.com/felixge/httpsnoop](https://github.com/felixge/httpsnoop) | v1.0.4 | MIT |
@@ -181,15 +180,15 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [go.uber.org/multierr](https://go.uber.org/multierr) | v1.11.0 | MIT |
 | [go.yaml.in/yaml/v2](https://go.yaml.in/yaml/v2) | v2.4.3 | Apache-2.0 |
 | [go.yaml.in/yaml/v3](https://go.yaml.in/yaml/v3) | v3.0.4 | MIT |
-| [golang.org/x/mod](https://golang.org/x/mod) | v0.31.0 | BSD-3-Clause |
-| [golang.org/x/net](https://golang.org/x/net) | v0.48.0 | BSD-3-Clause |
+| [golang.org/x/mod](https://golang.org/x/mod) | v0.32.0 | BSD-3-Clause |
+| [golang.org/x/net](https://golang.org/x/net) | v0.49.0 | BSD-3-Clause |
 | [golang.org/x/oauth2](https://golang.org/x/oauth2) | v0.34.0 | BSD-3-Clause |
 | [golang.org/x/sync](https://golang.org/x/sync) | v0.19.0 | BSD-3-Clause |
-| [golang.org/x/sys](https://golang.org/x/sys) | v0.40.0 | BSD-3-Clause |
-| [golang.org/x/term](https://golang.org/x/term) | v0.39.0 | BSD-3-Clause |
-| [golang.org/x/text](https://golang.org/x/text) | v0.33.0 | BSD-3-Clause |
+| [golang.org/x/sys](https://golang.org/x/sys) | v0.41.0 | BSD-3-Clause |
+| [golang.org/x/term](https://golang.org/x/term) | v0.40.0 | BSD-3-Clause |
+| [golang.org/x/text](https://golang.org/x/text) | v0.34.0 | BSD-3-Clause |
 | [golang.org/x/time](https://golang.org/x/time) | v0.12.0 | BSD-3-Clause |
-| [golang.org/x/tools](https://golang.org/x/tools) | v0.40.0 | BSD-3-Clause |
+| [golang.org/x/tools](https://golang.org/x/tools) | v0.41.0 | BSD-3-Clause |
 | [golang.org/x/tools/go/expect](https://golang.org/x/tools/go/expect) | v0.1.1-deprecated | BSD-3-Clause |
 | [golang.org/x/tools/go/packages/packagestest](https://golang.org/x/tools/go/packages/packagestest) | v0.1.1-deprecated | BSD-3-Clause |
 | [gomodules.xyz/jsonpatch/v2](https://gomodules.xyz/jsonpatch/v2) | v2.4.0 | Apache-2.0 |
@@ -213,6 +212,6 @@ This page lists the third-party dependencies used to build {{eck}} from the main
 | [sigs.k8s.io/apiserver-network-proxy/konnectivity-client](https://sigs.k8s.io/apiserver-network-proxy/konnectivity-client) | v0.31.2 | Apache-2.0 |
 | [sigs.k8s.io/json](https://sigs.k8s.io/json) | v0.0.0-20250730193827-2d320260d730 | Apache-2.0 |
 | [sigs.k8s.io/randfill](https://sigs.k8s.io/randfill) | v1.0.0 | Apache-2.0 |
-| [sigs.k8s.io/structured-merge-diff/v6](https://sigs.k8s.io/structured-merge-diff/v6) | v6.3.0 | Apache-2.0 |
+| [sigs.k8s.io/structured-merge-diff/v6](https://sigs.k8s.io/structured-merge-diff/v6) | v6.3.2-0.20260122202528-d9cc6641c482 | Apache-2.0 |
 | [sigs.k8s.io/yaml](https://sigs.k8s.io/yaml) | v1.6.0 | Apache-2.0 |
 

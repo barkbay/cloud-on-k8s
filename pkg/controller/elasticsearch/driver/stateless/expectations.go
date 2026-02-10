@@ -17,20 +17,20 @@ import (
 	ulog "github.com/elastic/cloud-on-k8s/v3/pkg/utils/log"
 )
 
-func (sd *statelessDriver) expectationsSatisfied(ctx context.Context) (bool, string, error) {
+func (d *Driver) expectationsSatisfied(ctx context.Context) (bool, string, error) {
 	// check if actual Deployments match our expectations before applying any change
-	ok, reason, err := sd.Expectations.Satisfied()
+	ok, reason, err := d.Expectations.Satisfied()
 	if err != nil {
 		return false, reason, err
 	}
 	if !ok {
-		ulog.FromContext(ctx).Info("Cache expectations are not satisfied yet, re-queueing", "namespace", sd.ES.Namespace, "es_name", sd.ES.Name, "reason", reason)
+		ulog.FromContext(ctx).Info("Cache expectations are not satisfied yet, re-queueing", "namespace", d.ES.Namespace, "es_name", d.ES.Name, "reason", reason)
 		return false, reason, nil
 	}
 
 	// check if all Deployments most recent generation is observed before applying any change.
 	deployments := appsv1.DeploymentList{}
-	if err := sd.Client.List(ctx, &deployments, client.InNamespace(sd.ES.Namespace), label.NewLabelSelectorForElasticsearchClusterName(sd.ES.Name)); err != nil {
+	if err := d.Client.List(ctx, &deployments, client.InNamespace(d.ES.Namespace), label.NewLabelSelectorForElasticsearchClusterName(d.ES.Name)); err != nil {
 		return false, "", err
 	}
 	// sort Deployments by name to have a stable returned result

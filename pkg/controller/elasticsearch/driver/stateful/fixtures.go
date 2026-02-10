@@ -5,6 +5,7 @@
 package stateful
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -217,10 +218,10 @@ func (u upgradeTestPods) toResourcesList(t *testing.T) nodespec.ResourcesList {
 				},
 			},
 			HeadlessService: corev1.Service{},
-			Config:          settings.CanonicalConfig{CanonicalConfig: common.MustCanonicalConfig(map[string]interface{}{})},
+			Config:          settings.CanonicalConfig{CanonicalConfig: common.MustCanonicalConfig(map[string]any{})},
 		}
 		if p.roles != nil {
-			resources.Config = settings.CanonicalConfig{CanonicalConfig: common.MustCanonicalConfig(map[string]interface{}{"node.roles": p.roles})}
+			resources.Config = settings.CanonicalConfig{CanonicalConfig: common.MustCanonicalConfig(map[string]any{"node.roles": p.roles})}
 		}
 		resourcesByStatefulSet[statefulSetName] = resources
 	}
@@ -272,14 +273,6 @@ func (u upgradeTestPods) toMasters(mutation mutation) []string {
 		if label.IsMasterNode(pod) {
 			result = append(result, pod.Name)
 		}
-	}
-	return result
-}
-
-func names(pods []corev1.Pod) []string {
-	result := make([]string, len(pods))
-	for i, pod := range pods {
-		result[i] = pod.Name
 	}
 	return result
 }
@@ -351,10 +344,8 @@ func (t *testESState) Health() (client.Health, error) {
 
 func (t *testESState) NodesInCluster(nodeNames []string) (bool, error) {
 	for _, nodeName := range nodeNames {
-		for _, inClusterPods := range t.inCluster {
-			if nodeName == inClusterPods {
-				return true, nil
-			}
+		if slices.Contains(t.inCluster, nodeName) {
+			return true, nil
 		}
 	}
 	return false, nil

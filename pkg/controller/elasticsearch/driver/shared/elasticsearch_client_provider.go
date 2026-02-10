@@ -2,46 +2,43 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package common
+package shared
 
 import (
 	"context"
 	"crypto/x509"
 
-	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/dev"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/net"
 )
 
-// NewElasticsearchClient creates a new Elasticsearch HTTP client for this cluster using the provided user.
-func NewElasticsearchClient(
+// newElasticsearchClient creates a new Elasticsearch HTTP client for this cluster using the provided user
+func newElasticsearchClient(
 	ctx context.Context,
-	es *esv1.Elasticsearch,
-	dialer net.Dialer,
+	params driver.Parameters,
 	urlProvider esclient.URLProvider,
 	user esclient.BasicAuth,
 	v version.Version,
 	caCerts []*x509.Certificate,
 ) esclient.Client {
 	return esclient.NewElasticsearchClient(
-		dialer,
-		k8s.ExtractNamespacedName(es),
+		params.OperatorParameters.Dialer,
+		k8s.ExtractNamespacedName(&params.ES),
 		urlProvider,
 		user,
 		v,
 		caCerts,
-		esclient.Timeout(ctx, *es),
+		esclient.Timeout(ctx, params.ES),
 		dev.Enabled,
 	)
 }
 
-func ElasticsearchClientProvider(
+func elasticsearchClientProvider(
 	ctx context.Context,
-	es *esv1.Elasticsearch,
-	dialer net.Dialer,
+	params driver.Parameters,
 	urlProvider esclient.URLProvider,
 	user esclient.BasicAuth,
 	v version.Version,
@@ -51,6 +48,6 @@ func ElasticsearchClientProvider(
 		if existingEsClient != nil && existingEsClient.HasProperties(v, user, urlProvider, caCerts) {
 			return existingEsClient
 		}
-		return NewElasticsearchClient(ctx, es, dialer, urlProvider, user, v, caCerts)
+		return newElasticsearchClient(ctx, params, urlProvider, user, v, caCerts)
 	}
 }

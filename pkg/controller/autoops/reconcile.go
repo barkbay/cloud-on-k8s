@@ -79,6 +79,12 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		return results.WithError(err)
 	}
 
+	isNamespaceAllowed, err := k8s.NamespaceFilterFunc(ctx, r.Client, policy.Spec.NamespaceSelector)
+	if err != nil {
+		state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+		return results.WithError(err)
+	}
+
 	// prepare the selector to find resources.
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels:      policy.Spec.ResourceSelector.MatchLabels,
@@ -100,6 +106,13 @@ func (r *AgentPolicyReconciler) internalReconcile(
 	// This ensures resources are cleaned up when access is revoked.
 	accessibleClusters := make([]esv1.Elasticsearch, 0, len(esList.Items))
 	for _, es := range esList.Items {
+		// filter by namespace (if set)
+		if !isNamespaceAllowed(es.Namespace) {
+			log.V(1).Info("Skipping ES cluster due to namespace filtering", "es_namespace", es.Namespace, "es_name", es.Name)
+			continue
+		}
+
+		// filter by RBAC (if set)
 		accessAllowed, err := isAutoOpsAssociationAllowed(ctx, r.accessReviewer, &policy, &es, r.recorder)
 		if err != nil {
 			log.Error(err, "while checking access for Elasticsearch cluster", "es_namespace", es.Namespace, "es_name", es.Name)
@@ -121,16 +134,11 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		results.WithError(err)
 	}
 
+	state.UpdateMonitoredResources(len(accessibleClusters))
 	if len(accessibleClusters) == 0 {
 		log.Info("No accessible Elasticsearch resources found for the AutoOpsAgentPolicy")
-		state.UpdateWithPhase(autoopsv1alpha1.NoResourcesPhase).
-			UpdateResources(0)
 		return results
 	}
-
-	state.UpdateResources(len(accessibleClusters))
-	readyCount := 0
-	errorCount := 0
 
 	for _, es := range accessibleClusters {
 		log := log.WithValues("es_namespace", es.Namespace, "es_name", es.Name)
@@ -152,7 +160,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 
 		if es.Status.Phase != esv1.ElasticsearchReadyPhase {
 			log.V(1).Info("Skipping ES cluster that is not ready")
-			state.UpdateWithPhase(autoopsv1alpha1.ResourcesNotReadyPhase)
+			state.UpdateWithPhase(autoopsv1alpha1.MonitoredResourcesNotReadyPhase)
 			results = results.WithRequeue(reconciler.DefaultRequeue)
 			continue
 		}
@@ -160,8 +168,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		if es.Spec.HTTP.TLS.Enabled() {
 			if err := r.reconcileAutoOpsESCASecret(ctx, policy, es); err != nil {
 				log.Error(err, "while reconciling AutoOps ES CA secret")
-				errorCount++
-				state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+				state.MarkResourceError()
 				results.WithError(err)
 				continue
 			}
@@ -170,8 +177,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		apiKeySecret, err := r.reconcileAutoOpsESAPIKey(ctx, policy, es)
 		if err != nil {
 			log.Error(err, "while reconciling AutoOps ES API key")
-			errorCount++
-			state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+			state.MarkResourceError()
 			results.WithError(err)
 			continue
 		}
@@ -179,8 +185,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		configMap, err := ReconcileAutoOpsESConfigMap(ctx, r.Client, policy, es)
 		if err != nil {
 			log.Error(err, "while reconciling AutoOps ES config map")
-			errorCount++
-			state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+			state.MarkResourceError()
 			results.WithError(err)
 			continue
 		}
@@ -188,8 +193,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		configHash, err := buildConfigHash(ctx, *configMap, *apiKeySecret, r.Client, policy)
 		if err != nil {
 			log.Error(err, "while building config hash")
-			errorCount++
-			state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+			state.MarkResourceError()
 			results.WithError(err)
 			continue
 		}
@@ -197,8 +201,7 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		deploymentParams, err := r.buildDeployment(configHash, policy, es)
 		if err != nil {
 			log.Error(err, "while getting deployment params")
-			errorCount++
-			state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+			state.MarkResourceError()
 			results.WithError(err)
 			continue
 		}
@@ -206,19 +209,15 @@ func (r *AgentPolicyReconciler) internalReconcile(
 		reconciledDeployment, err := deployment.Reconcile(ctx, r.Client, deploymentParams, &policy)
 		if err != nil {
 			log.Error(err, "while reconciling deployment")
-			errorCount++
-			state.UpdateWithPhase(autoopsv1alpha1.ErrorPhase)
+			state.MarkResourceError()
 			results.WithError(err)
 			continue
 		}
 
 		if isDeploymentReady(reconciledDeployment) {
-			readyCount++
+			state.MarkResourceReady()
 		}
 	}
-
-	state.UpdateReady(readyCount).
-		UpdateErrors(errorCount)
 
 	// Schedule a requeue to periodically re-check RBAC permissions.
 	// Use ReconciliationComplete() to indicate this is a periodic check, not an incomplete reconciliation.

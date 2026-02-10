@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
-package common
+package shared
 
 import (
 	"context"
@@ -73,8 +73,8 @@ func annotatePodWithNodeLabels(ctx context.Context, c k8s.Client, pod corev1.Pod
 		return nil
 	}
 	ulog.FromContext(ctx).Info("Setting Pod annotations from node labels", "err", err, "namespace", es.Namespace, "es_name", es.Name, "pod", pod.Name, "annotations", podAnnotations)
-	mergePatch, err := json.Marshal(map[string]interface{}{
-		"metadata": map[string]interface{}{
+	mergePatch, err := json.Marshal(map[string]any{
+		"metadata": map[string]any{
 			"annotations": podAnnotations,
 		},
 	})

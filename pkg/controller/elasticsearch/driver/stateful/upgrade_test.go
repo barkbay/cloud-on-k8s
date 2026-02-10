@@ -22,7 +22,7 @@ import (
 	sset "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/statefulset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	esclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/client"
-	drivercommon "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/common"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/hints"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/reconcile"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/shutdown"
@@ -382,7 +382,7 @@ func Test_isVersionUpgrade(t *testing.T) {
 	}
 }
 
-func Test_defaultDriver_maybeCompleteNodeUpgrades(t *testing.T) {
+func Test_Driver_maybeCompleteNodeUpgrades(t *testing.T) {
 	esVersion := "8.1.0"
 	clusterName = "test-cluster"
 	namespace := "ns"
@@ -555,12 +555,12 @@ func Test_defaultDriver_maybeCompleteNodeUpgrades(t *testing.T) {
 			reconcileState, err := reconcile.NewState(tt.es)
 			require.NoError(t, err)
 
-			d := NewDriver(&drivercommon.DefaultDriverParameters{
+			d := &Driver{BaseDriver: driver.BaseDriver{Parameters: driver.Parameters{
 				Client:         client,
 				ES:             tt.es,
 				Expectations:   expectations.NewExpectations(client, &appsv1.StatefulSet{}),
 				ReconcileState: reconcileState,
-			})
+			}}}
 			if tt.expectations != nil {
 				tt.expectations(d.Expectations)
 			}
