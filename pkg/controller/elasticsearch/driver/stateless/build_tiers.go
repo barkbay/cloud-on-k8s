@@ -84,11 +84,6 @@ func (d *Driver) buildTierResources(
 		}
 
 		deploymentName := esv1.PodsControllerResourceName(d.ES.Name, string(tier))
-		if err := settings.ReconcileConfig(ctx, d.Client, d.ES, deploymentName, cfg, meta); err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
 		// deploymentSelector is used to match the deploymentSelector pods
 		deploymentSelector := label.NewDeploymentLabels(k8s.ExtractNamespacedName(&d.ES), deploymentName)
 		mergedMeta := meta.Merge(metadata.Metadata{Labels: deploymentSelector})
