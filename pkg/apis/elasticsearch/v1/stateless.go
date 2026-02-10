@@ -101,11 +101,6 @@ type TierSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Config *commonv1.Config `json:"config,omitempty"`
-
-	// VolumeClaimTemplate is the volume claim template to use for the caching volume in this tier.
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:pruning:PreserveUnknownFields
-	VolumeClaimTemplate *VolumeClaimTemplate `json:"volumeClaimTemplate,omitempty"`
 }
 
 // +kubebuilder:object:generate=false
