@@ -183,8 +183,8 @@ func ReconcileSharedResources(
 
 	// Always update the Elasticsearch state bits with the latest observed state.
 	params.ReconcileState.
-		UpdateClusterHealth(observedState()).         // Elasticsearch cluster health
-		UpdateAvailableNodes(*resourcesState).        // Available nodes
+		UpdateClusterHealth(observedState()). // Elasticsearch cluster health
+		UpdateAvailableNodes(*resourcesState). // Available nodes
 		UpdateMinRunningVersion(ctx, *resourcesState) // Min running version
 
 	// Reconcile transport certificates
@@ -302,18 +302,10 @@ func ReconcileSharedResources(
 	}
 
 	// File settings
-	if params.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) {
-		// For stateless, build cluster_secrets from secure settings so they are applied via file-based settings
-		// instead of the keystore init container.
-		var clusterSecrets *commonv1.Config
-		if es.IsStateless() {
-			clusterSecrets, err = buildClusterSecrets(ctx, d, &es, client)
-			if err != nil {
-				esClient.Close()
-				return nil, results.WithError(err)
-			}
-		}
-		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, &es, params.OperatorParameters.OperatorNamespace, clusterSecrets)
+	if params.Version.GTE(filesettings.FileBasedSettingsMinPreVersion) &&
+		// For stateless we always reconcile the file settings Secret, so we don't need to check for SCPs here.
+		!es.IsStateless() {
+		requeue, err := maybeReconcileEmptyFileSettingsSecret(ctx, client, params.LicenseChecker, &es, params.OperatorParameters.OperatorNamespace)
 		if err != nil {
 			esClient.Close()
 			return nil, results.WithError(err)
@@ -324,6 +316,23 @@ func ReconcileSharedResources(
 						esv1.FileSettingsSecretName(es.Name)),
 				),
 			)
+		}
+	}
+
+	// For stateless clusters, build and reconcile cluster_secrets in the file settings Secret
+	// on every loop so that secure settings changes are always picked up.
+	// ReconcileClusterSecrets creates the Secret if it doesn't exist yet.
+	// It is also safe to call when a StackConfigPolicy manages the Secret: the SCP controller
+	// preserves existing cluster_secrets, so both controllers converge on the same value.
+	if es.IsStateless() {
+		clusterSecrets, err := buildClusterSecrets(ctx, d, &es, client)
+		if err != nil {
+			esClient.Close()
+			return nil, results.WithError(err)
+		}
+		if err := filesettings.ReconcileClusterSecrets(ctx, client, es, clusterSecrets); err != nil {
+			esClient.Close()
+			return nil, results.WithError(err)
 		}
 	}
 
@@ -368,8 +377,7 @@ func ReconcileSharedResources(
 // targets this cluster returns true to requeue and doesn't create the empty file-settings secret. If no
 // StackConfigPolicy targets this cluster it creates an empty file-settings secret. Note: This logic here prevents
 // the race condition described in https://github.com/elastic/cloud-on-k8s/issues/8912.
-// clusterSecrets is optional; when non-nil it populates the cluster_secrets field in the file-based settings.
-func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es *esv1.Elasticsearch, operatorNamespace string, clusterSecrets *commonv1.Config) (bool, error) {
+func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, licenseChecker commonlicense.Checker, es *esv1.Elasticsearch, operatorNamespace string) (bool, error) {
 	// Check if file-settings secret already exists
 	var currentSecret corev1.Secret
 	if err := c.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.FileSettingsSecretName(es.Name)}, &currentSecret); err == nil {
@@ -386,7 +394,7 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 	if !enabled {
 		// If the license is not enabled, we reconcile the empty file-settings secret
-		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true, clusterSecrets)
+		return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
 	}
 
 	// Get all StackConfigPolicies in the cluster
@@ -418,7 +426,7 @@ func maybeReconcileEmptyFileSettingsSecret(ctx context.Context, c k8s.Client, li
 	}
 
 	// No policies target this cluster, so ES controller should create the empty secret
-	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true, clusterSecrets)
+	return false, filesettings.ReconcileEmptyFileSettingsSecret(ctx, c, *es, true)
 }
 
 // APIKeyStoreSecretSource returns the Secret that holds the remote API keys.
