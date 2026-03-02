@@ -7,7 +7,8 @@ package stateless
 import (
 	"context"
 
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
@@ -15,6 +16,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/configmap"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 )
@@ -46,9 +48,20 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 
+	// Track reconciled immutable resource names for GC
+	reconciledSecretNames := sets.New[string]()
+	reconciledConfigMapNames := sets.New[string]()
+
+	// Reconcile the immutable scripts ConfigMap once (shared across all tiers)
+	immutableScriptsConfigMapName, err := configmap.ReconcileStatelessImmutableScriptsConfigMap(ctx, d.Client, d.ES, meta)
+	if err != nil {
+		return results.WithError(err)
+	}
+	reconciledConfigMapNames.Insert(immutableScriptsConfigMapName)
+
 	for _, tierResources := range buildTierResources {
-		// Reconcile the config first
-		if err := settings.ReconcileConfig(
+		// Reconcile the immutable config secret first
+		immutableSecretName, err := settings.ReconcileStatelessImmutableConfig(
 			ctx,
 			d.Client,
 			d.ES,
@@ -56,19 +69,27 @@ func (d *Driver) reconcileTiers(
 			tierResources.config,
 			tierResources.meta,
 			tierResources.operatorPrivilegesSettings,
-		); err != nil {
+		)
+		if err != nil {
 			results.WithError(err)
 			continue
 		}
+		reconciledSecretNames.Insert(immutableSecretName)
+
+		// Patch the deployment volumes to reference the immutable resources
+		settings.PatchStatelessConfigVolumes(tierResources.deployment, immutableSecretName)
+		configmap.PatchStatelessScriptsVolumes(tierResources.deployment, immutableScriptsConfigMapName)
+
+		// Recompute template hash after patching volumes
+		expected := WithTemplateHash(*tierResources.deployment)
 
 		// Then reconcile the Deployment
-		reconciled := &v1.Deployment{}
-		expected := tierResources.deployment
+		reconciled := &appsv1.Deployment{}
 		results.WithError(reconciler.ReconcileResource(reconciler.Params{
 			Context:    ctx,
 			Client:     d.Client,
 			Owner:      &d.ES,
-			Expected:   expected,
+			Expected:   &expected,
 			Reconciled: reconciled,
 			NeedsUpdate: func() bool {
 				// expected labels or annotations not there
@@ -94,5 +115,14 @@ func (d *Driver) reconcileTiers(
 			},
 		}))
 	}
+
+	// Garbage collect unreferenced immutable config resources
+	if err := settings.GCStatelessImmutableConfigSecrets(ctx, d.Client, d.ES, reconciledSecretNames); err != nil {
+		results.WithError(err)
+	}
+	if err := configmap.GCStatelessImmutableScriptsConfigMaps(ctx, d.Client, d.ES, reconciledConfigMapNames); err != nil {
+		results.WithError(err)
+	}
+
 	return results
 }
