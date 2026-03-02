@@ -24,6 +24,7 @@ import (
 
 	autoopsv1alpha1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/autoops/v1alpha1"
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
+	autoopsvalidation "github.com/elastic/cloud-on-k8s/v3/pkg/controller/autoops/validation"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common"
 	commonesclient "github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/esclient"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/events"
@@ -58,10 +59,10 @@ func newReconciler(mgr manager.Manager, accessReviewer rbac.AccessReviewer, para
 		Client:           k8sClient,
 		accessReviewer:   accessReviewer,
 		recorder:         mgr.GetEventRecorderFor(controllerName),
-		licenseChecker:   license.NewLicenseChecker(k8sClient, params.OperatorNamespace),
 		params:           params,
 		dynamicWatches:   watches.NewDynamicWatches(),
 		esClientProvider: commonesclient.NewClient,
+		licenseChecker:   license.NewLicenseChecker(k8sClient, params.OperatorNamespace),
 	}
 }
 
@@ -127,10 +128,10 @@ type AgentPolicyReconciler struct {
 	k8s.Client
 	accessReviewer   rbac.AccessReviewer
 	recorder         record.EventRecorder
-	licenseChecker   license.Checker
 	params           operator.Parameters
 	dynamicWatches   watches.DynamicWatches
 	esClientProvider commonesclient.Provider
+	licenseChecker   license.Checker
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration uint64
 }
@@ -166,7 +167,7 @@ func (r *AgentPolicyReconciler) Reconcile(ctx context.Context, request reconcile
 	}
 
 	results := r.doReconcile(ctx, policy, state)
-	state.CalculateFinalPhase(results.IsReconciled())
+	state.Finalize(results.IsReconciled())
 
 	result, err := r.updateStatusFromState(ctx, state)
 	results = results.WithResult(result).WithError(err)
@@ -183,7 +184,7 @@ func (r *AgentPolicyReconciler) validate(ctx context.Context, policy *autoopsv1a
 	span, ctx := apm.StartSpan(ctx, "validate", tracing.SpanTypeApp)
 	defer span.End()
 
-	if _, err := policy.ValidateCreate(); err != nil {
+	if err := autoopsvalidation.Validate(ctx, policy, r.licenseChecker); err != nil {
 		ulog.FromContext(ctx).Error(err, "Validation failed")
 		k8s.MaybeEmitErrorEvent(r.recorder, err, policy, events.EventReasonValidation, err.Error())
 		return tracing.CaptureError(ctx, err)
