@@ -113,12 +113,20 @@ func BuildPodTemplateSpec(
 		headlessServiceName = HeadlessServiceName(esv1.PodsControllerResourceName(es.Name, nodeSet.GetName()))
 	}
 
-	// We retrieve the ConfigMap that holds the scripts to trigger a Pod restart if it is updated.
-	esScripts := &corev1.ConfigMap{}
-	if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}, esScripts); err != nil {
-		return corev1.PodTemplateSpec{}, err
+	// For stateful Elasticsearch, we retrieve the fixed-name scripts ConfigMap and include
+	// its content in the pod template hash to trigger rollouts on script changes.
+	// For stateless Elasticsearch, scripts are reconciled as immutable, content-addressed
+	// ConfigMaps and the volume reference itself changes when content changes, so this
+	// lookup is unnecessary.
+	scriptsContent := ""
+	if !es.IsStateless() {
+		esScripts := &corev1.ConfigMap{}
+		if err := client.Get(context.Background(), types.NamespacedName{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}, esScripts); err != nil {
+			return corev1.PodTemplateSpec{}, err
+		}
+		scriptsContent = getScriptsConfigMapContent(esScripts)
 	}
-	annotations := buildAnnotations(es, cfg, keystoreResources, getScriptsConfigMapContent(esScripts), policyConfig.PolicyAnnotations)
+	annotations := buildAnnotations(es, cfg, keystoreResources, scriptsContent, policyConfig.PolicyAnnotations)
 
 	// Attempt to detect if the default data directory is mounted in a volume.
 	// If not, it could be a bug, a misconfiguration, or a custom storage configuration that requires the user to
