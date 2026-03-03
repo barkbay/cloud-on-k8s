@@ -159,6 +159,7 @@ func (d *Driver) buildTierResources(
 				Annotations: mergedMeta.Annotations,
 			},
 			Spec: appsv1.DeploymentSpec{
+				RevisionHistoryLimit: ptr.To[int32](0), // Don't keep old ReplicaSets around, we don't expect rollbacks and this saves resources.
 				Strategy: appsv1.DeploymentStrategy{
 					Type:          appsv1.RollingUpdateDeploymentStrategyType,
 					RollingUpdate: rollingUpdate,

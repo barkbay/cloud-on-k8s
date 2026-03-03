@@ -11,31 +11,27 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/immutableconfig"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 
-	"go.elastic.co/apm/v2"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/initcontainer"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/services"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
+
+	"go.elastic.co/apm/v2"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/tracing"
 )
 
 // ReconcileScriptsConfigMap reconciles a configmap containing scripts and related configuration used by
 // init containers and readiness probe.
 // For stateless Elasticsearch, this is a no-op as the stateless driver handles immutable ConfigMap reconciliation.
 func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasticsearch, meta metadata.Metadata) error {
-	// Stateless uses immutable ConfigMaps with content-hash naming, handled in the stateless driver.
 	if es.IsStateless() {
 		return nil
 	}
@@ -102,11 +98,8 @@ func reconcileConfigMap(
 	)
 }
 
-// StatelessScriptsVolumeNames are the volume names that reference the scripts ConfigMap.
-var StatelessScriptsVolumeNames = map[string]bool{volume.ScriptsVolumeName: true}
-
 // BuildStatelessImmutableScriptsConfigMap builds the scripts ConfigMap with a content-hash suffix
-// for stateless Elasticsearch deployments.
+// for stateless Elasticsearch deployments. Returns the ConfigMap ready to be passed to a Revision.
 func BuildStatelessImmutableScriptsConfigMap(es esv1.Elasticsearch, meta metadata.Metadata) (corev1.ConfigMap, error) {
 	fsScript, err := initcontainer.RenderPrepareFsScript(es.IsStateless(), es.DownwardNodeLabels())
 	if err != nil {
@@ -133,57 +126,3 @@ func BuildStatelessImmutableScriptsConfigMap(es esv1.Elasticsearch, meta metadat
 	return immutableconfig.BuildImmutableConfigMap(baseName, es.Namespace, data, labels), nil
 }
 
-// ReconcileStatelessImmutableScriptsConfigMap reconciles the immutable scripts ConfigMap
-// for stateless Elasticsearch and returns the name of the created ConfigMap.
-// The Elasticsearch CR is set as the owner so the ConfigMap is garbage-collected on CR deletion.
-func ReconcileStatelessImmutableScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasticsearch, meta metadata.Metadata) (string, error) {
-	span, ctx := apm.StartSpan(ctx, "reconcile_stateless_scripts", tracing.SpanTypeApp)
-	defer span.End()
-
-	cm, err := BuildStatelessImmutableScriptsConfigMap(es, meta)
-	if err != nil {
-		return "", err
-	}
-
-	if err := immutableconfig.ReconcileImmutableConfigMap(ctx, c, cm, &es); err != nil {
-		return "", err
-	}
-
-	return cm.Name, nil
-}
-
-// PatchStatelessScriptsVolumes patches the volumes in the Deployment to reference the given immutable scripts ConfigMap.
-func PatchStatelessScriptsVolumes(deployment *appsv1.Deployment, immutableConfigMapName string) {
-	immutableconfig.PatchConfigMapVolumes(deployment.Spec.Template.Spec.Volumes, StatelessScriptsVolumeNames, immutableConfigMapName)
-}
-
-// GCStatelessImmutableScriptsConfigMaps garbage collects old immutable scripts ConfigMaps
-// that are no longer referenced by any existing ReplicaSet.
-func GCStatelessImmutableScriptsConfigMaps(ctx context.Context, c k8s.Client, es esv1.Elasticsearch, reconciledNames sets.Set[string]) error {
-	// List all ReplicaSets for this Elasticsearch cluster
-	var rsList appsv1.ReplicaSetList
-	if err := c.List(ctx, &rsList,
-		client.InNamespace(es.Namespace),
-		client.MatchingLabels{label.ClusterNameLabelName: es.Name},
-	); err != nil {
-		return err
-	}
-
-	// Protect ConfigMaps referenced by existing ReplicaSets in addition to the just-reconciled names
-	protectedNames := reconciledNames.Clone()
-	for i := range rsList.Items {
-		if name := immutableconfig.ImmutableConfigMapNameFromVolumes(
-			rsList.Items[i].Spec.Template.Spec.Volumes,
-			volume.ScriptsVolumeName,
-		); name != "" {
-			protectedNames.Insert(name)
-		}
-	}
-
-	labelSelector := client.MatchingLabels{
-		label.ClusterNameLabelName:          es.Name,
-		immutableconfig.ConfigTypeLabelName: immutableconfig.ConfigTypeImmutable,
-	}
-
-	return immutableconfig.GCUnreferencedConfigMaps(ctx, c, es.Namespace, labelSelector, protectedNames)
-}

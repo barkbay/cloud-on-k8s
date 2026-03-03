@@ -16,9 +16,8 @@
 // Controllers using this package should:
 //  1. Define a Classifier that maps config file names to Immutable or Dynamic
 //  2. Use BuildImmutableSecret/BuildImmutableConfigMap to create content-addressed resources
-//  3. Use ReconcileImmutableSecret/ReconcileImmutableConfigMap to create resources (create-only)
-//  4. Use PatchSecretVolumes/PatchConfigMapVolumes to update pod template volumes
-//  5. Use GCUnreferencedSecrets/GCUnreferencedConfigMaps to clean up old resources
+//  3. Build Revisions with NewRevisions(...).With...().Build(), then use ForSecretVolume/
+//     ForConfigMapVolume to reconcile, patch volumes, and GC
 //
 // # Example
 //
@@ -33,9 +32,24 @@
 //	}
 //
 //	secret := immutableconfig.BuildImmutableSecret("my-config", namespace, immutableData, labels)
-//	if err := immutableconfig.ReconcileImmutableSecret(ctx, client, secret); err != nil {
+//
+//	revisions, err := immutableconfig.NewRevisions(client, owner, namespace).
+//	    WithGCLabels(gcLabels).
+//	    WithReplicaSetLabels(rsLabels).
+//	    Build()
+//	if err != nil {
 //	    return err
 //	}
+//	secretRev := revisions.ForSecretVolume("config-volume")
 //
-//	immutableconfig.PatchSecretVolumes(podSpec.Volumes, map[string]bool{"config-volume": true}, secret.Name)
+//	name, err := secretRev.Reconcile(ctx, &secret)
+//	if err != nil {
+//	    return err
+//	}
+//	secretRev.PatchVolumes(podSpec.Volumes, name)
+//
+//	// After reconciling all resources:
+//	if err := secretRev.GC(ctx); err != nil {
+//	    return err
+//	}
 package immutableconfig

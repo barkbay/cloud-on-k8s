@@ -8,16 +8,19 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/immutableconfig"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/keystore"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/reconciler"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/version"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/configmap"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 )
 
@@ -29,7 +32,6 @@ func (d *Driver) reconcileTiers(
 ) *reconciler.Results {
 	results := reconciler.NewResult(ctx)
 
-	// check if actual Deployments match our expectations before applying any change
 	ok, reason, err := d.expectationsSatisfied(ctx)
 	if err != nil {
 		return results.WithError(err)
@@ -48,22 +50,35 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 
-	// Track reconciled immutable resource names for GC
-	reconciledSecretNames := sets.New[string]()
-	reconciledConfigMapNames := sets.New[string]()
-
-	// Reconcile the immutable scripts ConfigMap once (shared across all tiers)
-	immutableScriptsConfigMapName, err := configmap.ReconcileStatelessImmutableScriptsConfigMap(ctx, d.Client, d.ES, meta)
+	revisions, err := immutableconfig.NewRevisions(d.Client, &d.ES, d.ES.Namespace).
+		WithGCLabels(client.MatchingLabels{
+			label.ClusterNameLabelName:          d.ES.Name,
+			immutableconfig.ConfigTypeLabelName: immutableconfig.ConfigTypeImmutable,
+		}).
+		WithReplicaSetLabels(client.MatchingLabels{
+			label.ClusterNameLabelName: d.ES.Name,
+		}).
+		Build()
 	if err != nil {
 		return results.WithError(err)
 	}
-	reconciledConfigMapNames.Insert(immutableScriptsConfigMapName)
+	// Each tier's immutable config data is stored in a content-addressed Secret.
+	secretRevision := revisions.ForSecretVolume(settings.ConfigVolumeName)
+	// Scripts are stored in a content-addressed ConfigMap shared across all tiers.
+	cmRevision := revisions.ForConfigMapVolume(volume.ScriptsVolumeName)
+
+	// Reconcile the immutable scripts ConfigMap once (shared across all tiers)
+	scriptsCM, err := configmap.BuildStatelessImmutableScriptsConfigMap(d.ES, meta)
+	if err != nil {
+		return results.WithError(err)
+	}
+	scriptsName, err := cmRevision.Reconcile(ctx, &scriptsCM)
+	if err != nil {
+		return results.WithError(err)
+	}
 
 	for _, tierResources := range buildTierResources {
-		// Reconcile the immutable config secret first
-		immutableSecretName, err := settings.ReconcileStatelessImmutableConfig(
-			ctx,
-			d.Client,
+		secret, err := settings.BuildStatelessImmutableConfigSecret(
 			d.ES,
 			tierResources.deployment.Name,
 			tierResources.config,
@@ -74,16 +89,18 @@ func (d *Driver) reconcileTiers(
 			results.WithError(err)
 			continue
 		}
-		reconciledSecretNames.Insert(immutableSecretName)
 
-		// Patch the deployment volumes to reference the immutable resources
-		settings.PatchStatelessConfigVolumes(tierResources.deployment, immutableSecretName)
-		configmap.PatchStatelessScriptsVolumes(tierResources.deployment, immutableScriptsConfigMapName)
+		secretName, err := secretRevision.Reconcile(ctx, &secret)
+		if err != nil {
+			results.WithError(err)
+			continue
+		}
 
-		// Recompute template hash after patching volumes
+		secretRevision.PatchVolumes(tierResources.deployment.Spec.Template.Spec.Volumes, secretName)
+		cmRevision.PatchVolumes(tierResources.deployment.Spec.Template.Spec.Volumes, scriptsName)
+
 		expected := WithTemplateHash(*tierResources.deployment)
 
-		// Then reconcile the Deployment
 		reconciled := &appsv1.Deployment{}
 		results.WithError(reconciler.ReconcileResource(reconciler.Params{
 			Context:    ctx,
@@ -92,35 +109,24 @@ func (d *Driver) reconcileTiers(
 			Expected:   &expected,
 			Reconciled: reconciled,
 			NeedsUpdate: func() bool {
-				// expected labels or annotations not there
 				return !maps.IsSubset(expected.Labels, reconciled.Labels) ||
 					!maps.IsSubset(expected.Annotations, reconciled.Annotations) ||
-					// different spec
 					!(expected.Labels[hash.TemplateHashLabelName] == reconciled.Labels[hash.TemplateHashLabelName])
 			},
 			UpdateReconciled: func() {
-				// set expected annotations and labels, but don't remove existing ones
-				// that may have been defaulted or set by a user/admin on the existing resource
 				reconciled.Labels = maps.Merge(reconciled.Labels, expected.Labels)
 				reconciled.Annotations = maps.Merge(reconciled.Annotations, expected.Annotations)
-				// overwrite the spec but leave the status intact
 				reconciled.Spec = expected.Spec
 			},
 			PostUpdate: func() {
 				if expectations != nil {
-					// expect the reconciled StatefulSet to be there in the cache for next reconciliations,
-					// to prevent assumptions based on the wrong replica count
 					expectations.ExpectGeneration(reconciled)
 				}
 			},
 		}))
 	}
 
-	// Garbage collect unreferenced immutable config resources
-	if err := settings.GCStatelessImmutableConfigSecrets(ctx, d.Client, d.ES, reconciledSecretNames); err != nil {
-		results.WithError(err)
-	}
-	if err := configmap.GCStatelessImmutableScriptsConfigMaps(ctx, d.Client, d.ES, reconciledConfigMapNames); err != nil {
+	if err := immutableconfig.GCAll(ctx, secretRevision, cmRevision); err != nil {
 		results.WithError(err)
 	}
 

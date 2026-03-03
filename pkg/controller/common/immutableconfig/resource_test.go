@@ -21,9 +21,9 @@ func TestBuildImmutableSecret(t *testing.T) {
 
 	secret := BuildImmutableSecret("my-config", "default", data, labels)
 
-	// Check name has hash suffix
-	assert.True(t, IsImmutableName(secret.Name), "name should have hash suffix")
+	// Check name has content-addressed suffix
 	assert.Contains(t, secret.Name, "my-config-")
+	assert.Greater(t, len(secret.Name), len("my-config-"))
 
 	// Check namespace
 	assert.Equal(t, "default", secret.Namespace)
@@ -71,9 +71,9 @@ func TestBuildImmutableConfigMap(t *testing.T) {
 
 	cm := BuildImmutableConfigMap("my-scripts", "default", data, labels)
 
-	// Check name has hash suffix
-	assert.True(t, IsImmutableName(cm.Name), "name should have hash suffix")
+	// Check name has content-addressed suffix
 	assert.Contains(t, cm.Name, "my-scripts-")
+	assert.Greater(t, len(cm.Name), len("my-scripts-"))
 
 	// Check namespace
 	assert.Equal(t, "default", cm.Namespace)

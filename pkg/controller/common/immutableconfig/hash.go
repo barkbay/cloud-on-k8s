@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"regexp"
 	"sort"
 )
 
@@ -16,10 +15,6 @@ const (
 	// DefaultShortHashLen is 8 hex characters, providing ~4 billion possible values.
 	DefaultShortHashLen = 8
 )
-
-// hashSuffixRe matches the hash suffix appended by ImmutableName.
-// The suffix is a dash followed by exactly DefaultShortHashLen hex characters at the end of the string.
-var hashSuffixRe = regexp.MustCompile(fmt.Sprintf(`-[0-9a-f]{%d}$`, DefaultShortHashLen))
 
 // ComputeContentHash computes a deterministic content hash from the given data map.
 // Keys are sorted lexicographically before hashing to ensure map iteration order does not affect
@@ -65,10 +60,4 @@ func ShortHash(fullHash string, n int) string {
 // ImmutableName returns "{baseName}-{shortHash}" for content-addressed resource naming.
 func ImmutableName(baseName, fullHash string) string {
 	return fmt.Sprintf("%s-%s", baseName, ShortHash(fullHash, DefaultShortHashLen))
-}
-
-// IsImmutableName checks whether name follows the immutable resource naming convention
-// (ends with a dash followed by exactly DefaultShortHashLen hex characters).
-func IsImmutableName(name string) bool {
-	return hashSuffixRe.MatchString(name)
 }
