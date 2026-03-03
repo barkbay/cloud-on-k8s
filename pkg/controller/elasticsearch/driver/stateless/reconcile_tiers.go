@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	esv1 "github.com/elastic/cloud-on-k8s/v3/pkg/apis/elasticsearch/v1"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/expectations"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/hash"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/immutableconfig"
@@ -50,6 +51,15 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 
+	tiersToReconcile := esv1.AllElasticsearchTierNames
+	observedDeployments, err := d.observedDeployments(ctx)
+	if err != nil {
+		return results.WithError(err)
+	}
+	if d.shouldGroupDeploymentReconciliation(ctx, observedDeployments, expectedDeployments(buildTierResources)) {
+		tiersToReconcile = groupedTierReconciliationOrder()
+	}
+
 	revisions, err := immutableconfig.NewRevisions(d.Client, &d.ES, d.ES.Namespace).
 		WithGCLabels(client.MatchingLabels{
 			label.ClusterNameLabelName:          d.ES.Name,
@@ -77,7 +87,11 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 
-	for _, tierResources := range buildTierResources {
+	for _, tier := range tiersToReconcile {
+		tierResources, exists := buildTierResources[tier]
+		if !exists {
+			continue
+		}
 		secret, err := settings.BuildStatelessImmutableConfigSecret(
 			d.ES,
 			tierResources.deployment.Name,
@@ -131,4 +145,25 @@ func (d *Driver) reconcileTiers(
 	}
 
 	return results
+}
+
+func expectedDeployments(buildTierResources map[esv1.ElasticsearchTierName]*TierResources) []*appsv1.Deployment {
+	expected := make([]*appsv1.Deployment, 0, len(buildTierResources))
+	for _, tier := range esv1.AllElasticsearchTierNames {
+		tierResources, exists := buildTierResources[tier]
+		if !exists {
+			continue
+		}
+		expected = append(expected, tierResources.deployment)
+	}
+	return expected
+}
+
+func groupedTierReconciliationOrder() []esv1.ElasticsearchTierName {
+	// Reader tier goes first to smooth mixed-version rollouts.
+	return []esv1.ElasticsearchTierName{
+		esv1.SearchTierName,
+		esv1.IndexTierName,
+		esv1.MLTierName,
+	}
 }
