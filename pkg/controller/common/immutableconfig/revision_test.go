@@ -29,6 +29,19 @@ var (
 	}
 )
 
+// Test classifiers for common volume patterns
+func secretVolumeClassifier(volumeNames ...string) MapClassifier {
+	c := make(MapClassifier, len(volumeNames))
+	for _, name := range volumeNames {
+		c[name] = Immutable
+	}
+	return c
+}
+
+func configMapVolumeClassifier(volumeNames ...string) MapClassifier {
+	return secretVolumeClassifier(volumeNames...) // Same logic
+}
+
 func testRevisions(t *testing.T, c client.Client, owner client.Object) Revisions {
 	revisions, err := NewRevisions(c, owner, "default").
 		WithGCLabels(testGCLabels).
@@ -46,7 +59,7 @@ func TestSecretRevision_Reconcile(t *testing.T) {
 		owner := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "owner", Namespace: "default", UID: "uid-1"},
 		}
-		rev := testRevisions(t, k8sClient, owner).ForSecretVolume("config")
+		rev := testRevisions(t, k8sClient, owner).ForSecretVolumes(secretVolumeClassifier("config"))
 
 		secret := BuildImmutableSecret("my-config", "default", map[string][]byte{"key": []byte("val")}, nil)
 		name, err := rev.Reconcile(ctx, &secret)
@@ -68,7 +81,7 @@ func TestSecretRevision_Reconcile(t *testing.T) {
 			Data:       map[string][]byte{"key": []byte("existing")},
 		}
 		k8sClient := fake.NewClientBuilder().WithObjects(existing).Build()
-		rev := testRevisions(t, k8sClient, nil).ForSecretVolume("config")
+		rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config"))
 
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "my-config-aabbccdd", Namespace: "default"},
@@ -86,7 +99,7 @@ func TestSecretRevision_Reconcile(t *testing.T) {
 
 	t.Run("tracks multiple names", func(t *testing.T) {
 		k8sClient := fake.NewClientBuilder().Build()
-		rev := testRevisions(t, k8sClient, nil).ForSecretVolume("config")
+		rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config"))
 
 		s1 := BuildImmutableSecret("cfg", "default", map[string][]byte{"a": []byte("1")}, nil)
 		s2 := BuildImmutableSecret("cfg", "default", map[string][]byte{"b": []byte("2")}, nil)
@@ -103,27 +116,60 @@ func TestSecretRevision_Reconcile(t *testing.T) {
 }
 
 func TestSecretRevision_PatchVolumes(t *testing.T) {
-	rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForSecretVolume("config-volume")
+	t.Run("single volume", func(t *testing.T) {
+		rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForSecretVolumes(secretVolumeClassifier("config-volume"))
 
-	volumes := []corev1.Volume{
-		{
-			Name: "config-volume",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{SecretName: "old-config"},
+		volumes := []corev1.Volume{
+			{
+				Name: "config-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "old-config"},
+				},
 			},
-		},
-		{
-			Name: "other-volume",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{SecretName: "other-secret"},
+			{
+				Name: "other-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "other-secret"},
+				},
 			},
-		},
-	}
+		}
 
-	rev.PatchVolumes(volumes, "new-config-a1b2c3d4")
+		rev.PatchVolumes(volumes, "new-config-a1b2c3d4")
 
-	assert.Equal(t, "new-config-a1b2c3d4", volumes[0].Secret.SecretName)
-	assert.Equal(t, "other-secret", volumes[1].Secret.SecretName)
+		assert.Equal(t, "new-config-a1b2c3d4", volumes[0].Secret.SecretName)
+		assert.Equal(t, "other-secret", volumes[1].Secret.SecretName)
+	})
+
+	t.Run("multiple volumes", func(t *testing.T) {
+		rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForSecretVolumes(secretVolumeClassifier("config-volume", "jvm-options-volume"))
+
+		volumes := []corev1.Volume{
+			{
+				Name: "config-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "old-config"},
+				},
+			},
+			{
+				Name: "jvm-options-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "old-jvm"},
+				},
+			},
+			{
+				Name: "other-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "other-secret"},
+				},
+			},
+		}
+
+		rev.PatchVolumes(volumes, "new-immutable-a1b2c3d4")
+
+		assert.Equal(t, "new-immutable-a1b2c3d4", volumes[0].Secret.SecretName)
+		assert.Equal(t, "new-immutable-a1b2c3d4", volumes[1].Secret.SecretName)
+		assert.Equal(t, "other-secret", volumes[2].Secret.SecretName)
+	})
 }
 
 func TestSecretRevision_GC(t *testing.T) {
@@ -145,7 +191,7 @@ func TestSecretRevision_GC(t *testing.T) {
 		}
 
 		k8sClient := fake.NewClientBuilder().WithObjects(current, old, unrelated).Build()
-		rev := testRevisions(t, k8sClient, nil).ForSecretVolume("config")
+		rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config"))
 		rev.reconciled.Insert("cfg-aabbccdd")
 
 		require.NoError(t, rev.GC(ctx))
@@ -187,7 +233,7 @@ func TestSecretRevision_GC(t *testing.T) {
 		}
 
 		k8sClient := fake.NewClientBuilder().WithObjects(current, oldStillUsed, veryOld, rs).Build()
-		rev := testRevisions(t, k8sClient, nil).ForSecretVolume("config")
+		rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config"))
 		rev.reconciled.Insert("cfg-aabbccdd")
 
 		require.NoError(t, rev.GC(ctx))
@@ -207,7 +253,7 @@ func TestConfigMapRevision_Reconcile(t *testing.T) {
 		owner := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{Name: "owner", Namespace: "default", UID: "uid-2"},
 		}
-		rev := testRevisions(t, k8sClient, owner).ForConfigMapVolume("scripts")
+		rev := testRevisions(t, k8sClient, owner).ForConfigMapVolumes(configMapVolumeClassifier("scripts"))
 
 		cm := BuildImmutableConfigMap("my-scripts", "default", map[string]string{"s.sh": "echo hi"}, nil)
 		name, err := rev.Reconcile(ctx, &cm)
@@ -228,7 +274,7 @@ func TestConfigMapRevision_Reconcile(t *testing.T) {
 			Data:       map[string]string{"s.sh": "existing"},
 		}
 		k8sClient := fake.NewClientBuilder().WithObjects(existing).Build()
-		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolume("scripts")
+		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolumes(configMapVolumeClassifier("scripts"))
 
 		cm := corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{Name: "scripts-aabbccdd", Namespace: "default"},
@@ -242,7 +288,7 @@ func TestConfigMapRevision_Reconcile(t *testing.T) {
 }
 
 func TestConfigMapRevision_PatchVolumes(t *testing.T) {
-	rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForConfigMapVolume("scripts-volume")
+	rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForConfigMapVolumes(configMapVolumeClassifier("scripts-volume"))
 
 	volumes := []corev1.Volume{
 		{
@@ -285,7 +331,7 @@ func TestConfigMapRevision_GC(t *testing.T) {
 		}
 
 		k8sClient := fake.NewClientBuilder().WithObjects(current, old).Build()
-		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolume("scripts")
+		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolumes(configMapVolumeClassifier("scripts"))
 		rev.reconciled.Insert("scripts-aabbccdd")
 
 		require.NoError(t, rev.GC(ctx))
@@ -328,7 +374,7 @@ func TestConfigMapRevision_GC(t *testing.T) {
 		}
 
 		k8sClient := fake.NewClientBuilder().WithObjects(current, oldStillUsed, veryOld, rs).Build()
-		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolume("scripts")
+		rev := testRevisions(t, k8sClient, nil).ForConfigMapVolumes(configMapVolumeClassifier("scripts"))
 		rev.reconciled.Insert("scripts-aabbccdd")
 
 		require.NoError(t, rev.GC(ctx))
@@ -356,8 +402,8 @@ func TestGCAll(t *testing.T) {
 
 	k8sClient := fake.NewClientBuilder().WithObjects(oldSecret, oldCM).Build()
 	revs := testRevisions(t, k8sClient, nil)
-	secretRev := revs.ForSecretVolume("config")
-	cmRev := revs.ForConfigMapVolume("scripts")
+	secretRev := revs.ForSecretVolumes(secretVolumeClassifier("config"))
+	cmRev := revs.ForConfigMapVolumes(configMapVolumeClassifier("scripts"))
 
 	require.NoError(t, GCAll(ctx, secretRev, cmRev))
 
@@ -380,7 +426,7 @@ func TestSecretRevision_GCWithProtectedNames(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "cfg-11223344", Namespace: "default", Labels: labels},
 	}
 	k8sClient := fake.NewClientBuilder().WithObjects(current, old).Build()
-	rev := testRevisions(t, k8sClient, nil).ForSecretVolume("config")
+	rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config"))
 	rev.reconciled.Insert("cfg-aabbccdd")
 
 	require.NoError(t, rev.GCWithProtectedNames(ctx, sets.New("cfg-11223344")))
@@ -388,6 +434,114 @@ func TestSecretRevision_GCWithProtectedNames(t *testing.T) {
 	var s corev1.Secret
 	require.NoError(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-aabbccdd", Namespace: "default"}, &s))
 	require.NoError(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-11223344", Namespace: "default"}, &s))
+}
+
+func TestSecretRevision_GC_MultipleVolumes(t *testing.T) {
+	ctx := context.Background()
+	labels := map[string]string{
+		"app":               "elasticsearch",
+		ConfigTypeLabelName: ConfigTypeImmutable,
+	}
+
+	current := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-aabbccdd", Namespace: "default", Labels: labels},
+	}
+	oldUsedByConfig := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-11223344", Namespace: "default", Labels: labels},
+	}
+	oldUsedByJvm := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-55667788", Namespace: "default", Labels: labels},
+	}
+	veryOld := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-00000000", Namespace: "default", Labels: labels},
+	}
+
+	rsWithConfig := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rs-config", Namespace: "default",
+			Labels: map[string]string{"app": "elasticsearch"},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{{
+						Name: "config",
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{SecretName: "cfg-11223344"},
+						},
+					}},
+				},
+			},
+		},
+	}
+	rsWithJvm := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rs-jvm", Namespace: "default",
+			Labels: map[string]string{"app": "elasticsearch"},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{{
+						Name: "jvm-options",
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{SecretName: "cfg-55667788"},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithObjects(current, oldUsedByConfig, oldUsedByJvm, veryOld, rsWithConfig, rsWithJvm).Build()
+	rev := testRevisions(t, k8sClient, nil).ForSecretVolumes(secretVolumeClassifier("config", "jvm-options"))
+	rev.reconciled.Insert("cfg-aabbccdd")
+
+	require.NoError(t, rev.GC(ctx))
+
+	var s corev1.Secret
+	require.NoError(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-aabbccdd", Namespace: "default"}, &s), "current should be protected")
+	require.NoError(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-11223344", Namespace: "default"}, &s), "referenced by config volume should be protected")
+	require.NoError(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-55667788", Namespace: "default"}, &s), "referenced by jvm-options volume should be protected")
+	assert.Error(t, k8sClient.Get(ctx, types.NamespacedName{Name: "cfg-00000000", Namespace: "default"}, &s), "unreferenced should be deleted")
+}
+
+func TestForSecretVolumes_WithMixedClassifier(t *testing.T) {
+	// Classifier with both immutable and dynamic volumes - only immutable should be patched
+	classifier := MapClassifier{
+		"config-volume":      Immutable,
+		"jvm-options-volume": Immutable,
+		"dynamic-volume":     Dynamic,
+	}
+
+	rev := testRevisions(t, fake.NewClientBuilder().Build(), nil).ForSecretVolumes(classifier)
+
+	volumes := []corev1.Volume{
+		{
+			Name: "config-volume",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{SecretName: "old-config"},
+			},
+		},
+		{
+			Name: "jvm-options-volume",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{SecretName: "old-jvm"},
+			},
+		},
+		{
+			Name: "dynamic-volume",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{SecretName: "dynamic-secret"},
+			},
+		},
+	}
+
+	rev.PatchVolumes(volumes, "new-immutable-a1b2c3d4")
+
+	assert.Equal(t, "new-immutable-a1b2c3d4", volumes[0].Secret.SecretName, "config volume should be patched")
+	assert.Equal(t, "new-immutable-a1b2c3d4", volumes[1].Secret.SecretName, "jvm-options volume should be patched")
+	assert.Equal(t, "dynamic-secret", volumes[2].Secret.SecretName, "dynamic volume should not be patched")
 }
 
 func TestRevisionsBuilder_Build(t *testing.T) {

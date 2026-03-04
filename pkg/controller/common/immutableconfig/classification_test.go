@@ -146,3 +146,37 @@ func TestSplitStringByClassification(t *testing.T) {
 	assert.Equal(t, map[string]string{"static.yml": "static content"}, gotImmutable)
 	assert.Equal(t, map[string]string{"dynamic.yml": "dynamic content"}, gotDynamic)
 }
+
+func TestMapClassifier_NamesWithClassification(t *testing.T) {
+	classifier := MapClassifier{
+		"config-volume":      Immutable,
+		"jvm-options-volume": Immutable,
+		"dynamic-volume":     Dynamic,
+		"other-volume":       Dynamic,
+	}
+
+	t.Run("returns immutable names", func(t *testing.T) {
+		names := classifier.NamesWithClassification(Immutable)
+		assert.Len(t, names, 2)
+		assert.Contains(t, names, "config-volume")
+		assert.Contains(t, names, "jvm-options-volume")
+	})
+
+	t.Run("returns dynamic names", func(t *testing.T) {
+		names := classifier.NamesWithClassification(Dynamic)
+		assert.Len(t, names, 2)
+		assert.Contains(t, names, "dynamic-volume")
+		assert.Contains(t, names, "other-volume")
+	})
+
+	t.Run("returns empty for unclassified", func(t *testing.T) {
+		names := classifier.NamesWithClassification(Unclassified)
+		assert.Empty(t, names)
+	})
+
+	t.Run("returns empty for empty classifier", func(t *testing.T) {
+		empty := MapClassifier{}
+		names := empty.NamesWithClassification(Immutable)
+		assert.Empty(t, names)
+	})
+}

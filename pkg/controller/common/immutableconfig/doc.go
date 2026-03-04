@@ -16,17 +16,23 @@
 // Controllers using this package should:
 //  1. Define a Classifier that maps config file names to Immutable or Dynamic
 //  2. Use BuildImmutableSecret/BuildImmutableConfigMap to create content-addressed resources
-//  3. Build Revisions with NewRevisions(...).With...().Build(), then use ForSecretVolume/
-//     ForConfigMapVolume to reconcile, patch volumes, and GC
+//  3. Build Revisions with NewRevisions(...).With...().Build(), then use ForSecretVolumes/
+//     ForConfigMapVolumes to reconcile, patch volumes, and GC
 //
 // # Example
 //
-//	classifier := immutableconfig.MapClassifier{
+//	// Classifier for config files (determines what goes in immutable vs dynamic secrets)
+//	fileClassifier := immutableconfig.MapClassifier{
 //	    "config.yml": immutableconfig.Immutable,
 //	    "dynamic.yml": immutableconfig.Dynamic,
 //	}
 //
-//	immutableData, dynamicData, err := immutableconfig.SplitByClassification(allData, classifier)
+//	// Classifier for volumes (determines which volumes reference immutable resources)
+//	volumeClassifier := immutableconfig.MapClassifier{
+//	    "config-volume": immutableconfig.Immutable,
+//	}
+//
+//	immutableData, dynamicData, err := immutableconfig.SplitByClassification(allData, fileClassifier)
 //	if err != nil {
 //	    return err
 //	}
@@ -40,7 +46,7 @@
 //	if err != nil {
 //	    return err
 //	}
-//	secretRev := revisions.ForSecretVolume("config-volume")
+//	secretRev := revisions.ForSecretVolumes(volumeClassifier)
 //
 //	name, err := secretRev.Reconcile(ctx, &secret)
 //	if err != nil {

@@ -12,14 +12,25 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/immutableconfig"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
 // StatelessConfigClassifier defines how config files are classified for stateless Elasticsearch.
 // All config files for stateless are immutable since there's no hot-reload mechanism.
 var StatelessConfigClassifier = immutableconfig.MapClassifier{
-	ConfigFileName:                 immutableconfig.Immutable, // elasticsearch.yml
-	OperatorUsersSettingsFileName:  immutableconfig.Immutable, // operator_users.yml
+	ConfigFileName:                immutableconfig.Immutable, // elasticsearch.yml
+	OperatorUsersSettingsFileName: immutableconfig.Immutable, // operator_users.yml
+}
+
+// StatelessSecretVolumeClassifier defines which Secret volumes are immutable for stateless Elasticsearch.
+var StatelessSecretVolumeClassifier = immutableconfig.MapClassifier{
+	ConfigVolumeName: immutableconfig.Immutable,
+}
+
+// StatelessConfigMapVolumeClassifier defines which ConfigMap volumes are immutable for stateless Elasticsearch.
+var StatelessConfigMapVolumeClassifier = immutableconfig.MapClassifier{
+	volume.ScriptsVolumeName: immutableconfig.Immutable,
 }
 
 // BuildStatelessImmutableConfigSecret builds an immutable, content-addressed config secret

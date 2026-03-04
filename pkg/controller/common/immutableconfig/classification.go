@@ -31,6 +31,17 @@ func (m MapClassifier) Classify(filename string) Classification {
 	return Unclassified
 }
 
+// NamesWithClassification returns all names in the classifier that have the given classification.
+func (m MapClassifier) NamesWithClassification(c Classification) []string {
+	var names []string
+	for name, classification := range m {
+		if classification == c {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 // SplitByClassification splits data into immutable and dynamic maps based on the classifier.
 // Returns an error if any file is unclassified.
 func SplitByClassification(data map[string][]byte, classifier Classifier) (immutable, dynamic map[string][]byte, err error) {

@@ -24,7 +24,6 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/driver/shared"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
-	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/maps"
 )
 
@@ -77,9 +76,9 @@ func (d *Driver) reconcileTiers(
 		return results.WithError(err)
 	}
 	// Each tier's immutable config data is stored in a content-addressed Secret.
-	secretRevision := revisions.ForSecretVolume(settings.ConfigVolumeName)
+	secretRevision := revisions.ForSecretVolumes(settings.StatelessSecretVolumeClassifier)
 	// Scripts are stored in a content-addressed ConfigMap shared across all tiers.
-	cmRevision := revisions.ForConfigMapVolume(volume.ScriptsVolumeName)
+	cmRevision := revisions.ForConfigMapVolumes(settings.StatelessConfigMapVolumeClassifier)
 
 	// Reconcile the immutable scripts ConfigMap once (shared across all tiers)
 	scriptsCM, err := configmap.BuildStatelessImmutableScriptsConfigMap(d.ES, meta)

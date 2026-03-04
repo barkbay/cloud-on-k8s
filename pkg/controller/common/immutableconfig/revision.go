@@ -102,12 +102,15 @@ var configMapOps = resourceOps{
 // create-only reconciliation with owner references, volume patching, and
 // garbage collection that protects resources referenced by existing ReplicaSets.
 type Revision struct {
-	client     client.Client
-	owner      client.Object
-	namespace  string
-	gcLabels   client.MatchingLabels
-	rsLabels   client.MatchingLabels
-	volumeName string
+	client    client.Client
+	owner     client.Object
+	namespace string
+	gcLabels  client.MatchingLabels
+	rsLabels  client.MatchingLabels
+	// volumeNames lists the pod volume names that reference this immutable resource.
+	// PatchVolumes updates all matching volumes; GC protects resources referenced
+	// by any of these volumes in existing ReplicaSets.
+	volumeNames []string
 	// reconciled tracks immutable resource names created or observed during the current
 	// reconciliation cycle. These names are always protected from deletion by GC.
 	reconciled sets.Set[string]
@@ -190,31 +193,35 @@ func (b RevisionsBuilder) Build() (Revisions, error) {
 	}, nil
 }
 
-// ForSecretVolume creates a Revision for an immutable Secret identified by its pod volume name.
-func (b Revisions) ForSecretVolume(volumeName string) *Revision {
+// ForSecretVolumes creates a Revision for an immutable Secret using a classifier to determine
+// which volumes are immutable. The classifier is the single source of truth: volumes classified
+// as Immutable will be patched by PatchVolumes and protected during GC.
+func (b Revisions) ForSecretVolumes(classifier MapClassifier) *Revision {
 	return &Revision{
-		client:     b.client,
-		owner:      b.owner,
-		namespace:  b.namespace,
-		gcLabels:   b.gcLabels,
-		rsLabels:   b.rsLabels,
-		volumeName: volumeName,
-		reconciled: sets.New[string](),
-		ops:        secretOps,
+		client:      b.client,
+		owner:       b.owner,
+		namespace:   b.namespace,
+		gcLabels:    b.gcLabels,
+		rsLabels:    b.rsLabels,
+		volumeNames: classifier.NamesWithClassification(Immutable),
+		reconciled:  sets.New[string](),
+		ops:         secretOps,
 	}
 }
 
-// ForConfigMapVolume creates a Revision for an immutable ConfigMap identified by its pod volume name.
-func (b Revisions) ForConfigMapVolume(volumeName string) *Revision {
+// ForConfigMapVolumes creates a Revision for an immutable ConfigMap using a classifier to determine
+// which volumes are immutable. The classifier is the single source of truth: volumes classified
+// as Immutable will be patched by PatchVolumes and protected during GC.
+func (b Revisions) ForConfigMapVolumes(classifier MapClassifier) *Revision {
 	return &Revision{
-		client:     b.client,
-		owner:      b.owner,
-		namespace:  b.namespace,
-		gcLabels:   b.gcLabels,
-		rsLabels:   b.rsLabels,
-		volumeName: volumeName,
-		reconciled: sets.New[string](),
-		ops:        configMapOps,
+		client:      b.client,
+		owner:       b.owner,
+		namespace:   b.namespace,
+		gcLabels:    b.gcLabels,
+		rsLabels:    b.rsLabels,
+		volumeNames: classifier.NamesWithClassification(Immutable),
+		reconciled:  sets.New[string](),
+		ops:         configMapOps,
 	}
 }
 
@@ -245,11 +252,14 @@ func (r *Revision) Reconcile(ctx context.Context, obj client.Object) (string, er
 }
 
 // PatchVolumes updates volume references in-place to point to the given immutable resource name.
-// Only volumes matching the Revision's volume name are patched.
+// Only volumes matching any of the Revision's volume names are patched.
 func (r *Revision) PatchVolumes(volumes []corev1.Volume, name string) {
 	for i := range volumes {
-		if volumes[i].Name == r.volumeName {
-			r.ops.patchVolRef(&volumes[i], name)
+		for _, volName := range r.volumeNames {
+			if volumes[i].Name == volName {
+				r.ops.patchVolRef(&volumes[i], name)
+				break
+			}
 		}
 	}
 }
@@ -284,9 +294,12 @@ func (r *Revision) GCWithProtectedNames(ctx context.Context, protected sets.Set[
 	}
 	for i := range rsList.Items {
 		for _, vol := range rsList.Items[i].Spec.Template.Spec.Volumes {
-			if vol.Name == r.volumeName {
-				if name := r.ops.extractVolRef(vol); name != "" {
-					protectedNames.Insert(name)
+			for _, volName := range r.volumeNames {
+				if vol.Name == volName {
+					if name := r.ops.extractVolRef(vol); name != "" {
+						protectedNames.Insert(name)
+					}
+					break
 				}
 			}
 		}
