@@ -19,8 +19,20 @@ import (
 	esvolume "github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/volume"
 )
 
+// buildVolumes assembles the volumes and volume mounts for an Elasticsearch pod.
+//
+// The function branches on es.IsStateless() for the data volume:
+//   - Stateful clusters: PVC-backed volumes from nodeSpec.VolumeClaimTemplates.
+//     The default data mount is appended by AppendDefaultDataVolumeMount.
+//   - Stateless clusters: a single ephemeral volume (named elasticsearch-cache)
+//     mounted at the ES data path. If the user supplied a VCT named
+//     elasticsearch-cache, its spec is used; otherwise a small default is
+//     injected.
+//
+// Other volumes (config, scripts, certs, users, file-settings, tmp, plugins,
+// logs, downward-API) are identical between stateful and stateless.
 func buildVolumes(
-	esName string,
+	es esv1.Elasticsearch,
 	version version.Version,
 	nodeSpec esv1.NodeSet,
 	keystoreResources *keystore.Resources,
@@ -28,17 +40,31 @@ func buildVolumes(
 	additionalMountsFromPolicy []volume.VolumeLike,
 	clientAuthenticationRequired bool,
 ) ([]corev1.Volume, []corev1.VolumeMount) {
-	configVolume := settings.ConfigSecretVolume(esv1.StatefulSet(esName, nodeSpec.Name))
+	esName := es.Name
+	// StatefulSet and Deployment share the same naming scheme for the pods
+	// controller resource, so the transport/config volume names derive from the
+	// same string in both modes.
+	controllerName := esv1.StatefulSet(esName, nodeSpec.Name)
+
+	configVolume := settings.ConfigSecretVolume(controllerName)
+
+	// The pre-stop hook authenticates as the pre-stop user; stateless has no
+	// pre-stop hook so we skip mounting that credential.
+	probeUsers := []string{user.ProbeUserName}
+	if !es.IsStateless() {
+		probeUsers = append(probeUsers, user.PreStopUserName)
+	}
 	probeSecret := volume.NewSelectiveSecretVolumeWithMountPath(
 		esv1.InternalUsersSecret(esName), esvolume.ProbeUserVolumeName,
-		esvolume.PodMountedUsersSecretMountPath, []string{user.ProbeUserName, user.PreStopUserName},
+		esvolume.PodMountedUsersSecretMountPath, probeUsers,
 	)
+
 	httpCertificatesVolume := volume.NewSecretVolumeWithMountPath(
 		certificates.InternalCertsSecretName(esv1.ESNamer, esName),
 		esvolume.HTTPCertificatesSecretVolumeName,
 		esvolume.HTTPCertificatesSecretVolumeMountPath,
 	)
-	transportCertificatesVolume := transportCertificatesVolume(esv1.StatefulSet(esName, nodeSpec.Name))
+	transportCertsVolume := transportCertificatesVolume(controllerName)
 	remoteCertificateAuthoritiesVolume := volume.NewSecretVolumeWithMountPath(
 		esv1.RemoteCaSecretName(esName),
 		esvolume.RemoteCertificateAuthoritiesSecretVolumeName,
@@ -66,30 +92,45 @@ func buildVolumes(
 		esvolume.TempVolumeName,
 		esvolume.TempVolumeMountPath,
 	)
-	// append future volumes from PVCs (not resolved to a claim yet)
-	persistentVolumes := make([]corev1.Volume, 0, len(nodeSpec.VolumeClaimTemplates))
-	for _, claimTemplate := range nodeSpec.VolumeClaimTemplates {
-		persistentVolumes = append(persistentVolumes, corev1.Volume{
-			Name: claimTemplate.Name,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					// actual claim name will be resolved and fixed right before pod creation
-					ClaimName: "claim-name-placeholder",
+
+	// Data volume:
+	//   - Stateful: placeholder PVC volumes for each VCT; actual claim name
+	//     resolved at pod creation time. The default data mount is appended by
+	//     AppendDefaultDataVolumeMount below.
+	//   - Stateless: a single ephemeral cache volume mounted at the ES data
+	//     path.
+	var dataVolumes []corev1.Volume
+	var dataVolumeMounts []corev1.VolumeMount
+	if es.IsStateless() {
+		dataVolumes = []corev1.Volume{defaultStatelessDataVolume(nodeSpec)}
+		dataVolumeMounts = []corev1.VolumeMount{{
+			Name:      esvolume.ElasticsearchCacheVolumeName,
+			MountPath: esvolume.ElasticsearchDataMountPath,
+		}}
+	} else {
+		dataVolumes = make([]corev1.Volume, 0, len(nodeSpec.VolumeClaimTemplates))
+		for _, claimTemplate := range nodeSpec.VolumeClaimTemplates {
+			dataVolumes = append(dataVolumes, corev1.Volume{
+				Name: claimTemplate.Name,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						// actual claim name will be resolved and fixed right before pod creation
+						ClaimName: "claim-name-placeholder",
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
-	volumes := persistentVolumes
-	volumes = append(
-		volumes, // includes the data volume, unless specified differently in the pod template
+	volumes := append(
+		dataVolumes,
 		append(
 			initcontainer.PluginVolumes.Volumes(),
 			esvolume.DefaultLogsVolume,
 			usersSecretVolume.Volume(),
 			unicastHostsVolume.Volume(),
 			probeSecret.Volume(),
-			transportCertificatesVolume.Volume(),
+			transportCertsVolume.Volume(),
 			remoteCertificateAuthoritiesVolume.Volume(),
 			httpCertificatesVolume.Volume(),
 			scriptsVolume.Volume(),
@@ -103,17 +144,22 @@ func buildVolumes(
 
 	volumeMounts := append(
 		initcontainer.PluginVolumes.ContainerVolumeMounts(),
-		esvolume.DefaultLogsVolumeMount,
-		usersSecretVolume.VolumeMount(),
-		unicastHostsVolume.VolumeMount(),
-		probeSecret.VolumeMount(),
-		transportCertificatesVolume.VolumeMount(),
-		remoteCertificateAuthoritiesVolume.VolumeMount(),
-		httpCertificatesVolume.VolumeMount(),
-		scriptsVolume.VolumeMount(),
-		configVolume.VolumeMount(),
-		downwardAPIVolume.VolumeMount(),
-		tmpVolume.VolumeMount(),
+		append(
+			[]corev1.VolumeMount{
+				esvolume.DefaultLogsVolumeMount,
+				usersSecretVolume.VolumeMount(),
+				unicastHostsVolume.VolumeMount(),
+				probeSecret.VolumeMount(),
+				transportCertsVolume.VolumeMount(),
+				remoteCertificateAuthoritiesVolume.VolumeMount(),
+				httpCertificatesVolume.VolumeMount(),
+				scriptsVolume.VolumeMount(),
+				configVolume.VolumeMount(),
+				downwardAPIVolume.VolumeMount(),
+				tmpVolume.VolumeMount(),
+			},
+			dataVolumeMounts...,
+		)...,
 	)
 
 	// version gate for the file-based settings volume and volumeMounts
@@ -143,13 +189,39 @@ func buildVolumes(
 	}
 
 	// additional volumes from stack config policy
-	for _, volume := range additionalMountsFromPolicy {
-		volumes = append(volumes, volume.Volume())
-		volumeMounts = append(volumeMounts, volume.VolumeMount())
+	for _, vol := range additionalMountsFromPolicy {
+		volumes = append(volumes, vol.Volume())
+		volumeMounts = append(volumeMounts, vol.VolumeMount())
 	}
 
-	// include the user-provided PodTemplate volumes as the user may have defined the data volume there (e.g.: emptyDir or hostpath volume)
-	volumeMounts = esvolume.AppendDefaultDataVolumeMount(volumeMounts, append(volumes, nodeSpec.PodTemplate.Spec.Volumes...))
+	if !es.IsStateless() {
+		// Allow users to override the default data volume via podTemplate.
+		volumeMounts = esvolume.AppendDefaultDataVolumeMount(volumeMounts, append(volumes, nodeSpec.PodTemplate.Spec.Volumes...))
+	}
 
 	return volumes, volumeMounts
+}
+
+// defaultStatelessDataVolume returns the ephemeral data ("cache") volume for a
+// stateless Elasticsearch pod. If the user provided a VolumeClaimTemplate named
+// elasticsearch-cache in the NodeSet, its spec is used; otherwise a small
+// default is injected using the cluster's default storage class.
+func defaultStatelessDataVolume(nodeSet esv1.NodeSet) corev1.Volume {
+	spec := esvolume.DefaultDataVolumeClaim.Spec.DeepCopy()
+	for _, vct := range nodeSet.VolumeClaimTemplates {
+		if vct.Name == esvolume.ElasticsearchCacheVolumeName {
+			spec = vct.Spec.DeepCopy()
+			break
+		}
+	}
+	return corev1.Volume{
+		Name: esvolume.ElasticsearchCacheVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Ephemeral: &corev1.EphemeralVolumeSource{
+				VolumeClaimTemplate: &corev1.PersistentVolumeClaimTemplate{
+					Spec: *spec,
+				},
+			},
+		},
+	}
 }

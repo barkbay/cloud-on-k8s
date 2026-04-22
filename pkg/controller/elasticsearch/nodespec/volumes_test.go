@@ -90,7 +90,7 @@ func Test_BuildVolumes_DataVolumeMountPath(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			_, volumeMounts := buildVolumes("esname", version.MustParse("8.8.0"), tc.nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{}, false)
+			_, volumeMounts := buildVolumes(esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname"}}, version.MustParse("8.8.0"), tc.nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{}, false)
 			assert.True(t, contains(volumeMounts, "elasticsearch-data", "/usr/share/elasticsearch/data"))
 		})
 	}
@@ -124,7 +124,7 @@ func Test_BuildVolumes_ClientAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			volumes, _ := buildVolumes("esname", version.MustParse("8.15.0"), nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{}, tt.clientAuthenticationRequired)
+			volumes, _ := buildVolumes(esv1.Elasticsearch{ObjectMeta: metav1.ObjectMeta{Name: "esname"}}, version.MustParse("8.15.0"), nodeSpec, nil, volume.DownwardAPI{}, []volume.VolumeLike{}, tt.clientAuthenticationRequired)
 			var volumeNames []string
 			for _, v := range volumes {
 				volumeNames = append(volumeNames, v.Name)

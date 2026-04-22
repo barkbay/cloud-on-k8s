@@ -88,11 +88,13 @@ func TestExtractVersion(t *testing.T) {
 
 func TestNewPodLabels(t *testing.T) {
 	type args struct {
-		es        types.NamespacedName
-		ssetName  string
-		ver       version.Version
-		nodeRoles *v1.Node
-		scheme    string
+		es             types.NamespacedName
+		isStateless    bool
+		controllerName string
+		ver            version.Version
+		nodeRoles      *v1.Node
+		scheme         string
+		tier           v1.StatelessTier
 	}
 	nameFixture := types.NamespacedName{
 		Namespace: "ns",
@@ -107,9 +109,9 @@ func TestNewPodLabels(t *testing.T) {
 		{
 			name: "labels pre-7.3",
 			args: args{
-				es:       nameFixture,
-				ssetName: "sset",
-				ver:      version.From(7, 1, 0),
+				es:             nameFixture,
+				controllerName: "sset",
+				ver:            version.From(7, 1, 0),
 				nodeRoles: &v1.Node{
 					Master:    ptr.To[bool](false),
 					Data:      ptr.To[bool](false),
@@ -135,9 +137,9 @@ func TestNewPodLabels(t *testing.T) {
 		{
 			name: "labels post-7.3",
 			args: args{
-				es:       nameFixture,
-				ssetName: "sset",
-				ver:      version.From(7, 3, 0),
+				es:             nameFixture,
+				controllerName: "sset",
+				ver:            version.From(7, 3, 0),
 				nodeRoles: &v1.Node{
 					Master:     ptr.To[bool](false),
 					Data:       ptr.To[bool](true),
@@ -165,9 +167,9 @@ func TestNewPodLabels(t *testing.T) {
 		{
 			name: "labels post-7.7",
 			args: args{
-				es:       nameFixture,
-				ssetName: "sset",
-				ver:      version.From(7, 7, 0),
+				es:             nameFixture,
+				controllerName: "sset",
+				ver:            version.From(7, 7, 0),
 				nodeRoles: &v1.Node{
 					Master:    ptr.To[bool](false),
 					Data:      ptr.To[bool](true),
@@ -196,9 +198,9 @@ func TestNewPodLabels(t *testing.T) {
 		{
 			name: "labels post-7.10",
 			args: args{
-				es:       nameFixture,
-				ssetName: "sset",
-				ver:      version.From(7, 10, 0),
+				es:             nameFixture,
+				controllerName: "sset",
+				ver:            version.From(7, 10, 0),
 				nodeRoles: &v1.Node{
 					Roles: nil,
 				},
@@ -227,9 +229,9 @@ func TestNewPodLabels(t *testing.T) {
 		{
 			name: "labels post-7.12",
 			args: args{
-				es:       nameFixture,
-				ssetName: "sset",
-				ver:      version.From(7, 12, 0),
+				es:             nameFixture,
+				controllerName: "sset",
+				ver:            version.From(7, 12, 0),
 				nodeRoles: &v1.Node{
 					Roles: nil,
 				},
@@ -256,10 +258,34 @@ func TestNewPodLabels(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "stateless index tier: deployment-name + tier, no node-role labels",
+			args: args{
+				es:             nameFixture,
+				isStateless:    true,
+				controllerName: "dep",
+				ver:            version.From(9, 2, 0),
+				nodeRoles:      &v1.Node{},
+				scheme:         "https",
+				tier:           v1.IndexTier,
+			},
+			want: map[string]string{
+				ClusterNameLabelName:    "name",
+				commonv1.TypeLabelName:  "elasticsearch",
+				VersionLabelName:        "9.2.0",
+				HTTPSchemeLabelName:     "https",
+				DeploymentNameLabelName: "dep",
+				TierLabelName:           "index",
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NewPodLabels(tt.args.es, tt.args.ssetName, tt.args.ver, tt.args.nodeRoles, tt.args.scheme)
+			got := NewPodLabels(
+				tt.args.es, tt.args.isStateless, tt.args.controllerName,
+				tt.args.ver, tt.args.nodeRoles, tt.args.scheme, tt.args.tier,
+			)
 			require.Nil(t, deep.Equal(got, tt.want))
 		})
 	}

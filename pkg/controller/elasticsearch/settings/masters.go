@@ -52,10 +52,12 @@ func UpdateSeedHostsConfigMap(
 	defer span.End()
 	log := ulog.FromContext(ctx)
 
-	// Get the masters from the pods
+	// Get the masters from the pods.
+	// In stateless mode, index tier nodes are master-eligible and identified by their tier label
+	// rather than the node-master role label.
 	var masters []corev1.Pod
 	for _, p := range pods {
-		if label.IsMasterNode(p) {
+		if label.IsMasterNode(p) || label.IsIndexTierNode(p) {
 			masters = append(masters, p)
 		}
 	}

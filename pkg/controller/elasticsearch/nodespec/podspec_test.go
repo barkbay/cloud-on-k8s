@@ -1103,6 +1103,7 @@ func Test_zoneAwarenessSchedulingDirectives(t *testing.T) {
 				tt.nodeSet,
 				"cluster",
 				"sset",
+				label.StatefulSetNameLabelName,
 				tt.clusterHasZoneAwareness,
 				tt.clusterTopologyKey,
 			)

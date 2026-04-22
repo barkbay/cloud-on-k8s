@@ -49,9 +49,8 @@ func (d *Driver) Reconcile(ctx context.Context) *reconciler.Results {
 		return results.WithError(err)
 	}
 
-	// TODO(#9204): stateless-specific reconciliation (Deployments, tiers) will go here.
-
-	return results
+	// Reconcile NodeSet Deployments with immutable config
+	return results.WithResults(d.reconcileNodeSets(ctx, sharedState.Meta))
 }
 
 // reconcileSecureSettings builds cluster_secrets from all secure settings sources and

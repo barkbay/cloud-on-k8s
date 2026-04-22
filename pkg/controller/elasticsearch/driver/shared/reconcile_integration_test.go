@@ -915,12 +915,14 @@ func mustBuildNewPod(t *testing.T, es *esv1.Elasticsearch, addr net.Addr, versio
 	ver := mustParseVersion(t, version)
 	labels := label.NewPodLabels(
 		types.NamespacedName{Namespace: es.Namespace, Name: es.Name},
+		false,
 		statefulSetName,
 		ver,
 		&esv1.Node{
 			Master: ptr.To[bool](true),
 		},
-		"https")
+		"https",
+		"")
 
 	return &corev1.Pod{
 		Status: corev1.PodStatus{

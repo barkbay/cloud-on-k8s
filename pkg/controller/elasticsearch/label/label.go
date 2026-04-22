@@ -57,6 +57,11 @@ const (
 
 	HTTPSchemeLabelName = "elasticsearch.k8s.elastic.co/http-scheme"
 
+	// DeploymentNameLabelName used to store the name of the deployment (stateless mode).
+	DeploymentNameLabelName = "elasticsearch.k8s.elastic.co/deployment-name"
+	// TierLabelName used to store the stateless tier of a NodeSet (index, search, master, ml).
+	TierLabelName = "elasticsearch.k8s.elastic.co/tier"
+
 	// Type represents the Elasticsearch type
 	Type = "elasticsearch"
 )
@@ -150,17 +155,37 @@ func NewLabels(es types.NamespacedName) map[string]string {
 }
 
 // NewPodLabels returns labels to apply for a new Elasticsearch pod.
+//
+// For stateful clusters, this sets the per-version node-role labels and the
+// StatefulSet name selector label. For stateless clusters (isStateless=true),
+// node-role labels are omitted (roles are expressed via the tier), the
+// Deployment name selector label is used in place of the StatefulSet one, and
+// the tier label is set so that tier-aware helpers (e.g. IsIndexTierNode used
+// for seed-host discovery) can identify master-eligible pods.
+//
+// controllerName is the StatefulSet or Deployment name (they share the same
+// naming scheme). nodeRoles is ignored when isStateless=true. tier is ignored
+// when isStateless=false.
 func NewPodLabels(
 	es types.NamespacedName,
-	ssetName string,
+	isStateless bool,
+	controllerName string,
 	ver version.Version,
 	nodeRoles *esv1.Node,
 	scheme string,
+	tier esv1.StatelessTier,
 ) map[string]string {
 	// cluster name based labels
 	labels := NewLabels(es)
 	// version label
 	labels[VersionLabelName] = ver.String()
+	labels[HTTPSchemeLabelName] = scheme
+
+	if isStateless {
+		labels[DeploymentNameLabelName] = controllerName
+		labels[TierLabelName] = string(tier)
+		return labels
+	}
 
 	// node types labels
 	NodeTypesMasterLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.MasterRole), labels)
@@ -188,10 +213,8 @@ func NewPodLabels(
 		NodeTypesDataFrozenLabelName.Set(nodeRoles.IsConfiguredWithRole(esv1.DataFrozenRole), labels)
 	}
 
-	labels[HTTPSchemeLabelName] = scheme
-
 	// apply stateful set label selector
-	maps.Copy(labels, NewStatefulSetLabels(es, ssetName))
+	maps.Copy(labels, NewStatefulSetLabels(es, controllerName))
 
 	return labels
 }
@@ -205,6 +228,33 @@ func NewStatefulSetLabels(es types.NamespacedName, ssetName string) map[string]s
 	lbls := NewLabels(es)
 	lbls[StatefulSetNameLabelName] = ssetName
 	return lbls
+}
+
+// NewDeploymentLabels returns labels for a stateless Elasticsearch Deployment.
+func NewDeploymentLabels(es types.NamespacedName, deploymentName string, tier esv1.StatelessTier) map[string]string {
+	lbls := NewLabels(es)
+	lbls[DeploymentNameLabelName] = deploymentName
+	lbls[TierLabelName] = string(tier)
+	return lbls
+}
+
+// IsIndexTierNode returns true if the pod is in the index tier.
+// In stateless mode, index tier nodes are master-eligible.
+func IsIndexTierNode(pod corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+	tier, ok := pod.Labels[TierLabelName]
+	return ok && tier == string(esv1.IndexTier)
+}
+
+// NewLabelSelectorForDeploymentName returns a labels.Selector that matches labels on resources
+// managed for a given Deployment in a cluster.
+func NewLabelSelectorForDeploymentName(clusterName, deploymentName string) client.MatchingLabels {
+	return client.MatchingLabels(map[string]string{
+		ClusterNameLabelName:    clusterName,
+		DeploymentNameLabelName: deploymentName,
+	})
 }
 
 // NewLabelSelectorForElasticsearch returns a labels.Selector that matches the labels as constructed by NewLabels

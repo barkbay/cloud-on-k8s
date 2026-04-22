@@ -302,12 +302,14 @@ func (t testPod) toPod() corev1.Pod {
 			Namespace: TestEsNamespace,
 			Name:      TestEsName,
 		},
+		false, // stateful
 		t.ssetName,
 		version.MustParse(t.version),
 		&esv1.Node{
 			Roles: t.roles,
 		},
 		"https",
+		"", // tier is stateless-only
 	)
 
 	if t.healthy {

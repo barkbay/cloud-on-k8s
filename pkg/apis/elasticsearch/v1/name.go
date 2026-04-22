@@ -121,6 +121,12 @@ func StatefulSet(esName string, nodeSetName string) string {
 	return ESNamer.Suffix(esName, nodeSetName)
 }
 
+// Deployment returns the name of the Deployment corresponding to the given NodeSet in stateless mode.
+// Uses the same naming scheme as StatefulSet for consistency.
+func Deployment(esName string, nodeSetName string) string {
+	return ESNamer.Suffix(esName, nodeSetName)
+}
+
 func ConfigSecret(ssetName string) string {
 	return ESNamer.Suffix(ssetName, configSecretSuffix)
 }

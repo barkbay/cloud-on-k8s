@@ -76,8 +76,9 @@ func newReconciler(mgr manager.Manager, params operator.Parameters) *ReconcileEl
 		licenseChecker: license.NewLicenseChecker(client, params.OperatorNamespace),
 		esObservers:    observer.NewManager(params.ElasticsearchObservationInterval, params.Tracer),
 
-		dynamicWatches: watches.NewDynamicWatches(),
-		expectations:   expectations.NewClustersExpectations(client, &appsv1.StatefulSet{}),
+		dynamicWatches:         watches.NewDynamicWatches(),
+		expectations:           expectations.NewClustersExpectations(client, &appsv1.StatefulSet{}),
+		deploymentExpectations: expectations.NewClustersExpectations(client, &appsv1.Deployment{}),
 
 		Parameters: params,
 	}
@@ -90,9 +91,15 @@ func addWatches(mgr manager.Manager, c controller.Controller, r *ReconcileElasti
 		return err
 	}
 
-	// Watch StatefulSets
+	// Watch StatefulSets (stateful mode)
 	if err := c.Watch(
 		source.Kind(mgr.GetCache(), &appsv1.StatefulSet{}, handler.TypedEnqueueRequestForOwner[*appsv1.StatefulSet](mgr.GetScheme(), mgr.GetRESTMapper(), &esv1.Elasticsearch{}, handler.OnlyControllerOwner()))); err != nil {
+		return err
+	}
+
+	// Watch Deployments (stateless mode)
+	if err := c.Watch(
+		source.Kind(mgr.GetCache(), &appsv1.Deployment{}, handler.TypedEnqueueRequestForOwner[*appsv1.Deployment](mgr.GetScheme(), mgr.GetRESTMapper(), &esv1.Elasticsearch{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
 
@@ -154,7 +161,8 @@ type ReconcileElasticsearch struct {
 
 	// expectations help dealing with inconsistencies in our client cache,
 	// by marking resources updates as expected, and skipping some operations if the cache is not up-to-date.
-	expectations *expectations.ClustersExpectation
+	expectations           *expectations.ClustersExpectation // StatefulSet expectations (stateful mode)
+	deploymentExpectations *expectations.ClustersExpectation // Deployment expectations (stateless mode)
 
 	// iteration is the number of times this controller has run its Reconcile method
 	iteration uint64
@@ -283,12 +291,6 @@ func (r *ReconcileElasticsearch) internalReconcile(
 		return results
 	}
 
-	// TODO(#9204): implement stateless driver and replace this guard with proper driver selection.
-	if es.IsStateless() {
-		log.Info("Stateless Elasticsearch detected, stateless driver not yet implemented")
-		return results
-	}
-
 	ver, err := commonversion.Parse(es.Spec.Version)
 	if err != nil {
 		return results.WithError(err)
@@ -296,6 +298,12 @@ func (r *ReconcileElasticsearch) internalReconcile(
 	supported := esversion.SupportedVersions(ver)
 	if supported == nil {
 		return results.WithError(pkgerrors.Errorf("unsupported version: %s", ver))
+	}
+
+	clusterNsn := k8s.ExtractNamespacedName(&es)
+	clusterExpectations := r.expectations.ForCluster(clusterNsn)
+	if es.IsStateless() {
+		clusterExpectations = r.deploymentExpectations.ForCluster(clusterNsn)
 	}
 
 	driverParams := driver.Parameters{
@@ -306,7 +314,7 @@ func (r *ReconcileElasticsearch) internalReconcile(
 		Recorder:           r.recorder,
 		URLProvider:        services.NewElasticsearchURLProvider(es, r.Client),
 		Version:            ver,
-		Expectations:       r.expectations.ForCluster(k8s.ExtractNamespacedName(&es)),
+		Expectations:       clusterExpectations,
 		Observers:          r.esObservers,
 		DynamicWatches:     r.dynamicWatches,
 		SupportedVersions:  *supported,
@@ -376,7 +384,9 @@ func (r *ReconcileElasticsearch) annotateResource(
 
 // onDelete garbage collect resources when an Elasticsearch cluster is deleted
 func (r *ReconcileElasticsearch) onDelete(ctx context.Context, es types.NamespacedName) error {
+	// Clean up both expectation types since we don't know the mode of the deleted resource.
 	r.expectations.RemoveCluster(es)
+	r.deploymentExpectations.RemoveCluster(es)
 	r.esObservers.StopObserving(es)
 	r.dynamicWatches.Secrets.RemoveHandlerForKey(keystore.SecureSettingsWatchName(es))
 	r.dynamicWatches.Secrets.RemoveHandlerForKey(certificates.CertificateWatchKey(esv1.ESNamer, es.Name))

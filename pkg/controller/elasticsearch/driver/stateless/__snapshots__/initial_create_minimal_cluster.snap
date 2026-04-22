@@ -1,0 +1,502 @@
+
+[TestReconcileNodeSets/initial_create_minimal_cluster - 1]
+{
+ "configMaps": [
+  {
+   "dataHash": "7d840f133b36",
+   "dataKeys": [
+    "pre-stop-hook-script.sh",
+    "prepare-fs.sh",
+    "readiness-port-script.sh",
+    "readiness-probe-script.sh",
+    "suspend.sh",
+    "suspended_pods.txt"
+   ],
+   "immutable": true,
+   "labels": {
+    "common.k8s.elastic.co/config-hash": "7d840f133b36",
+    "common.k8s.elastic.co/config-type": "immutable",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es"
+   },
+   "name": "test-es-es-scripts-7d840f13",
+   "namespace": "ns",
+   "ownerReferences": [
+    {
+     "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+     "controller": true,
+     "kind": "Elasticsearch",
+     "name": "test-es"
+    }
+   ]
+  }
+ ],
+ "deployments": [
+  {
+   "labels": {
+    "common.k8s.elastic.co/template-hash": "1370868921",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
+    "elasticsearch.k8s.elastic.co/tier": "index"
+   },
+   "name": "test-es-es-index",
+   "namespace": "ns",
+   "ownerReferences": [
+    {
+     "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+     "controller": true,
+     "kind": "Elasticsearch",
+     "name": "test-es"
+    }
+   ],
+   "replicas": 1,
+   "revisionHistoryLimit": 0,
+   "selector": {
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index"
+   },
+   "strategy": {
+    "rollingUpdate": {
+     "maxSurge": "25%",
+     "maxUnavailable": 0
+    },
+    "type": "RollingUpdate"
+   },
+   "template": {
+    "annotations": {
+     "co.elastic.logs/module": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/config-hash": "4024110030",
+     "policy.k8s.elastic.co/elasticsearch-config-mounts-hash": ""
+    },
+    "containers": [
+     {
+      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.0",
+      "name": "elasticsearch",
+      "volumeMounts": [
+       {
+        "mountPath": "/mnt/elastic-internal/downward-api",
+        "name": "downward-api",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/bin",
+        "name": "elastic-internal-elasticsearch-bin-local"
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/elasticsearch-config",
+        "name": "elastic-internal-elasticsearch-config",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config",
+        "name": "elastic-internal-elasticsearch-config-local"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/plugins",
+        "name": "elastic-internal-elasticsearch-plugins-local"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/http-certs",
+        "name": "elastic-internal-http-certificates",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/pod-mounted-users",
+        "name": "elastic-internal-probe-user",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/transport-remote-certs/",
+        "name": "elastic-internal-remote-certificate-authorities",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/scripts",
+        "name": "elastic-internal-scripts",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/transport-certs",
+        "name": "elastic-internal-transport-certificates",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/unicast-hosts",
+        "name": "elastic-internal-unicast-hosts",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/xpack-file-realm",
+        "name": "elastic-internal-xpack-file-realm",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/data",
+        "name": "elasticsearch-cache"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/logs",
+        "name": "elasticsearch-logs"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/operator",
+        "name": "file-settings",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/tmp",
+        "name": "tmp-volume"
+       }
+      ]
+     }
+    ],
+    "labels": {
+     "common.k8s.elastic.co/type": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
+     "elasticsearch.k8s.elastic.co/http-scheme": "https",
+     "elasticsearch.k8s.elastic.co/tier": "index",
+     "elasticsearch.k8s.elastic.co/version": "9.3.0"
+    },
+    "volumes": [
+     {
+      "name": "downward-api",
+      "source": "downwardAPI"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-bin-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-config",
+      "referenced": "test-es-es-index-es-config-cb5fdf6e",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-config-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-plugins-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-http-certificates",
+      "referenced": "test-es-es-http-certs-internal",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-probe-user",
+      "referenced": "test-es-es-internal-users",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-remote-certificate-authorities",
+      "referenced": "test-es-es-remote-ca",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-scripts",
+      "referenced": "test-es-es-scripts-7d840f13",
+      "source": "configMap"
+     },
+     {
+      "name": "elastic-internal-transport-certificates",
+      "referenced": "test-es-es-index-es-transport-certs",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-unicast-hosts",
+      "referenced": "test-es-es-unicast-hosts",
+      "source": "configMap"
+     },
+     {
+      "name": "elastic-internal-xpack-file-realm",
+      "referenced": "test-es-es-xpack-file-realm",
+      "source": "secret"
+     },
+     {
+      "name": "elasticsearch-cache",
+      "source": "ephemeral"
+     },
+     {
+      "name": "elasticsearch-logs",
+      "source": "emptyDir"
+     },
+     {
+      "name": "file-settings",
+      "referenced": "test-es-es-file-settings",
+      "source": "secret"
+     },
+     {
+      "name": "tmp-volume",
+      "source": "emptyDir"
+     }
+    ]
+   }
+  },
+  {
+   "labels": {
+    "common.k8s.elastic.co/template-hash": "3452527162",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+    "elasticsearch.k8s.elastic.co/tier": "search"
+   },
+   "name": "test-es-es-search",
+   "namespace": "ns",
+   "ownerReferences": [
+    {
+     "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+     "controller": true,
+     "kind": "Elasticsearch",
+     "name": "test-es"
+    }
+   ],
+   "replicas": 1,
+   "revisionHistoryLimit": 0,
+   "selector": {
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search"
+   },
+   "strategy": {
+    "rollingUpdate": {
+     "maxSurge": "25%",
+     "maxUnavailable": 0
+    },
+    "type": "RollingUpdate"
+   },
+   "template": {
+    "annotations": {
+     "co.elastic.logs/module": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/config-hash": "4218992220",
+     "policy.k8s.elastic.co/elasticsearch-config-mounts-hash": ""
+    },
+    "containers": [
+     {
+      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.0",
+      "name": "elasticsearch",
+      "volumeMounts": [
+       {
+        "mountPath": "/mnt/elastic-internal/downward-api",
+        "name": "downward-api",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/bin",
+        "name": "elastic-internal-elasticsearch-bin-local"
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/elasticsearch-config",
+        "name": "elastic-internal-elasticsearch-config",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config",
+        "name": "elastic-internal-elasticsearch-config-local"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/plugins",
+        "name": "elastic-internal-elasticsearch-plugins-local"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/http-certs",
+        "name": "elastic-internal-http-certificates",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/pod-mounted-users",
+        "name": "elastic-internal-probe-user",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/transport-remote-certs/",
+        "name": "elastic-internal-remote-certificate-authorities",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/scripts",
+        "name": "elastic-internal-scripts",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/transport-certs",
+        "name": "elastic-internal-transport-certificates",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/unicast-hosts",
+        "name": "elastic-internal-unicast-hosts",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/mnt/elastic-internal/xpack-file-realm",
+        "name": "elastic-internal-xpack-file-realm",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/data",
+        "name": "elasticsearch-cache"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/logs",
+        "name": "elasticsearch-logs"
+       },
+       {
+        "mountPath": "/usr/share/elasticsearch/config/operator",
+        "name": "file-settings",
+        "readOnly": true
+       },
+       {
+        "mountPath": "/tmp",
+        "name": "tmp-volume"
+       }
+      ]
+     }
+    ],
+    "labels": {
+     "common.k8s.elastic.co/type": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+     "elasticsearch.k8s.elastic.co/http-scheme": "https",
+     "elasticsearch.k8s.elastic.co/tier": "search",
+     "elasticsearch.k8s.elastic.co/version": "9.3.0"
+    },
+    "volumes": [
+     {
+      "name": "downward-api",
+      "source": "downwardAPI"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-bin-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-config",
+      "referenced": "test-es-es-search-es-config-5ac06ce3",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-config-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-elasticsearch-plugins-local",
+      "source": "emptyDir"
+     },
+     {
+      "name": "elastic-internal-http-certificates",
+      "referenced": "test-es-es-http-certs-internal",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-probe-user",
+      "referenced": "test-es-es-internal-users",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-remote-certificate-authorities",
+      "referenced": "test-es-es-remote-ca",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-scripts",
+      "referenced": "test-es-es-scripts-7d840f13",
+      "source": "configMap"
+     },
+     {
+      "name": "elastic-internal-transport-certificates",
+      "referenced": "test-es-es-search-es-transport-certs",
+      "source": "secret"
+     },
+     {
+      "name": "elastic-internal-unicast-hosts",
+      "referenced": "test-es-es-unicast-hosts",
+      "source": "configMap"
+     },
+     {
+      "name": "elastic-internal-xpack-file-realm",
+      "referenced": "test-es-es-xpack-file-realm",
+      "source": "secret"
+     },
+     {
+      "name": "elasticsearch-cache",
+      "source": "ephemeral"
+     },
+     {
+      "name": "elasticsearch-logs",
+      "source": "emptyDir"
+     },
+     {
+      "name": "file-settings",
+      "referenced": "test-es-es-file-settings",
+      "source": "secret"
+     },
+     {
+      "name": "tmp-volume",
+      "source": "emptyDir"
+     }
+    ]
+   }
+  }
+ ],
+ "result": {
+  "hasError": false,
+  "hasRequeue": false,
+  "reconciled": true
+ },
+ "secrets": [
+  {
+   "dataHash": "cb5fdf6ec4af",
+   "dataKeys": [
+    "elasticsearch.yml"
+   ],
+   "immutable": true,
+   "labels": {
+    "common.k8s.elastic.co/config-hash": "cb5fdf6ec4af",
+    "common.k8s.elastic.co/config-type": "immutable",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
+    "elasticsearch.k8s.elastic.co/tier": "index"
+   },
+   "name": "test-es-es-index-es-config-cb5fdf6e",
+   "namespace": "ns",
+   "ownerReferences": [
+    {
+     "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+     "controller": true,
+     "kind": "Elasticsearch",
+     "name": "test-es"
+    }
+   ]
+  },
+  {
+   "dataHash": "5ac06ce30fa1",
+   "dataKeys": [
+    "elasticsearch.yml"
+   ],
+   "immutable": true,
+   "labels": {
+    "common.k8s.elastic.co/config-hash": "5ac06ce30fa1",
+    "common.k8s.elastic.co/config-type": "immutable",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+    "elasticsearch.k8s.elastic.co/tier": "search"
+   },
+   "name": "test-es-es-search-es-config-5ac06ce3",
+   "namespace": "ns",
+   "ownerReferences": [
+    {
+     "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+     "controller": true,
+     "kind": "Elasticsearch",
+     "name": "test-es"
+    }
+   ]
+  }
+ ]
+}
+---

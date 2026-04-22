@@ -14,6 +14,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/common/metadata"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -55,6 +56,18 @@ const (
 var minDefaultSecurityContextVersion = version.MinFor(8, 0, 0)
 
 // BuildPodTemplateSpec builds a new PodTemplateSpec for an Elasticsearch node.
+//
+// The function is shared between stateful and stateless modes. Mode-specific
+// behavior is gated on es.IsStateless():
+//   - Volume set: stateless replaces PVC-backed data volumes with an
+//     ephemeral cache volume (see buildVolumes).
+//   - Pod labels: stateless pods get the Deployment name + tier labels instead
+//     of StatefulSet name + per-role labels (see label.NewPodLabels).
+//   - Pre-stop hook: skipped in stateless (pods are ephemeral).
+//   - Scripts ConfigMap lookup: skipped in stateless — the ConfigMap uses a
+//     content-addressed name (via RevisionManager), so a change of content
+//     produces a new Deployment revision and rotates pods automatically.
+//   - Zone-awareness scheduling selector: matches Deployment name in stateless.
 func BuildPodTemplateSpec(
 	ctx context.Context,
 	client k8s.Client,
@@ -74,7 +87,7 @@ func BuildPodTemplateSpec(
 	}
 
 	downwardAPIVolume := volume.DownwardAPI{}.WithAnnotations(es.HasDownwardNodeLabels())
-	volumes, volumeMounts := buildVolumes(es.Name, ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes, clientAuthenticationRequired)
+	volumes, volumeMounts := buildVolumes(es, ver, nodeSet, keystoreResources, downwardAPIVolume, policyConfig.AdditionalVolumes, clientAuthenticationRequired)
 
 	labels, err := buildLabels(es, cfg, nodeSet)
 	if err != nil {
@@ -83,9 +96,14 @@ func BuildPodTemplateSpec(
 
 	defaultContainerPorts := getDefaultContainerPorts(es)
 
+	// StatefulSet and Deployment share the same naming scheme, so this works
+	// for both modes.
+	controllerName := esv1.StatefulSet(es.Name, nodeSet.Name)
 	// now build the initContainers using the effective main container resources as an input
+	// The keystore init container is gated inside NewInitContainers on
+	// keystoreResources != nil; stateless always passes nil.
 	initContainers, err := initcontainer.NewInitContainers(
-		transportCertificatesVolume(esv1.StatefulSet(es.Name, nodeSet.Name)),
+		transportCertificatesVolume(controllerName),
 		keystoreResources,
 		es.DownwardNodeLabels(),
 	)
@@ -104,25 +122,35 @@ func BuildPodTemplateSpec(
 		})
 	}
 
-	headlessServiceName := HeadlessServiceName(esv1.StatefulSet(es.Name, nodeSet.Name))
-	ssetName := esv1.StatefulSet(es.Name, nodeSet.Name)
+	headlessServiceName := HeadlessServiceName(controllerName)
 	nodeSets := esv1.NodeSetList(es.Spec.NodeSets)
 	clusterHasZoneAwareness := nodeSets.HasZoneAwareness()
 	clusterZoneAwarenessTopologyKey := nodeSets.ZoneAwarenessTopologyKey()
 
-	// We retrieve the ConfigMap that holds the scripts to trigger a Pod restart if it is updated.
-	esScripts := &corev1.ConfigMap{}
-	if err := client.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}, esScripts); err != nil {
-		return corev1.PodTemplateSpec{}, err
+	// Retrieve the scripts ConfigMap so its content can be included in the
+	// pod's config hash: that way a change to the scripts rolls the pods.
+	// Stateless relies on content-addressed ConfigMap names for rotation and
+	// does not create a ConfigMap under the stable base name, so the lookup is
+	// skipped (scriptsContent left empty).
+	scriptsContent := ""
+	if !es.IsStateless() {
+		esScripts := &corev1.ConfigMap{}
+		if err := client.Get(ctx, types.NamespacedName{Namespace: es.Namespace, Name: esv1.ScriptsConfigMap(es.Name)}, esScripts); err != nil && !apierrors.IsNotFound(err) {
+			return corev1.PodTemplateSpec{}, err
+		}
+		scriptsContent = getScriptsConfigMapContent(esScripts)
 	}
-	annotations := buildAnnotations(es, cfg, keystoreResources, getScriptsConfigMapContent(esScripts), policyConfig.PolicyAnnotations, actualPodsRestartTriggerAnnotationValue)
+	annotations := buildAnnotations(es, cfg, keystoreResources, scriptsContent, policyConfig.PolicyAnnotations, actualPodsRestartTriggerAnnotationValue)
 
 	// Attempt to detect if the default data directory is mounted in a volume.
 	// If not, it could be a bug, a misconfiguration, or a custom storage configuration that requires the user to
 	// explicitly set ReadOnlyRootFilesystem to true.
+	// Stateless uses the "elasticsearch-cache" volume name for the same data
+	// mount path, so we accept either name.
 	enableReadOnlyRootFilesystem := false
 	for _, volumeMount := range volumeMounts {
-		if volumeMount.Name == esvolume.ElasticsearchDataVolumeName {
+		if volumeMount.Name == esvolume.ElasticsearchDataVolumeName ||
+			(es.IsStateless() && volumeMount.Name == esvolume.ElasticsearchCacheVolumeName) {
 			enableReadOnlyRootFilesystem = true
 			break
 		}
@@ -146,16 +174,29 @@ func BuildPodTemplateSpec(
 		// inherit all env vars from main containers to allow Elasticsearch tools that read ES config to work in initContainers
 		WithInitContainerDefaults(builder.MainContainer().Env...).
 		// set a default security context for both the Containers and the InitContainers
-		WithContainersSecurityContext(securitycontext.For(ver, enableReadOnlyRootFilesystem)).
-		WithPreStopHook(*NewPreStopHook())
+		WithContainersSecurityContext(securitycontext.For(ver, enableReadOnlyRootFilesystem))
+
+	// Pre-stop hook only applies to stateful: stateless pods are ephemeral and
+	// do not need the graceful shutdown dance.
+	if !es.IsStateless() {
+		builder = builder.WithPreStopHook(*NewPreStopHook())
+	}
 
 	if keystoreResources != nil && keystoreResources.KeystorePasswordSecretName != "" {
 		builder = keystorepassword.InjectKeystorePassword(builder, keystoreResources.KeystorePasswordSecretName)
 	}
+	// Zone-awareness scheduling directives identify the workload via the
+	// controller-name label: Deployment name in stateless, StatefulSet name in
+	// stateful.
+	controllerLabelName := label.StatefulSetNameLabelName
+	if es.IsStateless() {
+		controllerLabelName = label.DeploymentNameLabelName
+	}
 	spreadConstraints, requiredMatchExpressions := zoneAwarenessSchedulingDirectives(
 		nodeSet,
 		es.Name,
-		ssetName,
+		controllerName,
+		controllerLabelName,
 		clusterHasZoneAwareness,
 		clusterZoneAwarenessTopologyKey,
 	)
@@ -207,11 +248,25 @@ func buildLabels(
 		return nil, err
 	}
 
+	// Resolve the tier only in stateless mode; ResolvedTier returns an error
+	// on stateful NodeSets (no known tier prefix in the name), which is
+	// expected and should not fail label construction.
+	var tier esv1.StatelessTier
+	if es.IsStateless() {
+		resolved, err := nodeSet.ResolvedTier()
+		if err != nil {
+			return nil, err
+		}
+		tier = resolved
+	}
+
 	node := unpackedCfg.Node
 	podLabels := label.NewPodLabels(
 		k8s.ExtractNamespacedName(&es),
+		es.IsStateless(),
 		esv1.StatefulSet(es.Name, nodeSet.Name),
 		ver, node, es.Spec.HTTP.Protocol(),
+		tier,
 	)
 
 	return podLabels, nil
@@ -305,10 +360,13 @@ func zoneAwarenessEnv(nodeSet esv1.NodeSet, clusterHasZoneAwareness bool, cluste
 
 // zoneAwarenessSchedulingDirectives returns topology spread constraints and required
 // node affinity expressions derived from NodeSet and cluster zone-awareness settings.
+// The controllerLabelName and controllerName identify the workload controller (StatefulSet or Deployment)
+// in the topology spread constraint's label selector.
 func zoneAwarenessSchedulingDirectives(
 	nodeSet esv1.NodeSet,
 	clusterName,
-	statefulSetName string,
+	controllerName string,
+	controllerLabelName string,
 	clusterHasZoneAwareness bool,
 	clusterTopologyKey string,
 ) ([]corev1.TopologySpreadConstraint, []corev1.NodeSelectorRequirement) {
@@ -336,8 +394,8 @@ func zoneAwarenessSchedulingDirectives(
 			WhenUnsatisfiable: corev1.DoNotSchedule,
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					label.ClusterNameLabelName:     clusterName,
-					label.StatefulSetNameLabelName: statefulSetName,
+					label.ClusterNameLabelName: clusterName,
+					controllerLabelName:       controllerName,
 				},
 			},
 		},

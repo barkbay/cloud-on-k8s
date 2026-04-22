@@ -208,14 +208,19 @@ func (u *urlProvider) URL() (string, error) {
 			running = append(running, p)
 		}
 	}
-	switch {
-	case len(ready) > 0:
-		return randomESPodURL(ready), nil
-	case len(running) > 0:
-		return randomESPodURL(running), nil
-	default:
-		return u.svcURL, nil
+	// Prefer a direct pod URL over the service URL.
+	// randomESPodURL may return "" if no pod has a resolvable URL yet (e.g., no IP assigned).
+	if len(ready) > 0 {
+		if url := randomESPodURL(ready); url != "" {
+			return url, nil
+		}
 	}
+	if len(running) > 0 {
+		if url := randomESPodURL(running); url != "" {
+			return url, nil
+		}
+	}
+	return u.svcURL, nil
 }
 
 // Equals implements client.URLProvider.
@@ -245,7 +250,17 @@ func NewElasticsearchURLProvider(es esv1.Elasticsearch, client k8s.Client) clien
 }
 
 func randomESPodURL(pods []corev1.Pod) string {
-	randomPod := pods[rand.Intn(len(pods))] //nolint:gosec
+	// Filter pods that have a resolvable URL (may be empty for stateless pods without an IP yet)
+	var candidates []corev1.Pod
+	for _, p := range pods {
+		if ElasticsearchPodURL(p) != "" {
+			candidates = append(candidates, p)
+		}
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	randomPod := candidates[rand.Intn(len(candidates))] //nolint:gosec
 	return ElasticsearchPodURL(randomPod)
 }
 
@@ -255,6 +270,10 @@ func ElasticsearchPodURL(pod corev1.Pod) string {
 	sset, hasSsetLabel := pod.Labels[label.StatefulSetNameLabelName]
 	if hasSsetLabel && hasSchemeLabel {
 		return fmt.Sprintf("%s://%s.%s.%s:%d", scheme, pod.Name, sset, pod.Namespace, network.HTTPPort)
+	}
+	// Stateless: use Pod IP (no headless service for DNS-based discovery)
+	if hasSchemeLabel && pod.Status.PodIP != "" {
+		return fmt.Sprintf("%s://%s:%d", scheme, pod.Status.PodIP, network.HTTPPort)
 	}
 	return ""
 }

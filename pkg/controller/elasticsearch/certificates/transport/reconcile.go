@@ -30,9 +30,26 @@ import (
 )
 
 // ReconcileTransportCertificatesSecrets reconciles the secret containing transport certificates for all nodes in the
-// cluster.
+// cluster. For stateful clusters, certificates are created per StatefulSet. For stateless clusters,
+// certificates are created per Deployment (NodeSet).
 // Secrets which are not used anymore are deleted as part of the downscale process.
 func ReconcileTransportCertificatesSecrets(
+	ctx context.Context,
+	c k8s.Client,
+	ca *certificates.CA,
+	additionalCAs []byte,
+	es esv1.Elasticsearch,
+	rotationParams certificates.RotationParams,
+	meta metadata.Metadata,
+) *reconciler.Results {
+	if es.IsStateless() {
+		return reconcileStatelessTransportCerts(ctx, c, ca, additionalCAs, es, rotationParams, meta)
+	}
+	return reconcileStatefulTransportCerts(ctx, c, ca, additionalCAs, es, rotationParams, meta)
+}
+
+// reconcileStatefulTransportCerts handles transport certificates for stateful (StatefulSet) clusters.
+func reconcileStatefulTransportCerts(
 	ctx context.Context,
 	c k8s.Client,
 	ca *certificates.CA,
@@ -56,7 +73,27 @@ func ReconcileTransportCertificatesSecrets(
 	}
 
 	for ssetName := range ssets {
-		results.WithResults(reconcileNodeSetTransportCertificatesSecrets(ctx, c, ca, additionalCAs, es, ssetName, rotationParams, meta))
+		matchLabels := label.NewLabelSelectorForStatefulSetName(es.Name, ssetName)
+		results.WithResults(reconcileNodeSetTransportCertificatesSecrets(ctx, c, matchLabels, ca, additionalCAs, es, ssetName, rotationParams, meta))
+	}
+	return results
+}
+
+// reconcileStatelessTransportCerts handles transport certificates for stateless (Deployment) clusters.
+func reconcileStatelessTransportCerts(
+	ctx context.Context,
+	c k8s.Client,
+	ca *certificates.CA,
+	additionalCAs []byte,
+	es esv1.Elasticsearch,
+	rotationParams certificates.RotationParams,
+	meta metadata.Metadata,
+) *reconciler.Results {
+	results := &reconciler.Results{}
+	for _, nodeSet := range es.Spec.NodeSets {
+		deploymentName := esv1.Deployment(es.Name, nodeSet.Name)
+		matchLabels := label.NewLabelSelectorForDeploymentName(es.Name, deploymentName)
+		results.WithResults(reconcileNodeSetTransportCertificatesSecrets(ctx, c, matchLabels, ca, additionalCAs, es, deploymentName, rotationParams, meta))
 	}
 	return results
 }
@@ -85,6 +122,7 @@ const disabledMarker = "transport.certs.disabled"
 func reconcileNodeSetTransportCertificatesSecrets(
 	ctx context.Context,
 	c k8s.Client,
+	matchLabels client.MatchingLabels,
 	ca *certificates.CA,
 	additionalCAs []byte,
 	es esv1.Elasticsearch,
@@ -96,7 +134,6 @@ func reconcileNodeSetTransportCertificatesSecrets(
 	log := ulog.FromContext(ctx)
 	// List all the existing Pods in the nodeSet
 	var pods corev1.PodList
-	matchLabels := label.NewLabelSelectorForStatefulSetName(es.Name, ssetName)
 	ns := client.InNamespace(es.Namespace)
 	if err := c.List(ctx, &pods, matchLabels, ns); err != nil {
 		return results.WithError(errors.WithStack(err))

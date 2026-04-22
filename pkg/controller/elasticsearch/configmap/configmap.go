@@ -62,6 +62,29 @@ func ReconcileScriptsConfigMap(ctx context.Context, c k8s.Client, es esv1.Elasti
 	return reconcileConfigMap(ctx, c, es, scriptsConfigMap)
 }
 
+// BuildScriptsData returns the scripts data map for use in a ConfigMap.
+// The stateless driver uses this to build an immutable, content-addressed ConfigMap.
+func BuildScriptsData(es esv1.Elasticsearch) (map[string]string, error) {
+	fsScript, err := initcontainer.RenderPrepareFsScript(es.DownwardNodeLabels())
+	if err != nil {
+		return nil, err
+	}
+
+	preStopScript, err := nodespec.RenderPreStopHookScript(services.InternalServiceURL(es))
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		nodespec.LegacyReadinessProbeScriptConfigKey: nodespec.LegacyReadinessProbeScript,
+		nodespec.ReadinessPortProbeScriptConfigKey:   nodespec.ReadinessPortProbeScript,
+		nodespec.PreStopHookScriptConfigKey:          preStopScript,
+		initcontainer.PrepareFsScriptConfigKey:       fsScript,
+		initcontainer.SuspendScriptConfigKey:         initcontainer.SuspendScript,
+		initcontainer.SuspendedHostsFile:             initcontainer.RenderSuspendConfiguration(es),
+	}, nil
+}
+
 // ReconcileConfigMap checks for an existing config map and updates it or creates one if it does not exist.
 func reconcileConfigMap(
 	ctx context.Context,
