@@ -188,6 +188,38 @@ func Test_validModeSpecificConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "stateless: valid with dedicated master tier",
+			es: esv1.Elasticsearch{
+				Spec: esv1.ElasticsearchSpec{
+					Version:     "9.4.0",
+					Mode:        esv1.ElasticsearchModeStateless,
+					ObjectStore: &esv1.ObjectStoreConfig{Type: esv1.ObjectStoreTypeS3, Bucket: "b"},
+					NodeSets: []esv1.NodeSet{
+						{Name: "master-a", Count: 3, Tier: esv1.MasterTier},
+						{Name: "index-a", Count: 2, Tier: esv1.IndexTier},
+						{Name: "search-a", Count: 2, Tier: esv1.SearchTier},
+					},
+				},
+			},
+		},
+		{
+			name: "stateless: master tier with count = 0 is rejected",
+			es: esv1.Elasticsearch{
+				Spec: esv1.ElasticsearchSpec{
+					Version:     "9.4.0",
+					Mode:        esv1.ElasticsearchModeStateless,
+					ObjectStore: &esv1.ObjectStoreConfig{Type: esv1.ObjectStoreTypeS3, Bucket: "b"},
+					NodeSets: []esv1.NodeSet{
+						{Name: "master-a", Count: 0, Tier: esv1.MasterTier},
+						{Name: "index-a", Count: 2, Tier: esv1.IndexTier},
+						{Name: "search-a", Count: 2, Tier: esv1.SearchTier},
+					},
+				},
+			},
+			wantErrors: 1,
+			wantMsgs:   []string{tierMasterEmptyMsg},
+		},
+		{
 			name: "stateless: objectStore required",
 			es: esv1.Elasticsearch{
 				Spec: esv1.ElasticsearchSpec{

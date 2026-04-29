@@ -19,9 +19,15 @@ import (
 
 func TestBuildStatelessImmutableConfigSecret(t *testing.T) {
 	es := types.NamespacedName{Namespace: "ns", Name: "my-es"}
-	baseCfg, err := NewStatelessConfig(esv1.IndexTier, esv1.ObjectStoreConfig{
-		Type: esv1.ObjectStoreTypeS3, Bucket: "b",
-	})
+	esForCfg := esv1.Elasticsearch{
+		Spec: esv1.ElasticsearchSpec{
+			Mode: esv1.ElasticsearchModeStateless,
+			ObjectStore: &esv1.ObjectStoreConfig{
+				Type: esv1.ObjectStoreTypeS3, Bucket: "b",
+			},
+		},
+	}
+	baseCfg, err := NewStatelessConfig(esForCfg, esv1.IndexTier)
 	require.NoError(t, err)
 
 	t.Run("secret is content-addressed and carries expected metadata", func(t *testing.T) {
@@ -55,9 +61,15 @@ func TestBuildStatelessImmutableConfigSecret(t *testing.T) {
 	})
 
 	t.Run("different content produces a different name", func(t *testing.T) {
-		other, err := NewStatelessConfig(esv1.IndexTier, esv1.ObjectStoreConfig{
-			Type: esv1.ObjectStoreTypeS3, Bucket: "different-bucket",
-		})
+		esOther := esv1.Elasticsearch{
+			Spec: esv1.ElasticsearchSpec{
+				Mode: esv1.ElasticsearchModeStateless,
+				ObjectStore: &esv1.ObjectStoreConfig{
+					Type: esv1.ObjectStoreTypeS3, Bucket: "different-bucket",
+				},
+			},
+		}
+		other, err := NewStatelessConfig(esOther, esv1.IndexTier)
 		require.NoError(t, err)
 
 		s1, err := BuildStatelessImmutableConfigSecret(es, "dep-a", esv1.IndexTier, CanonicalConfig{baseCfg.CanonicalConfig})

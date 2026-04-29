@@ -120,31 +120,35 @@ func allMastersUnavailable(observed []appsv1.Deployment, hasMasterRole HasMaster
 	return AllDeploymentsUnavailable(withMaster)
 }
 
-// readerTierName is the tier that rolls out first during a version upgrade,
-// mirroring the stateless Elasticsearch split where search nodes read from
-// the shared object store while index nodes write to it.
-const readerTierName = "search"
-
-// GroupByTier splits expected tier resources into ordered reconciliation
-// groups so readers roll out before writers during a version upgrade:
-// resources belonging to the search tier come first, every other tier comes
-// second. The returned slice always has exactly two inner slices; either may
-// be empty. Resources preserve their input order within each group.
+// GroupByPriorityTier splits resources into ordered reconciliation groups:
+// resources whose tier matches priorityTier come first, every other
+// resource comes second. The returned slice always has exactly two inner
+// slices; either may be empty. Resources preserve their input order within
+// each group.
 //
-// tierOf extracts the tier name from a resource (compared against "search").
-// It lets each caller keep its own resource type and field layout without
-// having to commit to a shared type — ECK-stateless's `nodeSetResources` has
-// a StatelessTier field, and callers satisfy this contract via a one-line
-// accessor.
-func GroupByTier[T any](resources []T, tierOf func(T) string) [][]T {
-	search := make([]T, 0, len(resources))
+// Callers use this to express dependency-ordered rollouts — "roll this
+// tier first, delay the rest":
+//   - version upgrade: priorityTier = "search" (readers roll before writers;
+//     search nodes read from the shared object store while index nodes
+//     write to it, so readers are safe to bump first).
+//   - adding a dedicated master tier: priorityTier = "master" (quorum
+//     provider rolls before the index tier sheds its master role).
+//   - removing a dedicated master tier: priorityTier = "index" (the new
+//     master-bearing tier rolls before the outgoing master is GC'd).
+//
+// tierOf extracts the tier name from a resource. It lets each caller keep
+// its own resource type and field layout without having to commit to a
+// shared type — ECK-stateless's `nodeSetResources` has a StatelessTier
+// field, and callers satisfy this contract via a one-line accessor.
+func GroupByPriorityTier[T any](resources []T, tierOf func(T) string, priorityTier string) [][]T {
+	priority := make([]T, 0, len(resources))
 	others := make([]T, 0, len(resources))
 	for i := range resources {
-		if tierOf(resources[i]) == readerTierName {
-			search = append(search, resources[i])
+		if tierOf(resources[i]) == priorityTier {
+			priority = append(priority, resources[i])
 		} else {
 			others = append(others, resources[i])
 		}
 	}
-	return [][]T{search, others}
+	return [][]T{priority, others}
 }

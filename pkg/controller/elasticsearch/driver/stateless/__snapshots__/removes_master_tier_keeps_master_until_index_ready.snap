@@ -1,5 +1,5 @@
 
-[TestReconcileNodeSets/upgrade_gates_on_search_rollout - 1]
+[TestReconcileNodeSets/removes_master_tier_keeps_master_until_index_ready - 1]
 {
  "configMaps": [
   {
@@ -34,45 +34,13 @@
  "deployments": [
   {
    "labels": {
+    "common.k8s.elastic.co/template-hash": "1809233804",
     "common.k8s.elastic.co/type": "elasticsearch",
     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
     "elasticsearch.k8s.elastic.co/tier": "index"
    },
    "name": "test-es-es-index",
-   "namespace": "ns",
-   "replicas": 1,
-   "selector": {
-    "common.k8s.elastic.co/type": "elasticsearch",
-    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
-    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
-    "elasticsearch.k8s.elastic.co/tier": "index"
-   },
-   "strategy": {},
-   "template": {
-    "containers": [
-     {
-      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.2.0",
-      "name": "elasticsearch"
-     }
-    ],
-    "labels": {
-     "common.k8s.elastic.co/type": "elasticsearch",
-     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
-     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
-     "elasticsearch.k8s.elastic.co/tier": "index"
-    }
-   }
-  },
-  {
-   "labels": {
-    "common.k8s.elastic.co/template-hash": "3452527162",
-    "common.k8s.elastic.co/type": "elasticsearch",
-    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
-    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
-    "elasticsearch.k8s.elastic.co/tier": "search"
-   },
-   "name": "test-es-es-search",
    "namespace": "ns",
    "ownerReferences": [
     {
@@ -82,11 +50,11 @@
      "name": "test-es"
     }
    ],
-   "replicas": 1,
+   "replicas": 2,
    "revisionHistoryLimit": 0,
    "selector": {
     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
-    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search"
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index"
    },
    "strategy": {
     "rollingUpdate": {
@@ -98,7 +66,7 @@
    "template": {
     "annotations": {
      "co.elastic.logs/module": "elasticsearch",
-     "elasticsearch.k8s.elastic.co/config-hash": "4218992220",
+     "elasticsearch.k8s.elastic.co/config-hash": "4024110030",
      "policy.k8s.elastic.co/elasticsearch-config-mounts-hash": ""
     },
     "containers": [
@@ -186,9 +154,9 @@
     "labels": {
      "common.k8s.elastic.co/type": "elasticsearch",
      "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
-     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
      "elasticsearch.k8s.elastic.co/http-scheme": "https",
-     "elasticsearch.k8s.elastic.co/tier": "search",
+     "elasticsearch.k8s.elastic.co/tier": "index",
      "elasticsearch.k8s.elastic.co/version": "9.3.0"
     },
     "volumes": [
@@ -202,7 +170,7 @@
      },
      {
       "name": "elastic-internal-elasticsearch-config",
-      "referenced": "test-es-es-search-es-config-5ac06ce3",
+      "referenced": "test-es-es-index-es-config-cb5fdf6e",
       "source": "secret"
      },
      {
@@ -235,7 +203,7 @@
      },
      {
       "name": "elastic-internal-transport-certificates",
-      "referenced": "test-es-es-search-es-transport-certs",
+      "referenced": "test-es-es-index-es-transport-certs",
       "source": "secret"
      },
      {
@@ -267,30 +235,94 @@
      }
     ]
    }
-  }
- ],
- "result": {
-  "hasError": false,
-  "hasRequeue": true,
-  "reason": "transitioning: version upgrade in progress or pending (waiting for search tier)",
-  "reconciled": false
- },
- "secrets": [
+  },
   {
-   "dataHash": "5ac06ce30fa1",
-   "dataKeys": [
-    "elasticsearch.yml"
-   ],
-   "immutable": true,
    "labels": {
-    "common.k8s.elastic.co/config-hash": "5ac06ce30fa1",
-    "common.k8s.elastic.co/config-type": "immutable",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-master",
+    "elasticsearch.k8s.elastic.co/tier": "master"
+   },
+   "name": "test-es-es-master",
+   "namespace": "ns",
+   "replicas": 1,
+   "selector": {
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-master",
+    "elasticsearch.k8s.elastic.co/tier": "master"
+   },
+   "strategy": {},
+   "template": {
+    "containers": [
+     {
+      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.2.0",
+      "name": "elasticsearch"
+     }
+    ],
+    "labels": {
+     "common.k8s.elastic.co/type": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-master",
+     "elasticsearch.k8s.elastic.co/tier": "master"
+    }
+   }
+  },
+  {
+   "labels": {
     "common.k8s.elastic.co/type": "elasticsearch",
     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
     "elasticsearch.k8s.elastic.co/tier": "search"
    },
-   "name": "test-es-es-search-es-config-5ac06ce3",
+   "name": "test-es-es-search",
+   "namespace": "ns",
+   "replicas": 1,
+   "selector": {
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+    "elasticsearch.k8s.elastic.co/tier": "search"
+   },
+   "strategy": {},
+   "template": {
+    "containers": [
+     {
+      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.2.0",
+      "name": "elasticsearch"
+     }
+    ],
+    "labels": {
+     "common.k8s.elastic.co/type": "elasticsearch",
+     "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+     "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-search",
+     "elasticsearch.k8s.elastic.co/tier": "search"
+    }
+   }
+  }
+ ],
+ "result": {
+  "hasError": false,
+  "hasRequeue": true,
+  "reason": "transitioning: removing master tier",
+  "reconciled": false
+ },
+ "secrets": [
+  {
+   "dataHash": "cb5fdf6ec4af",
+   "dataKeys": [
+    "elasticsearch.yml"
+   ],
+   "immutable": true,
+   "labels": {
+    "common.k8s.elastic.co/config-hash": "cb5fdf6ec4af",
+    "common.k8s.elastic.co/config-type": "immutable",
+    "common.k8s.elastic.co/type": "elasticsearch",
+    "elasticsearch.k8s.elastic.co/cluster-name": "test-es",
+    "elasticsearch.k8s.elastic.co/deployment-name": "test-es-es-index",
+    "elasticsearch.k8s.elastic.co/tier": "index"
+   },
+   "name": "test-es-es-index-es-config-cb5fdf6e",
    "namespace": "ns",
    "ownerReferences": [
     {

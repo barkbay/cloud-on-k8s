@@ -24,6 +24,7 @@ const (
 	tierResolutionErrMsg                = "cannot resolve tier for NodeSet"
 	tierIndexRequiredMsg                = "at least one NodeSet with index tier is required in stateless mode"
 	tierSearchRequiredMsg               = "at least one NodeSet with search tier is required in stateless mode"
+	tierMasterEmptyMsg                  = "NodeSet with master tier must have count > 0 in stateless mode"
 	modeChangeMsg                       = "changing spec.mode is not allowed"
 	statelessNodeRolesWarningMsg        = "Setting node.roles manually in stateless mode is not recommended. Node roles are automatically configured based on the tier. Only set this for debugging purposes under guidance from Elastic support."
 	indexAndSearchRolesConflictMsg      = "a NodeSet cannot have both index and search roles"
@@ -141,8 +142,21 @@ func validateStatelessConfig(es esv1.Elasticsearch) field.ErrorList {
 			hasIndex = hasIndex || ns.Count > 0
 		case esv1.SearchTier:
 			hasSearch = hasSearch || ns.Count > 0
-		case esv1.MasterTier, esv1.MLTier:
-			// valid tiers that don't affect the index/search requirement
+		case esv1.MasterTier:
+			// A master-tier NodeSet with count = 0 is ambiguous — the spec
+			// asks for a dedicated master tier, which sheds the master role
+			// from the index tier (see settings.TierRolesFor), while
+			// simultaneously running zero masters. Reject rather than silently
+			// degrade to "index-only" or leave the cluster master-less.
+			if ns.Count == 0 {
+				errs = append(errs, field.Invalid(
+					field.NewPath("spec").Child("nodeSets").Index(i).Child("count"),
+					ns.Count,
+					tierMasterEmptyMsg,
+				))
+			}
+		case esv1.MLTier:
+			// valid tier that doesn't affect the index/search requirement
 		}
 	}
 

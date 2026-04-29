@@ -1,5 +1,5 @@
 
-[TestReconcileNodeSets/upgrade_gates_on_search_rollout - 1]
+[TestReconcileNodeSets/upgrade_pushes_search_first - 1]
 {
  "configMaps": [
   {

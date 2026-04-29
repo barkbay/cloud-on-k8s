@@ -22,6 +22,7 @@ import (
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/label"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/nodespec"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/settings"
+	"github.com/elastic/cloud-on-k8s/v3/pkg/controller/elasticsearch/sset"
 	"github.com/elastic/cloud-on-k8s/v3/pkg/utils/k8s"
 )
 
@@ -31,6 +32,48 @@ type nodeSetResources struct {
 	tier        esv1.StatelessTier
 	deployment  appsv1.Deployment
 	config      settings.CanonicalConfig
+}
+
+// buildAllNodeSetResources builds the spec-derived target resources for
+// every NodeSet in the cluster. Role assignment is purely spec-driven:
+// the stateless driver handles master-tier transitions by holding
+// specific observed Deployments in place (see plan.go), not by rewriting
+// roles mid-flight, so the build step stays stateless.
+func (d *Driver) buildAllNodeSetResources(ctx context.Context, meta metadata.Metadata) ([]nodeSetResources, error) {
+	policyConfig, err := nodespec.GetPolicyConfig(ctx, d.Client, d.ES)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get policy config: %w", err)
+	}
+
+	// Read the restart-trigger annotation from the current pods so we
+	// preserve it across reconciliations when the user removes it from
+	// the ES spec. This matches the stateful behavior (see
+	// nodespec.BuildExpectedResources).
+	actualPodsRestartTriggerAnnotationValue, err := sset.GetActualPodsRestartTriggerAnnotationForCluster(d.Client, d.ES)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get restart-trigger annotation from pods: %w", err)
+	}
+
+	allResources := make([]nodeSetResources, 0, len(d.ES.Spec.NodeSets))
+	for _, nodeSet := range d.ES.Spec.NodeSets {
+		res, err := buildNodeSetResources(
+			ctx,
+			d.Client,
+			d.ES,
+			nodeSet,
+			d.Version,
+			d.OperatorParameters.IPFamily,
+			d.OperatorParameters.SetDefaultSecurityContext,
+			policyConfig,
+			meta,
+			actualPodsRestartTriggerAnnotationValue,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build resources for NodeSet %s: %w", nodeSet.Name, err)
+		}
+		allResources = append(allResources, res)
+	}
+	return allResources, nil
 }
 
 // buildNodeSetResources builds the Deployment and config for a single stateless NodeSet.
@@ -55,8 +98,12 @@ func buildNodeSetResources(
 		return nodeSetResources{}, fmt.Errorf("objectStore is required for stateless mode")
 	}
 
-	// Build stateless-specific ES config (node roles, object store, discovery, etc.)
-	statelessCfg, err := settings.NewStatelessConfig(tier, *es.Spec.ObjectStore)
+	// Build stateless-specific ES config (node roles, object store, discovery, etc.).
+	// Role assignment is purely spec-derived: the driver does NOT rebuild
+	// resources with transitional role overrides. Master-tier transitions
+	// are instead orchestrated by holding specific observed Deployments in
+	// place (see stagePriorityTier in plan.go).
+	statelessCfg, err := settings.NewStatelessConfig(es, tier)
 	if err != nil {
 		return nodeSetResources{}, err
 	}

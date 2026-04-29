@@ -254,7 +254,7 @@ func TestAllDeploymentsUnavailable(t *testing.T) {
 	}))
 }
 
-func TestGroupByTier(t *testing.T) {
+func TestGroupByPriorityTier(t *testing.T) {
 	type tierResource struct {
 		name string
 		tier string
@@ -262,38 +262,42 @@ func TestGroupByTier(t *testing.T) {
 	tierOf := func(r tierResource) string { return r.tier }
 
 	tests := []struct {
-		name       string
-		in         []tierResource
-		wantGroup0 []string
-		wantGroup1 []string
+		name         string
+		in           []tierResource
+		priorityTier string
+		wantGroup0   []string
+		wantGroup1   []string
 	}{
 		{
-			name:       "empty input => two empty groups",
-			in:         nil,
-			wantGroup0: []string{},
-			wantGroup1: []string{},
+			name:         "empty input => two empty groups",
+			in:           nil,
+			priorityTier: "search",
+			wantGroup0:   []string{},
+			wantGroup1:   []string{},
 		},
 		{
-			name: "only search => group 1 empty",
+			name: "every resource in the priority tier => group 1 empty",
 			in: []tierResource{
 				{name: "a", tier: "search"},
 				{name: "b", tier: "search"},
 			},
-			wantGroup0: []string{"a", "b"},
-			wantGroup1: []string{},
+			priorityTier: "search",
+			wantGroup0:   []string{"a", "b"},
+			wantGroup1:   []string{},
 		},
 		{
-			name: "only non-search => group 0 empty",
+			name: "no resource in the priority tier => group 0 empty",
 			in: []tierResource{
 				{name: "a", tier: "index"},
 				{name: "b", tier: "ml"},
 				{name: "c", tier: "master"},
 			},
-			wantGroup0: []string{},
-			wantGroup1: []string{"a", "b", "c"},
+			priorityTier: "search",
+			wantGroup0:   []string{},
+			wantGroup1:   []string{"a", "b", "c"},
 		},
 		{
-			name: "mixed tiers preserve input order within each group",
+			name: "mixed tiers, priority=search, preserve input order within each group",
 			in: []tierResource{
 				{name: "index-0", tier: "index"},
 				{name: "search-0", tier: "search"},
@@ -301,23 +305,57 @@ func TestGroupByTier(t *testing.T) {
 				{name: "search-1", tier: "search"},
 				{name: "master-0", tier: "master"},
 			},
-			wantGroup0: []string{"search-0", "search-1"},
-			wantGroup1: []string{"index-0", "ml-0", "master-0"},
+			priorityTier: "search",
+			wantGroup0:   []string{"search-0", "search-1"},
+			wantGroup1:   []string{"index-0", "ml-0", "master-0"},
 		},
 		{
-			name: "empty tier is classified as non-search",
+			name: "master-first split (adding dedicated master tier)",
+			in: []tierResource{
+				{name: "index-0", tier: "index"},
+				{name: "master-0", tier: "master"},
+				{name: "search-0", tier: "search"},
+			},
+			priorityTier: "master",
+			wantGroup0:   []string{"master-0"},
+			wantGroup1:   []string{"index-0", "search-0"},
+		},
+		{
+			name: "index-first split (removing dedicated master tier)",
+			in: []tierResource{
+				{name: "index-0", tier: "index"},
+				{name: "master-0", tier: "master"},
+				{name: "search-0", tier: "search"},
+			},
+			priorityTier: "index",
+			wantGroup0:   []string{"index-0"},
+			wantGroup1:   []string{"master-0", "search-0"},
+		},
+		{
+			name: "empty tier label never wins priority",
 			in: []tierResource{
 				{name: "a", tier: ""},
 				{name: "b", tier: "search"},
 			},
-			wantGroup0: []string{"b"},
-			wantGroup1: []string{"a"},
+			priorityTier: "search",
+			wantGroup0:   []string{"b"},
+			wantGroup1:   []string{"a"},
+		},
+		{
+			name: "empty priority tier => everything goes to group 1",
+			in: []tierResource{
+				{name: "a", tier: "index"},
+				{name: "b", tier: "search"},
+			},
+			priorityTier: "",
+			wantGroup0:   []string{},
+			wantGroup1:   []string{"a", "b"},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := GroupByTier(tc.in, tierOf)
+			got := GroupByPriorityTier(tc.in, tierOf, tc.priorityTier)
 			assert.Len(t, got, 2)
 
 			names := func(group []tierResource) []string {

@@ -39,6 +39,31 @@ func Quorum(nMasters int) int {
 	return (nMasters / 2) + 1
 }
 
+// isMasterEligiblePod reports whether the pod should be considered
+// master-eligible for seed-hosts / quorum purposes, branching on cluster mode.
+func isMasterEligiblePod(es esv1.Elasticsearch, pod corev1.Pod) bool {
+	if es.IsStateless() {
+		return IsMasterEligibleStatelessPod(es, pod)
+	}
+	return label.IsMasterNode(pod)
+}
+
+// IsMasterEligibleStatelessPod reports whether a stateless pod is
+// master-eligible under the current spec. It reads the pod's tier label and
+// consults TierHasMasterRole, so eligibility stays in sync with how roles are
+// assigned in the config (TierRolesFor). A pod without the tier label is not
+// eligible.
+func IsMasterEligibleStatelessPod(es esv1.Elasticsearch, pod corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+	tierStr, ok := pod.Labels[label.TierLabelName]
+	if !ok {
+		return false
+	}
+	return TierHasMasterRole(es, esv1.StatelessTier(tierStr))
+}
+
 // UpdateSeedHostsConfigMap updates the config map that contains the seed hosts. It returns true if a reconcile
 // iteration should be triggered later because some pods don't have an IP yet.
 func UpdateSeedHostsConfigMap(
@@ -52,12 +77,15 @@ func UpdateSeedHostsConfigMap(
 	defer span.End()
 	log := ulog.FromContext(ctx)
 
-	// Get the masters from the pods.
-	// In stateless mode, index tier nodes are master-eligible and identified by their tier label
-	// rather than the node-master role label.
+	// Get the master-eligible pods. In stateful mode this is the master
+	// role label set on the pod. In stateless mode we don't have per-role
+	// pod labels (stateless pods only carry cluster + deployment + tier
+	// labels) so eligibility is derived from the pod's tier in combination
+	// with the spec — the same source of truth used when assigning
+	// node.roles (see settings.TierRolesFor).
 	var masters []corev1.Pod
 	for _, p := range pods {
-		if label.IsMasterNode(p) || label.IsIndexTierNode(p) {
+		if isMasterEligiblePod(es, p) {
 			masters = append(masters, p)
 		}
 	}

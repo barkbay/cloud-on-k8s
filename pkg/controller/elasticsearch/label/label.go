@@ -160,8 +160,8 @@ func NewLabels(es types.NamespacedName) map[string]string {
 // StatefulSet name selector label. For stateless clusters (isStateless=true),
 // node-role labels are omitted (roles are expressed via the tier), the
 // Deployment name selector label is used in place of the StatefulSet one, and
-// the tier label is set so that tier-aware helpers (e.g. IsIndexTierNode used
-// for seed-host discovery) can identify master-eligible pods.
+// the tier label is set so tier-aware helpers (e.g. seed-host discovery) can
+// derive master eligibility from the cluster spec + tier.
 //
 // controllerName is the StatefulSet or Deployment name (they share the same
 // naming scheme). nodeRoles is ignored when isStateless=true. tier is ignored
@@ -236,16 +236,6 @@ func NewDeploymentLabels(es types.NamespacedName, deploymentName string, tier es
 	lbls[DeploymentNameLabelName] = deploymentName
 	lbls[TierLabelName] = string(tier)
 	return lbls
-}
-
-// IsIndexTierNode returns true if the pod is in the index tier.
-// In stateless mode, index tier nodes are master-eligible.
-func IsIndexTierNode(pod corev1.Pod) bool {
-	if pod.Labels == nil {
-		return false
-	}
-	tier, ok := pod.Labels[TierLabelName]
-	return ok && tier == string(esv1.IndexTier)
 }
 
 // NewLabelSelectorForDeploymentName returns a labels.Selector that matches labels on resources

@@ -169,8 +169,12 @@ func TestReconcileNodeSets(t *testing.T) {
 			},
 		},
 		{
-			name: "upgrade_both_tiers_rolled_out",
+			name: "upgrade_pushes_search_first",
 			build: func(_ *testing.T) (esv1.Elasticsearch, []client.Object) {
+				// Pending version upgrade: observed tiers carry the old
+				// image, the spec carries the new one. The Plan must
+				// push the search tier first (readers before writers),
+				// leave the index tier untouched, and requeue.
 				es := fixtures.NewStatelessES("test-es", []esv1.NodeSet{
 					fixtures.NodeSet("search", 1, esv1.SearchTier),
 					fixtures.NodeSet("index", 1, esv1.IndexTier),
@@ -182,10 +186,75 @@ func TestReconcileNodeSets(t *testing.T) {
 			},
 			check: func(t *testing.T, d *Driver, res *reconciler.Results) {
 				t.Helper()
-				reconciled, _ := res.IsReconciled()
-				assert.True(t, reconciled, "expected a fully reconciled pass, got requeue")
-				assert.Equal(t, fixtures.NewESImage, fixtures.DeploymentImage(t, d.Client, d.ES.Namespace, "test-es-es-search"))
-				assert.Equal(t, fixtures.NewESImage, fixtures.DeploymentImage(t, d.Client, d.ES.Namespace, "test-es-es-index"))
+				assert.True(t, res.HasRequeue(), "expected a requeue while search tier rolls out")
+				_, reason := res.IsReconciled()
+				assert.Contains(t, reason, "search",
+					"requeue reason should mention the search tier, got %q", reason)
+				assert.Equal(t, fixtures.NewESImage, fixtures.DeploymentImage(t, d.Client, d.ES.Namespace, "test-es-es-search"),
+					"search tier should be pushed to the new image on this pass")
+				assert.Equal(t, fixtures.OldESImage, fixtures.DeploymentImage(t, d.Client, d.ES.Namespace, "test-es-es-index"),
+					"index tier should stay at the old image until search has rolled out")
+			},
+		},
+		{
+			name: "adds_master_tier_pushes_master_first",
+			build: func(_ *testing.T) (esv1.Elasticsearch, []client.Object) {
+				// Starting from a bootstrapped cluster with [index, search],
+				// the user introduces a dedicated master tier. First pass
+				// should create the master Deployment; it is not yet rolled
+				// out so the driver requeues before touching group 2.
+				es := fixtures.NewStatelessES("test-es", []esv1.NodeSet{
+					fixtures.NodeSet("master", 3, esv1.MasterTier),
+					fixtures.NodeSet("index", 2, esv1.IndexTier),
+					fixtures.NodeSet("search", 2, esv1.SearchTier),
+				}, fixtures.WithBootstrapped("fake-uuid"))
+				return es, []client.Object{
+					fixtures.SeededDeployment(es, "index", esv1.IndexTier, fixtures.OldESImage, fixtures.RolledOutDeploymentStatus(1)),
+					fixtures.SeededDeployment(es, "search", esv1.SearchTier, fixtures.OldESImage, fixtures.RolledOutDeploymentStatus(1)),
+				}
+			},
+			check: func(t *testing.T, d *Driver, res *reconciler.Results) {
+				t.Helper()
+				assert.True(t, res.HasRequeue(), "expected a requeue while master tier rolls out")
+				_, reason := res.IsReconciled()
+				assert.Contains(t, reason, "master",
+					"requeue reason should mention the master tier group, got %q", reason)
+				fixtures.RequireDeploymentExists(t, d.Client, d.ES.Namespace, "test-es-es-master")
+				// During Adding, the index tier is held (its observed
+				// Deployment is in Plan.Keep, never in Plan.Apply), so
+				// its live Deployment template is untouched and its
+				// image is still the pre-existing one.
+				assert.Equal(t, fixtures.OldESImage, fixtures.DeploymentImage(t, d.Client, d.ES.Namespace, "test-es-es-index"),
+					"index tier image should stay unchanged on the first pass of an Adding transition")
+			},
+		},
+		{
+			name: "removes_master_tier_keeps_master_until_index_ready",
+			build: func(_ *testing.T) (esv1.Elasticsearch, []client.Object) {
+				// Starting from a bootstrapped cluster with a dedicated
+				// master tier, the user removes the master NodeSet. The
+				// spec-aware config rebuilds the index tier with the
+				// master role re-included; the observed master Deployment
+				// must NOT be GC'd on this pass.
+				es := fixtures.NewStatelessES("test-es", []esv1.NodeSet{
+					fixtures.NodeSet("index", 2, esv1.IndexTier),
+					fixtures.NodeSet("search", 2, esv1.SearchTier),
+				}, fixtures.WithBootstrapped("fake-uuid"))
+				// Pre-existing masters tier (not in the current spec).
+				masterD := fixtures.SeededDeployment(es, "master", esv1.MasterTier, fixtures.OldESImage, fixtures.RolledOutDeploymentStatus(1))
+				return es, []client.Object{
+					masterD,
+					fixtures.SeededDeployment(es, "index", esv1.IndexTier, fixtures.OldESImage, fixtures.RolledOutDeploymentStatus(1)),
+					fixtures.SeededDeployment(es, "search", esv1.SearchTier, fixtures.OldESImage, fixtures.RolledOutDeploymentStatus(1)),
+				}
+			},
+			check: func(t *testing.T, d *Driver, res *reconciler.Results) {
+				t.Helper()
+				assert.True(t, res.HasRequeue(), "expected a requeue while index tier re-acquires master role")
+				// Master Deployment is preserved during the Removing transition
+				// until the index tier is rolled out with the master role
+				// re-included.
+				fixtures.RequireDeploymentExists(t, d.Client, d.ES.Namespace, "test-es-es-master")
 			},
 		},
 		{
