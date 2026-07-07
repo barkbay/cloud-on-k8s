@@ -13,8 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -71,16 +69,15 @@ func WatchNamespaceFlipsMapped(
 	notifier NamespaceNotifier,
 	mapFn func(context.Context, *corev1.Namespace) []reconcile.Request,
 ) error {
-	if notifier == nil {
+	if notifier == nil || !notifier.SelectorEnabled() {
 		return nil
 	}
-	return c.Watch(source.Channel(
-		notifier.Subscribe(),
-		handler.TypedEnqueueRequestsFromMapFunc(mapFn),
-	))
+	return c.Watch(notifier.FlipSource(mapFn))
 }
 
 type NamespaceNotifier interface {
-	Subscribe() <-chan event.TypedGenericEvent[*corev1.Namespace]
+	// FlipSource returns a watch source that enqueues the requests produced by
+	// mapFn onto the subscribing controller's workqueue on each namespace flip.
+	FlipSource(mapFn func(context.Context, *corev1.Namespace) []reconcile.Request) source.Source
 	SelectorEnabled() bool
 }

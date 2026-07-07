@@ -6,24 +6,14 @@ package nsmatch
 
 import (
 	"context"
-	"errors"
 	"sync"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-
-	"github.com/go-logr/logr"
-
-	ulog "github.com/elastic/cloud-on-k8s/v3/pkg/utils/log"
+	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
-
-// subscriberBufferSize is the buffer depth for each subscriber channel. A buffer this size
-// lets the broadcaster proceed without blocking during bursts of namespace events.
-const subscriberBufferSize = 32
-
-const subscriberLogBackpressureDuration = 3 * time.Second
 
 // NamespaceMatcher evaluates a label selector against namespace labels,
 // tracks each namespace's match state, and broadcasts to subscribers whenever
@@ -52,14 +42,13 @@ const subscriberLogBackpressureDuration = 3 * time.Second
 // client — see the same state as the leader. Broadcasting to subscribers, in
 // contrast, only happens on the elected leader; see Broadcast and SetElected.
 type NamespaceMatcher struct {
-	selector                          labels.Selector
-	alwaysManagedNamespaces           map[string]struct{} // namespaces excluded from label-selector evaluation.
-	subs                              []chan event.TypedGenericEvent[*corev1.Namespace]
-	matchedNamespacesMutex            sync.Mutex
-	matchedNamespaces                 map[string]struct{} // namespace name -> present if namespace matches to the selector
-	subscriberLogBackpressureDuration time.Duration
-	subscriberBufferSize              int
-	elected                           <-chan struct{} // closed once this replica is elected leader; nil means always elected.
+	selector                labels.Selector
+	alwaysManagedNamespaces map[string]struct{} // namespaces excluded from label-selector evaluation.
+	matchedNamespacesMutex  sync.Mutex
+	matchedNamespaces       map[string]struct{} // namespace name -> present if namespace matches to the selector
+	sinksMutex              sync.RWMutex
+	sinks                   []*flipSink     // one per subscribed controller, registered when its watch source starts.
+	elected                 <-chan struct{} // closed once this replica is elected leader; nil means always elected.
 }
 
 // NewNamespaceMatcher returns a NamespaceMatcher. When sel is nil it acts as
@@ -74,9 +63,7 @@ func NewNamespaceMatcher(sel labels.Selector, operatorNS string) *NamespaceMatch
 			"":         {},
 			operatorNS: {},
 		},
-		matchedNamespaces:                 map[string]struct{}{},
-		subscriberLogBackpressureDuration: subscriberLogBackpressureDuration,
-		subscriberBufferSize:              subscriberBufferSize,
+		matchedNamespaces: map[string]struct{}{},
 	}
 }
 
@@ -173,57 +160,88 @@ func (m *NamespaceMatcher) ObserveNamespace(ns *corev1.Namespace) (isMatching bo
 	return
 }
 
-// Subscribe returns a receive-only channel that receives one event each time
-// Broadcast is called. Intended to be passed to a controller's Watch source.
-func (m *NamespaceMatcher) Subscribe() <-chan event.TypedGenericEvent[*corev1.Namespace] {
-	ch := make(chan event.TypedGenericEvent[*corev1.Namespace], m.subscriberBufferSize)
-	// No mutex needed: all controllers call Subscribe sequentially during
-	// manager initialization, before mgr.Start() launches any goroutines.
-	m.subs = append(m.subs, ch)
-	return ch
+// flipSink is one subscribed controller's connection to the matcher: the
+// controller's own workqueue plus the mapper that turns a flipped namespace
+// into the reconcile.Requests to enqueue on that queue.
+type flipSink struct {
+	queue workqueue.TypedRateLimitingInterface[reconcile.Request]
+	mapFn func(context.Context, *corev1.Namespace) []reconcile.Request
 }
 
-// Broadcast sends the namespace to every subscriber, blocking on each send
-// until it succeeds or ctx is done. A blocked send is logged periodically
-// (every subscriberLogBackpressureDuration) so persistent backpressure is
-// visible. On context cancellation, Broadcast stops waiting on the current
-// subscriber, records ctx's error for it, and moves on to the rest.
+// namespaceFlipSource is a controller-runtime source.Source. controller-runtime
+// calls Start with the owning controller's workqueue when the controller starts,
+// which is the only point at which that queue becomes available; the source
+// registers a sink so Broadcast can enqueue directly onto it.
+type namespaceFlipSource struct {
+	m     *NamespaceMatcher
+	mapFn func(context.Context, *corev1.Namespace) []reconcile.Request
+}
+
+// Start registers the sink and deregisters it when the controller's context is
+// cancelled. It returns immediately: no goroutine drains anything, delivery is
+// driven by Broadcast pushing onto the workqueue.
+func (s *namespaceFlipSource) Start(ctx context.Context, q workqueue.TypedRateLimitingInterface[reconcile.Request]) error {
+	sink := &flipSink{queue: q, mapFn: s.mapFn}
+	s.m.registerSink(sink)
+	go func() {
+		<-ctx.Done()
+		s.m.removeSink(sink)
+	}()
+	return nil
+}
+
+// FlipSource returns a watch source that, each time Broadcast fires, maps the
+// flipped namespace through mapFn and enqueues the resulting requests onto the
+// subscribing controller's workqueue. Intended to be passed to controller.Watch.
+func (m *NamespaceMatcher) FlipSource(mapFn func(context.Context, *corev1.Namespace) []reconcile.Request) source.Source {
+	return &namespaceFlipSource{m: m, mapFn: mapFn}
+}
+
+func (m *NamespaceMatcher) registerSink(s *flipSink) {
+	m.sinksMutex.Lock()
+	defer m.sinksMutex.Unlock()
+	m.sinks = append(m.sinks, s)
+}
+
+func (m *NamespaceMatcher) removeSink(target *flipSink) {
+	m.sinksMutex.Lock()
+	defer m.sinksMutex.Unlock()
+	for i, s := range m.sinks {
+		if s == target {
+			m.sinks = append(m.sinks[:i], m.sinks[i+1:]...)
+			return
+		}
+	}
+}
+
+// Broadcast maps ns through every registered sink's mapper and enqueues the
+// resulting requests onto that sink's controller workqueue. workqueue.Add is
+// non-blocking and deduplicates by request key, so a slow reconciler grows its
+// own queue depth without blocking Broadcast or any other subscriber, and a
+// burst of flips for the same namespace collapses to a single pending item.
 //
 // On a replica that has not (yet) been elected leader, Broadcast is a no-op:
-// subscriber controllers only run on the leader, so nothing consumes from the
-// channels and a blocking send would never complete. Dropping is safe because
-// when this replica is later elected, every subscriber controller starts with
-// a full initial sync of its own CRs, whose watch predicates consult the
-// match-state map — maintained on every replica — so flips dropped here are
-// re-evaluated then.
+// subscriber controllers are leader-election runnables, so on a non-leader no
+// sink is ever registered and there is nothing to enqueue onto. Skipping is
+// safe because the match-state map is written before Broadcast is called and
+// carries the state across the election; when this replica becomes leader, each
+// subscriber controller's initial sync replays every CR against the already-warm
+// map, subsuming any flip skipped here.
 func (m *NamespaceMatcher) Broadcast(ctx context.Context, ns *corev1.Namespace) error {
-	if !m.SelectorEnabled() {
+	if !m.SelectorEnabled() || !m.isElected() {
 		return nil
 	}
 
-	if !m.isElected() {
-		// Dropping the event here loses no information: the match state was
-		// recorded in the map before Broadcast was called, and the map is what
-		// carries the state across the election. When this replica becomes
-		// leader, the elected channel is closed before the subscriber
-		// controllers start, so their initial sync replays every CR against
-		// the already-warm map — re-enqueue triggers dropped here are subsumed
-		// by that replay. Broadcasts are only needed for flips that happen
-		// after the initial sync, and by then this branch is no longer taken.
-		return nil
-	}
+	m.sinksMutex.RLock()
+	sinks := append([]*flipSink(nil), m.sinks...)
+	m.sinksMutex.RUnlock()
 
-	log := ulog.FromContext(ctx)
-
-	// No mutex needed: subs is written only during initialization (Subscribe)
-	// and is immutable by the time Broadcast is first called. Concurrent sends
-	// to the same channel are safe because channels handle their own synchronization.
-	ev := event.TypedGenericEvent[*corev1.Namespace]{Object: ns}
-	errs := make([]error, len(m.subs))
-	for i, ch := range m.subs {
-		errs[i] = sendAndLogBackpressure(ctx, log, ch, m.subscriberLogBackpressureDuration, ev)
+	for _, s := range sinks {
+		for _, req := range s.mapFn(ctx, ns) {
+			s.queue.Add(req)
+		}
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // ObserveAndBroadcast calls ObserveNamespace and broadcasts ns to all
@@ -261,21 +279,4 @@ func (m *NamespaceMatcher) Swap(ns string, isMatching bool) (wasMatching bool) {
 // up by their own controllers, so there is nothing for subscribers to react to.
 func (m *NamespaceMatcher) ForgetNamespace(ns string) {
 	_ = m.Swap(ns, false)
-}
-
-func sendAndLogBackpressure[chType any](ctx context.Context, log logr.Logger, ch chan<- chType, logDuration time.Duration, item chType) error {
-	ticker := time.NewTicker(logDuration)
-	defer ticker.Stop()
-	waited := time.Duration(0)
-	for {
-		select {
-		case ch <- item:
-			return nil
-		case <-ticker.C:
-			waited += logDuration
-			log.Info("subscriber channel send is still blocked, possible backpressure", "waited", waited.String())
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
 }
