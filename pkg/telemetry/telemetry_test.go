@@ -41,6 +41,7 @@ var (
 		CustomOperatorNamespace: true,
 		Distribution:            "v1.16.13-gke.1",
 		DistributionChannel:     "test-channel",
+		EnforceRBACOnRefs:       "true",
 		BuildInfo: about.BuildInfo{
 			Version:  "1.1.0",
 			Hash:     "b5316231",
@@ -82,6 +83,7 @@ func TestMarshalTelemetry(t *testing.T) {
   custom_operator_namespace: false
   distribution: ""
   distributionChannel: ""
+  enforce_rbac_on_refs: ""
   license: null
   operator_uuid: ""
   stats: null
@@ -108,6 +110,7 @@ func TestMarshalTelemetry(t *testing.T) {
   custom_operator_namespace: true
   distribution: v1.16.13-gke.1
   distributionChannel: test-channel
+  enforce_rbac_on_refs: "true"
   license:
     eck_license_level: basic
   operator_uuid: 15039433-f873-41bd-b6e7-10ee3665cafa
@@ -447,6 +450,7 @@ func TestNewReporter(t *testing.T) {
   custom_operator_namespace: true
   distribution: v1.16.13-gke.1
   distributionChannel: test-channel
+  enforce_rbac_on_refs: "true"
   license:
     eck_license_level: basic
     enterprise_resource_units: "1"
@@ -558,6 +562,7 @@ func TestNewReporter(t *testing.T) {
   custom_operator_namespace: true
   distribution: v1.16.13-gke.1
   distributionChannel: test-channel
+  enforce_rbac_on_refs: "true"
   license:
     eck_license_level: basic
     enterprise_resource_units: "1"

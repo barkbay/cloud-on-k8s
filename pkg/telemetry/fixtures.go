@@ -52,6 +52,7 @@ const expectedTelemetryTemplate = `eck:
   custom_operator_namespace: true
   distribution: v1.16.13-gke.1
   distributionChannel: test-channel
+  enforce_rbac_on_refs: "true"
   license:
     eck_license_level: basic
     enterprise_resource_units: "1"

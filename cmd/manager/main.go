@@ -759,6 +759,14 @@ func startOperator(ctx context.Context) error {
 		log.Error(err, "Failed to get operator info")
 		return err
 	}
+	rbacMode, err := operator.ParseRBACOnRefsMode(viper.GetString(operator.EnforceRBACOnRefsFlag))
+	if err != nil {
+		return err
+	}
+	operatorInfo.EnforceRBACOnRefs = string(rbacMode)
+	if w := rbacMode.StartupMessage(); w != "" {
+		log.Info(w)
+	}
 
 	log.Info("Setting up controllers")
 
@@ -818,6 +826,7 @@ func startOperator(ctx context.Context) error {
 		ValidateStorageClass:      viper.GetBool(operator.ValidateStorageClassFlag),
 		Tracer:                    tracer,
 		NamespaceMatcher:          namespaceMatcher,
+		RBACOnRefsMode:            rbacMode,
 	}
 
 	if viper.GetBool(operator.EnableWebhookFlag) {
@@ -825,15 +834,6 @@ func startOperator(ctx context.Context) error {
 			return err
 		}
 	}
-
-	rbacMode, err := operator.ParseRBACOnRefsMode(viper.GetString(operator.EnforceRBACOnRefsFlag))
-	if err != nil {
-		return err
-	}
-	if w := rbacMode.StartupMessage(); w != "" {
-		log.Info(w)
-	}
-	params.RBACOnRefsMode = rbacMode
 
 	var accessReviewer rbac.AccessReviewer
 	if rbacMode.EnforcementEnabled() {

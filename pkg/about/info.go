@@ -50,6 +50,7 @@ type OperatorInfo struct {
 	CustomOperatorNamespace bool      `json:"custom_operator_namespace"`
 	Distribution            string    `json:"distribution"`
 	DistributionChannel     string    `json:"distributionChannel"`
+	EnforceRBACOnRefs       string    `json:"enforce_rbac_on_refs"`
 	BuildInfo               BuildInfo `json:"build"`
 }
 
